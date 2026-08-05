@@ -1,9 +1,11 @@
+import os
 import shutil
 import sqlite3
 from sqlmodel import SQLModel, create_engine, Session
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent / "worklog.db"
+_db_name = os.environ.get("WORKLOG_DB", "worklog.db")
+DB_PATH = Path(__file__).parent / _db_name
 engine = create_engine(f"sqlite:///{DB_PATH}", echo=False)
 
 

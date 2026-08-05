@@ -1,4 +1,4 @@
-.PHONY: install dev api web
+.PHONY: install dev api web sample screenshot
 
 install:
 	python3 -m venv api/.venv
@@ -16,3 +16,9 @@ api:
 
 web:
 	cd web && npm run dev
+
+sample:
+	api/.venv/bin/python scripts/generate_sample.py
+
+screenshot:
+	./scripts/take_screenshot.sh
