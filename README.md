@@ -15,8 +15,8 @@ A personal app for tracking daily tasks, meetings, and workstreams — built to 
 - **Links** — attach PRs, issues, docs, Slack threads; supports rich paste (copy a link from your browser, paste to auto-extract URL + label)
 - **Click-to-edit markdown** — click rendered notes to edit, Cmd+Enter to save
 - **Review page** — filter and browse all tasks with date range, state, workstream, label, and high-impact filters; export to markdown
-- **Backup & restore** — JSON export/import of all data
-- **Theme switcher** — Dark, Dim, and Light themes
+- **Backup & restore** — JSON export/import of all data (includes settings)
+- **Customizable** — personalize the app title, theme (Dark/Dim/Light), and day window size; all settings persist in the database
 - **Local-first** — all data stays in a local SQLite database
 
 ## Tech Stack
@@ -51,7 +51,7 @@ The database (`api/worklog.db`) is created automatically on first run. Demo mode
 api/                  Python FastAPI backend
   models.py           DB models + request/response types
   database.py         Engine, sessions, migrations
-  routes/             REST endpoints (day, tasks, meetings, workstreams, labels, backup)
+  routes/             REST endpoints (day, tasks, meetings, workstreams, labels, settings, backup)
 
 web/                  React + Vite + TypeScript frontend
   src/api/            API client, types, date utilities
