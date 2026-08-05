@@ -21,10 +21,10 @@ const OUTPUT = process.env.SCREENSHOT_OUTPUT || 'docs/screenshot.png'
 async function main() {
   const browser = await puppeteer.launch({
     headless: 'new',
-    args: ['--window-size=1280,900', '--force-dark-mode', '--hide-scrollbars'],
+    args: ['--window-size=1280,1200', '--force-dark-mode', '--hide-scrollbars'],
   })
   const page = await browser.newPage()
-  await page.setViewport({ width: 1280, height: 960, deviceScaleFactor: 2 })
+  await page.setViewport({ width: 1280, height: 1200, deviceScaleFactor: 2 })
 
   // Set dim theme in localStorage before loading
   await page.evaluateOnNewDocument(() => {
@@ -64,8 +64,6 @@ async function main() {
     await sleep(500)
   }
 
-  // Scroll down a bit so meetings + both expanded tasks are visible
-  await page.evaluate(() => window.scrollTo(0, 130))
   await sleep(300)
 
   await page.screenshot({ path: OUTPUT, fullPage: false })
