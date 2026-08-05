@@ -5,11 +5,13 @@ from datetime import date
 
 from ..database import get_session
 from ..models import (
-    Task, TaskCreate, TaskRead, TaskUpdate,
+    Task, TaskCreate, TaskRead, TaskUpdate, TaskState,
     TaskLink, TaskLinkCreate, TaskLinkRead,
     Label, TaskLabelLink, MeetingTaskLink,
     Meeting, MeetingBrief,
 )
+
+STATE_ORDER = {TaskState.IN_PROGRESS: 0, TaskState.TODO: 1, TaskState.COMPLETE: 2}
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -47,7 +49,9 @@ def list_tasks(
             (Task.end_date == None) | (Task.end_date >= active_on)
         )
     tasks = session.exec(q.order_by(Task.created_at)).all()
-    return [_enrich(t, session) for t in tasks]
+    enriched = [_enrich(t, session) for t in tasks]
+    enriched.sort(key=lambda t: (STATE_ORDER.get(t.state, 9), t.created_at))
+    return enriched
 
 
 @router.post("", response_model=TaskRead, status_code=201)

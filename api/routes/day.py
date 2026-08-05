@@ -33,9 +33,13 @@ def get_day(day: date, session: Session = Depends(get_session)):
     raw_tasks = session.exec(tasks_q.order_by(Task.created_at)).all()
     enriched = [_enrich(t, session) for t in raw_tasks]
 
+    STATE_ORDER = {TaskState.IN_PROGRESS: 0, TaskState.TODO: 1, TaskState.COMPLETE: 2}
+
     ws_map: dict[Optional[str], list] = {}
     for t in enriched:
         ws_map.setdefault(t.workstream_id, []).append(t)
+    for task_list in ws_map.values():
+        task_list.sort(key=lambda t: (STATE_ORDER.get(t.state, 9), t.created_at))
 
     # Only include workstreams that actually have tasks on this day.
     # Includes archived workstreams if they still have active tasks.
