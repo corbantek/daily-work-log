@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Zap, ChevronRight, ChevronDown, Plus, Trash2, Pencil, X, Check } from 'lucide-react'
+import { Zap, ChevronRight, ChevronDown, Plus, Trash2, Pencil, X, Check, CalendarDays } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -12,7 +12,7 @@ import { WorkstreamPicker } from './WorkstreamPicker'
 import { LabelPicker } from './LabelPicker'
 import { ClickToEditMarkdown } from './ClickToEditMarkdown'
 import type { Task, LinkType, TaskState, Workstream } from '../api/types'
-import { updateTask, deleteTask, addTaskLink, updateTaskLink, deleteTaskLink, getWorkstreams } from '../api/client'
+import { updateTask, deleteTask, addTaskLink, updateTaskLink, deleteTaskLink, getWorkstreams, unlinkTaskFromMeeting } from '../api/client'
 import { cn } from '@/lib/utils'
 import { todayStr } from '../api/date'
 
@@ -261,6 +261,30 @@ export function TaskRow({ task, onChanged }: Props) {
                       style={{ backgroundColor: label.color + '33', color: label.color }}
                     >
                       {label.name}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {task.meetings.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {task.meetings.map(meeting => (
+                    <span
+                      key={meeting.id}
+                      className="group/meeting inline-flex items-center gap-1 text-xs bg-muted/50 border border-border/50 rounded-full px-2.5 py-0.5 text-muted-foreground"
+                    >
+                      <CalendarDays size={11} className="flex-shrink-0" />
+                      <span className="truncate max-w-48">{new Date(meeting.date + 'T00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · {meeting.title}</span>
+                      <button
+                        onClick={async () => {
+                          await unlinkTaskFromMeeting(meeting.id, task.id)
+                          onChanged()
+                        }}
+                        className="opacity-0 group-hover/meeting:opacity-100 hover:text-destructive transition-all flex-shrink-0 -mr-0.5"
+                        title="Unlink from meeting"
+                      >
+                        <X size={10} />
+                      </button>
                     </span>
                   ))}
                 </div>

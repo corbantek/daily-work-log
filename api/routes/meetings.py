@@ -77,5 +77,7 @@ def delete_meeting(meeting_id: str, session: Session = Depends(get_session)):
     meeting = session.get(Meeting, meeting_id)
     if not meeting:
         raise HTTPException(404)
+    for link in session.exec(select(MeetingTaskLink).where(MeetingTaskLink.meeting_id == meeting_id)).all():
+        session.delete(link)
     session.delete(meeting)
     session.commit()

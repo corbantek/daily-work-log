@@ -16,6 +16,12 @@ export interface TaskLink {
   created_at: string
 }
 
+export interface MeetingBrief {
+  id: string
+  title: string
+  date: string
+}
+
 export interface Task {
   id: string
   action: string
@@ -28,6 +34,7 @@ export interface Task {
   created_at: string
   labels: Label[]
   links: TaskLink[]
+  meetings: MeetingBrief[]
 }
 
 export interface Workstream {

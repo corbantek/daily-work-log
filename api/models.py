@@ -147,11 +147,18 @@ class TaskCreate(TaskBase):
     label_ids: List[str] = []
 
 
+class MeetingBrief(SQLModel):
+    id: str
+    title: str
+    date: date
+
+
 class TaskRead(TaskBase):
     id: str
     created_at: datetime
     labels: List[LabelRead] = []
     links: List[TaskLinkRead] = []
+    meetings: List[MeetingBrief] = []
 
 
 class TaskUpdate(SQLModel):

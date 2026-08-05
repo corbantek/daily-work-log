@@ -3,7 +3,7 @@ from sqlmodel import Session, select
 from typing import List
 
 from ..database import get_session
-from ..models import Label, LabelCreate, LabelRead
+from ..models import Label, LabelCreate, LabelRead, TaskLabelLink
 
 router = APIRouter(prefix="/labels", tags=["labels"])
 
@@ -40,5 +40,7 @@ def delete_label(label_id: str, session: Session = Depends(get_session)):
     label = session.get(Label, label_id)
     if not label:
         raise HTTPException(404)
+    for link in session.exec(select(TaskLabelLink).where(TaskLabelLink.label_id == label_id)).all():
+        session.delete(link)
     session.delete(label)
     session.commit()

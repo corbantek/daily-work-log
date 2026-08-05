@@ -7,7 +7,8 @@ from ..database import get_session
 from ..models import (
     Task, TaskCreate, TaskRead, TaskUpdate,
     TaskLink, TaskLinkCreate, TaskLinkRead,
-    Label, TaskLabelLink,
+    Label, TaskLabelLink, MeetingTaskLink,
+    Meeting, MeetingBrief,
 )
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
@@ -90,6 +91,12 @@ def delete_task(task_id: str, session: Session = Depends(get_session)):
     task = session.get(Task, task_id)
     if not task:
         raise HTTPException(404)
+    for link in session.exec(select(TaskLabelLink).where(TaskLabelLink.task_id == task_id)).all():
+        session.delete(link)
+    for link in session.exec(select(TaskLink).where(TaskLink.task_id == task_id)).all():
+        session.delete(link)
+    for link in session.exec(select(MeetingTaskLink).where(MeetingTaskLink.task_id == task_id)).all():
+        session.delete(link)
     session.delete(task)
     session.commit()
 
@@ -140,8 +147,17 @@ def _enrich(task: Task, session: Session) -> TaskRead:
     links = session.exec(
         select(TaskLink).where(TaskLink.task_id == task.id)
     ).all()
+    meeting_links = session.exec(
+        select(MeetingTaskLink).where(MeetingTaskLink.task_id == task.id)
+    ).all()
+    meetings = []
+    for ml in meeting_links:
+        m = session.get(Meeting, ml.meeting_id)
+        if m:
+            meetings.append(MeetingBrief(id=m.id, title=m.title, date=m.date))
     return TaskRead(
         **task.model_dump(),
         labels=labels,
         links=links,
+        meetings=meetings,
     )

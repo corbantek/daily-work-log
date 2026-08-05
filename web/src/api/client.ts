@@ -19,6 +19,11 @@ async function req<T>(path: string, opts?: RequestInit): Promise<T> {
 export const getDay = (date: string) => req<DayView>(`/day/${date}`)
 
 // ── Tasks ─────────────────────────────────────────────────────────────────────
+export const getTasks = (params?: { active_on?: string }) => {
+  const qs = params?.active_on ? `?active_on=${params.active_on}` : ''
+  return req<Task[]>(`/tasks${qs}`)
+}
+
 export const createTask = (body: {
   action: string
   notes?: string
@@ -93,8 +98,24 @@ export const updateMeeting = (id: string, body: Partial<{
   task_ids: string[]
 }>) => req<Meeting>(`/meetings/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
 
+export const getMeeting = (id: string) => req<Meeting>(`/meetings/${id}`)
+
 export const deleteMeeting = (id: string) =>
   req<void>(`/meetings/${id}`, { method: 'DELETE' })
+
+export async function linkTaskToMeeting(meetingId: string, taskId: string) {
+  const meeting = await getMeeting(meetingId)
+  const taskIds = meeting.tasks.map(t => t.id)
+  if (!taskIds.includes(taskId)) {
+    await updateMeeting(meetingId, { task_ids: [...taskIds, taskId] })
+  }
+}
+
+export async function unlinkTaskFromMeeting(meetingId: string, taskId: string) {
+  const meeting = await getMeeting(meetingId)
+  const taskIds = meeting.tasks.map(t => t.id).filter(id => id !== taskId)
+  await updateMeeting(meetingId, { task_ids: taskIds })
+}
 
 // ── Labels ────────────────────────────────────────────────────────────────────
 export const getLabels = () => req<Label[]>('/labels')
