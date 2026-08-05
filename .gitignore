@@ -1,0 +1,6 @@
+api/.venv/
+api/worklog.*
+web/node_modules/
+web/dist/
+*.pyc
+__pycache__/
