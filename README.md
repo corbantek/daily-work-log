@@ -35,11 +35,14 @@ A personal app for tracking daily tasks, meetings, and workstreams — built to 
 # Install dependencies (creates venv, installs pip + npm packages)
 make install
 
-# Start dev servers (API on :8000, frontend on :5173)
+# Try it out with sample data (API on :8099, frontend on :4174)
+make demo
+
+# Start for real use (API on :8000, frontend on :5173)
 make dev
 ```
 
-The database (`api/worklog.db`) is created automatically on first run.
+The database (`api/worklog.db`) is created automatically on first run. Demo mode uses a separate sample database so your real data is never touched.
 
 ## Project Structure
 
