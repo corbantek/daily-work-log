@@ -40,7 +40,7 @@ const THEMES: { value: Theme; label: string; icon: typeof Moon }[] = [
 function getStoredTheme(): Theme {
   const stored = localStorage.getItem('worklog-theme')
   if (stored === 'dark' || stored === 'dim' || stored === 'light') return stored
-  return 'dark'
+  return 'dim'
 }
 
 function applyTheme(theme: Theme) {

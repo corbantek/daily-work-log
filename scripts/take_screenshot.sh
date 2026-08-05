@@ -3,14 +3,13 @@
 # Usage: ./scripts/take_screenshot.sh
 #
 # Starts a temporary API server on :8099 with sample data,
-# a Vite preview on :4174 proxied to it, captures via headless Chrome.
+# a Vite dev server on :4174 proxied to it, then uses Puppeteer
+# to interact with the page (expand tasks, open editor) before capturing.
 # Does NOT touch your real worklog.db.
 
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-SCREENSHOT="docs/screenshot.png"
 API_PORT=8099
 
 cleanup() {
@@ -47,16 +46,8 @@ for _ in $(seq 1 30); do
 done
 sleep 2  # let React render
 
-# Capture
+# Capture with Puppeteer (interactive — expands tasks, opens editor)
 echo "📸 Capturing screenshot..."
 mkdir -p docs
-"$CHROME" \
-    --headless=new \
-    --disable-gpu \
-    --screenshot="$SCREENSHOT" \
-    --window-size=1280,900 \
-    --force-dark-mode \
-    --hide-scrollbars \
-    "http://localhost:4174" 2>/dev/null
-
-echo "✅ Screenshot saved to $SCREENSHOT"
+SCREENSHOT_URL="http://localhost:4174" SCREENSHOT_OUTPUT="docs/screenshot.png" \
+    node scripts/take_screenshot.mjs

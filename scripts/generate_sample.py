@@ -17,6 +17,7 @@ from api.database import engine, DB_PATH
 from api.models import (
     Workstream, Task, TaskState, Meeting,
     Label, TaskLabelLink, TaskLink, LinkType,
+    MeetingTaskLink,
 )
 
 
@@ -210,30 +211,50 @@ def main():
         m1 = Meeting(date=today, title="Sprint Planning", duration_minutes=60,
                      notes="**Sprint 24 goals:**\n- Complete rate limiting middleware\n- Ship PKCE support to staging\n- Finalize tracing rollout for user service")
         s.add(m1)
+        s.flush()
 
         m2 = Meeting(date=today, title="1:1 with Engineering Manager", duration_minutes=30,
                      notes="- Discussed promotion timeline\n- Feedback on API redesign leadership\n- Action: write up tech lead responsibilities doc")
         s.add(m2)
+        s.flush()
 
         m3 = Meeting(date=today, title="Incident Review — API Outage", duration_minutes=45,
                      notes="Reviewed the 23-min outage from last Tuesday.\n\n**Root cause:** Connection pool exhaustion due to slow downstream.\n**Action items:**\n- Add circuit breaker (assigned to me)\n- Improve connection pool monitoring")
         s.add(m3)
+        s.flush()
 
         # Yesterday
         m4 = Meeting(date=yesterday, title="Architecture Review", duration_minutes=60,
                      notes="Reviewed rate limiting design.\nDecision: go with Redis token bucket, add local cache fallback.")
         s.add(m4)
+        s.flush()
 
         m5 = Meeting(date=yesterday, title="Team Standup", duration_minutes=15)
         s.add(m5)
+        s.flush()
 
         # Two days ago
         m6 = Meeting(date=two_days_ago, title="Team Standup", duration_minutes=15)
         s.add(m6)
+        s.flush()
 
         m7 = Meeting(date=two_days_ago, title="Security Review", duration_minutes=30,
                      notes="Reviewed SAML fix and JWT rotation plan. Security team approved both.")
         s.add(m7)
+        s.flush()
+
+        # ── Meeting-Task Links ──
+        # Sprint Planning → rate limiting (t2), PKCE (t5), tracing (t9)
+        s.add(MeetingTaskLink(meeting_id=m1.id, task_id=t2.id))
+        s.add(MeetingTaskLink(meeting_id=m1.id, task_id=t5.id))
+        s.add(MeetingTaskLink(meeting_id=m1.id, task_id=t9.id))
+        # Incident Review → tracing (t9)
+        s.add(MeetingTaskLink(meeting_id=m3.id, task_id=t9.id))
+        # Architecture Review → rate limiting (t2)
+        s.add(MeetingTaskLink(meeting_id=m4.id, task_id=t2.id))
+        # Security Review → SAML fix (t4), JWT rotation (t6)
+        s.add(MeetingTaskLink(meeting_id=m7.id, task_id=t4.id))
+        s.add(MeetingTaskLink(meeting_id=m7.id, task_id=t6.id))
 
         s.commit()
 
