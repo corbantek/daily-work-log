@@ -1,6 +1,5 @@
 api/.venv/
 api/worklog.*
-!api/worklog-sample.db
 web/node_modules/
 web/dist/
 *.pyc
