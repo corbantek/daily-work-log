@@ -1,5 +1,5 @@
 api/.venv/
-api/worklog.*
+api/worklog*
 web/node_modules/
 web/dist/
 *.pyc
