@@ -23,7 +23,7 @@ sample:
 demo: sample
 	@trap 'kill %1 %2 2>/dev/null; exit' INT; \
 	WORKLOG_DB=worklog-sample.db api/.venv/bin/uvicorn api.main:app --reload --port 8099 & \
-	VITE_SAMPLE_API_PORT=8099 cd web && npx vite --port 4174 --strictPort & \
+	cd web && VITE_SAMPLE_API_PORT=8099 npx vite --port 4174 --strictPort & \
 	wait
 
 screenshot:
