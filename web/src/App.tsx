@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { Settings, Sun, Moon, Monitor } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DaySection } from './components/DaySection'
@@ -8,14 +9,16 @@ import { ManageWorkstreams } from './components/ManageWorkstreams'
 import { ManageLabels } from './components/ManageLabels'
 import { BackupRestore } from './components/BackupRestore'
 import { ReviewPage } from './pages/ReviewPage'
+import { getSettings, setSetting } from './api/client'
+import { todayStr, toLocalDateStr } from './api/date'
 import './index.css'
 
 type Tab = 'log' | 'review'
 type Theme = 'dark' | 'dim' | 'light'
 
-import { Input } from '@/components/ui/input'
-import { getSettings, setSetting } from './api/client'
-import { todayStr, toLocalDateStr } from './api/date'
+function isTheme(v: string | undefined): v is Theme {
+  return v === 'dark' || v === 'dim' || v === 'light'
+}
 
 function addDays(dateStr: string, n: number): string {
   const [y, m, d] = dateStr.split('-').map(Number)
@@ -39,17 +42,10 @@ const THEMES: { value: Theme; label: string; icon: typeof Moon }[] = [
   { value: 'light', label: 'Light', icon: Sun },
 ]
 
-function getStoredTheme(): Theme {
-  const stored = localStorage.getItem('worklog-theme')
-  if (stored === 'dark' || stored === 'dim' || stored === 'light') return stored
-  return 'dim'
-}
-
 function applyTheme(theme: Theme) {
   const html = document.documentElement
   html.classList.remove('dark', 'dim')
   if (theme !== 'light') html.classList.add(theme)
-  localStorage.setItem('worklog-theme', theme)
 }
 
 export default function App() {
@@ -57,9 +53,10 @@ export default function App() {
   const [windowSize, setWindowSize] = useState(5)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
-  const [theme, setTheme] = useState<Theme>(getStoredTheme)
+  const [theme, setTheme] = useState<Theme>('dim')
   const [appTitle, setAppTitle] = useState('Daily Work Log')
   const [editTitle, setEditTitle] = useState('')
+  const [settingsLoaded, setSettingsLoaded] = useState(false)
   const today = todayStr()
   const dates = buildDateRange(today, windowSize)
 
@@ -67,13 +64,39 @@ export default function App() {
     applyTheme(theme)
   }, [theme])
 
+  // Load all settings from the database on startup
   useEffect(() => {
     getSettings().then(s => {
       if (s.app_title) setAppTitle(s.app_title)
+      if (isTheme(s.theme)) setTheme(s.theme)
+      const days = parseInt(s.days_to_show)
+      if (days && WINDOW_OPTIONS.includes(days)) setWindowSize(days)
+      setSettingsLoaded(true)
+    }).catch(() => {
+      setSettingsLoaded(true)
     })
   }, [])
 
+  function changeTheme(t: Theme) {
+    setTheme(t)
+    setSetting('theme', t)
+  }
+
+  function changeWindowSize(n: number) {
+    setWindowSize(n)
+    setSetting('days_to_show', String(n))
+  }
+
+  function saveTitle() {
+    const val = editTitle.trim() || 'Daily Work Log'
+    setSetting('app_title', val).then(() => setAppTitle(val))
+  }
+
   const refresh = useCallback(() => setReloadKey(k => k + 1), [])
+
+  if (!settingsLoaded) {
+    return <div className="min-h-screen" />
+  }
 
   return (
     <div className="min-h-screen text-foreground">
@@ -134,21 +157,9 @@ export default function App() {
                   onChange={e => setEditTitle((e.target as HTMLInputElement).value)}
                   placeholder="Daily Work Log"
                   className="h-8 text-sm flex-1"
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') {
-                      const val = editTitle.trim() || 'Daily Work Log'
-                      setSetting('app_title', val).then(() => setAppTitle(val))
-                    }
-                  }}
+                  onKeyDown={e => { if (e.key === 'Enter') saveTitle() }}
                 />
-                <Button
-                  size="sm"
-                  className="h-8 text-xs"
-                  onClick={() => {
-                    const val = editTitle.trim() || 'Daily Work Log'
-                    setSetting('app_title', val).then(() => setAppTitle(val))
-                  }}
-                >
+                <Button size="sm" className="h-8 text-xs" onClick={saveTitle}>
                   Save
                 </Button>
               </div>
@@ -166,7 +177,7 @@ export default function App() {
                     size="sm"
                     variant={theme === t.value ? 'default' : 'secondary'}
                     className="h-8 text-xs gap-1.5 flex-1"
-                    onClick={() => setTheme(t.value)}
+                    onClick={() => changeTheme(t.value)}
                   >
                     <t.icon size={13} />
                     {t.label}
@@ -187,7 +198,7 @@ export default function App() {
                     size="sm"
                     variant={windowSize === n ? 'default' : 'secondary'}
                     className="h-7 w-10 text-xs p-0"
-                    onClick={() => setWindowSize(n)}
+                    onClick={() => changeWindowSize(n)}
                   >
                     {n}
                   </Button>
