@@ -128,3 +128,12 @@ export const updateLabel = (id: string, body: { name: string; color: string }) =
 
 export const deleteLabel = (id: string) =>
   req<void>(`/labels/${id}`, { method: 'DELETE' })
+
+// ── Settings ─────────────────────────────────────────────────────────────────
+export const getSettings = () => req<Record<string, string>>('/settings')
+
+export const setSetting = (key: string, value: string) =>
+  req<{ key: string; value: string }>(`/settings/${key}`, {
+    method: 'PUT',
+    body: JSON.stringify({ value }),
+  })

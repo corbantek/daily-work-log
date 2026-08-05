@@ -206,6 +206,13 @@ class MeetingUpdate(SQLModel):
     task_ids: Optional[List[str]] = None
 
 
+# ── Settings ─────────────────────────────────────────────────────────────────
+
+class Setting(SQLModel, table=True):
+    key: str = Field(primary_key=True)
+    value: str = ""
+
+
 # ── Day view response ─────────────────────────────────────────────────────────
 
 class WorkstreamWithTasks(SQLModel):

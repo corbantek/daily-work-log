@@ -13,6 +13,8 @@ import './index.css'
 type Tab = 'log' | 'review'
 type Theme = 'dark' | 'dim' | 'light'
 
+import { Input } from '@/components/ui/input'
+import { getSettings, setSetting } from './api/client'
 import { todayStr, toLocalDateStr } from './api/date'
 
 function addDays(dateStr: string, n: number): string {
@@ -56,6 +58,8 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
   const [theme, setTheme] = useState<Theme>(getStoredTheme)
+  const [appTitle, setAppTitle] = useState('Daily Work Log')
+  const [editTitle, setEditTitle] = useState('')
   const today = todayStr()
   const dates = buildDateRange(today, windowSize)
 
@@ -63,13 +67,19 @@ export default function App() {
     applyTheme(theme)
   }, [theme])
 
+  useEffect(() => {
+    getSettings().then(s => {
+      if (s.app_title) setAppTitle(s.app_title)
+    })
+  }, [])
+
   const refresh = useCallback(() => setReloadKey(k => k + 1), [])
 
   return (
     <div className="min-h-screen text-foreground">
       <header className="sticky top-0 z-10 bg-background/70 backdrop-blur-md border-b border-border/60 px-6 py-3 flex items-center gap-4">
         <span className="text-base font-semibold text-primary tracking-tight flex-shrink-0">
-          Daily Work Log
+          {appTitle}
         </span>
 
         <Separator orientation="vertical" className="h-5" />
@@ -101,7 +111,7 @@ export default function App() {
           variant="ghost"
           size="sm"
           className="gap-1.5 text-muted-foreground h-8"
-          onClick={() => setSettingsOpen(true)}
+          onClick={() => { setEditTitle(appTitle); setSettingsOpen(true) }}
         >
           <Settings size={14} />
         </Button>
@@ -115,6 +125,37 @@ export default function App() {
           </DialogHeader>
 
           <div className="space-y-5">
+            {/* App title */}
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-2">App title</p>
+              <div className="flex gap-2">
+                <Input
+                  value={editTitle}
+                  onChange={e => setEditTitle((e.target as HTMLInputElement).value)}
+                  placeholder="Daily Work Log"
+                  className="h-8 text-sm flex-1"
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      const val = editTitle.trim() || 'Daily Work Log'
+                      setSetting('app_title', val).then(() => setAppTitle(val))
+                    }
+                  }}
+                />
+                <Button
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={() => {
+                    const val = editTitle.trim() || 'Daily Work Log'
+                    setSetting('app_title', val).then(() => setAppTitle(val))
+                  }}
+                >
+                  Save
+                </Button>
+              </div>
+            </div>
+
+            <Separator />
+
             {/* Theme */}
             <div>
               <p className="text-xs font-medium text-muted-foreground mb-2">Theme</p>
