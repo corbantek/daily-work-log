@@ -11,7 +11,7 @@ from ..models import (
     Meeting, MeetingBrief,
 )
 
-STATE_ORDER = {TaskState.IN_PROGRESS: 0, TaskState.TODO: 1, TaskState.COMPLETE: 2}
+STATE_ORDER = {TaskState.TODO: 0, TaskState.IN_PROGRESS: 1, TaskState.COMPLETE: 2}
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
