@@ -6,7 +6,7 @@ from datetime import datetime
 from ..database import get_session
 from ..models import (
     Workstream, Task, Label, TaskLabelLink, TaskLink,
-    Meeting, MeetingTaskLink, Setting,
+    Meeting, MeetingTaskLink, Setting, DayStatus,
 )
 
 router = APIRouter(prefix="/backup", tags=["backup"])
@@ -20,6 +20,7 @@ TABLES = [
     ("meetings", Meeting),
     ("meeting_tasks", MeetingTaskLink),
     ("settings", Setting),
+    ("day_statuses", DayStatus),
 ]
 
 

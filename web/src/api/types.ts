@@ -62,6 +62,7 @@ export interface WorkstreamWithTasks {
 
 export interface DayView {
   date: string
+  status: string | null
   meetings: Meeting[]
   workstreams: WorkstreamWithTasks[]
 }

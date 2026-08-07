@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react'
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import { useEffect, useState, useRef } from 'react'
+import { ChevronDown, ChevronRight, X, Plus } from 'lucide-react'
 import type { DayView } from '../api/types'
-import { getDay } from '../api/client'
+import { getDay, setDayStatus, clearDayStatus, getSettings } from '../api/client'
 import { MeetingSection } from './MeetingSection'
 import { WorkstreamSection } from './WorkstreamSection'
 import { AddTaskGlobal } from './AddTaskGlobal'
+
+const DEFAULT_STATUSES = ['🤒 Sick', '🏠 Kid at home', '🏖️ Vacation', '⏰ Half day', '📅 Out of office']
 
 interface Props {
   date: string
@@ -16,6 +18,9 @@ export function DaySection({ date, isToday, defaultCollapsed = false }: Props) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed)
   const [data, setData] = useState<DayView | null>(null)
   const [loading, setLoading] = useState(false)
+  const [statusPickerOpen, setStatusPickerOpen] = useState(false)
+  const [statusOptions, setStatusOptions] = useState<string[]>(DEFAULT_STATUSES)
+  const pickerRef = useRef<HTMLDivElement>(null)
 
   function load() {
     setLoading(true)
@@ -27,6 +32,40 @@ export function DaySection({ date, isToday, defaultCollapsed = false }: Props) {
   useEffect(() => {
     load()
   }, [date])
+
+  useEffect(() => {
+    getSettings().then(s => {
+      if (s.day_status_options) {
+        try {
+          const parsed = JSON.parse(s.day_status_options)
+          if (Array.isArray(parsed) && parsed.length > 0) setStatusOptions(parsed)
+        } catch { /* use defaults */ }
+      }
+    })
+  }, [])
+
+  // Close picker on outside click
+  useEffect(() => {
+    if (!statusPickerOpen) return
+    function handleClick(e: MouseEvent) {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        setStatusPickerOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [statusPickerOpen])
+
+  async function handleSetStatus(status: string) {
+    await setDayStatus(date, status)
+    setStatusPickerOpen(false)
+    load()
+  }
+
+  async function handleClearStatus() {
+    await clearDayStatus(date)
+    load()
+  }
 
   const label = formatDateLabel(date)
   const taskCount = data ? data.workstreams.reduce((n, ws) => n + ws.tasks.length, 0) : 0
@@ -40,7 +79,7 @@ export function DaySection({ date, isToday, defaultCollapsed = false }: Props) {
       <div className="flex items-center px-4 py-3">
         <button
           onClick={() => setCollapsed(v => !v)}
-          className="flex items-center gap-2 flex-1 text-left"
+          className="flex items-center gap-2 text-left"
         >
           {collapsed
             ? <ChevronRight size={16} className="text-muted-foreground" />
@@ -50,10 +89,57 @@ export function DaySection({ date, isToday, defaultCollapsed = false }: Props) {
           {isToday && (
             <span className="ml-1 text-xs bg-primary/15 text-primary px-2 py-0.5 rounded-full">today</span>
           )}
-          {collapsed && data && (
-            <span className="ml-auto text-xs text-muted-foreground/50">{summary}</span>
-          )}
         </button>
+
+        {/* Day status pill */}
+        {data?.status ? (
+          <span className="group/status ml-2 inline-flex items-center gap-1 text-xs bg-amber-500/15 text-amber-400 border border-amber-500/30 px-2.5 py-0.5 rounded-full">
+            <button
+              onClick={(e) => { e.stopPropagation(); setStatusPickerOpen(v => !v) }}
+              className="hover:text-amber-300 transition-colors"
+            >
+              {data.status}
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); handleClearStatus() }}
+              className="opacity-0 group-hover/status:opacity-100 hover:text-destructive transition-all -mr-0.5"
+              title="Clear status"
+            >
+              <X size={11} />
+            </button>
+          </span>
+        ) : (
+          <button
+            onClick={(e) => { e.stopPropagation(); setStatusPickerOpen(v => !v) }}
+            className="ml-2 opacity-0 group-hover:opacity-100 hover:!opacity-100 text-muted-foreground/40 hover:text-muted-foreground text-xs transition-all flex items-center gap-0.5"
+            title="Set day status"
+          >
+            <Plus size={11} /> status
+          </button>
+        )}
+
+        {/* Status dropdown */}
+        {statusPickerOpen && (
+          <div ref={pickerRef} className="relative">
+            <div className="absolute left-0 top-2 z-50 bg-popover border border-border rounded-lg shadow-xl p-1 min-w-40">
+              {statusOptions.map(opt => (
+                <button
+                  key={opt}
+                  onClick={() => handleSetStatus(opt)}
+                  className="flex items-center w-full px-2.5 py-1.5 rounded text-xs text-left hover:bg-accent transition-colors"
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="flex-1" />
+
+        {collapsed && data && (
+          <span className="text-xs text-muted-foreground/50">{summary}</span>
+        )}
 
         {/* Top-level add task (always visible in header) */}
         {!collapsed && <AddTaskGlobal defaultDate={date} onCreated={load} />}

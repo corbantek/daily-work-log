@@ -129,6 +129,16 @@ export const updateLabel = (id: string, body: { name: string; color: string }) =
 export const deleteLabel = (id: string) =>
   req<void>(`/labels/${id}`, { method: 'DELETE' })
 
+// ── Day Status ───────────────────────────────────────────────────────────────
+export const setDayStatus = (date: string, status: string) =>
+  req<{ date: string; status: string }>(`/day-status/${date}`, {
+    method: 'PUT',
+    body: JSON.stringify({ status }),
+  })
+
+export const clearDayStatus = (date: string) =>
+  req<void>(`/day-status/${date}`, { method: 'DELETE' })
+
 // ── Settings ─────────────────────────────────────────────────────────────────
 export const getSettings = () => req<Record<string, string>>('/settings')
 

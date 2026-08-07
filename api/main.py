@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .database import init_db
-from .routes import workstreams, tasks, meetings, labels, day, backup, settings
+from .routes import workstreams, tasks, meetings, labels, day, day_status, backup, settings
 
 app = FastAPI(title="Daily Work Log", version="0.1.0")
 
@@ -24,5 +24,6 @@ app.include_router(tasks.router)
 app.include_router(meetings.router)
 app.include_router(labels.router)
 app.include_router(day.router)
+app.include_router(day_status.router)
 app.include_router(backup.router)
 app.include_router(settings.router)

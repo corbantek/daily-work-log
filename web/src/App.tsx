@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
-import { Settings, Sun, Moon, Monitor } from 'lucide-react'
+import { Settings, Sun, Moon, Monitor, X, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
@@ -57,6 +57,8 @@ export default function App() {
   const [appTitle, setAppTitle] = useState('Daily Work Log')
   const [editTitle, setEditTitle] = useState('')
   const [settingsLoaded, setSettingsLoaded] = useState(false)
+  const [dayStatuses, setDayStatuses] = useState<string[]>([])
+  const [newStatus, setNewStatus] = useState('')
   const today = todayStr()
   const dates = buildDateRange(today, windowSize)
 
@@ -71,6 +73,12 @@ export default function App() {
       if (isTheme(s.theme)) setTheme(s.theme)
       const days = parseInt(s.days_to_show)
       if (days && WINDOW_OPTIONS.includes(days)) setWindowSize(days)
+      if (s.day_status_options) {
+        try {
+          const parsed = JSON.parse(s.day_status_options)
+          if (Array.isArray(parsed)) setDayStatuses(parsed)
+        } catch { /* use defaults */ }
+      }
       setSettingsLoaded(true)
     }).catch(() => {
       setSettingsLoaded(true)
@@ -90,6 +98,22 @@ export default function App() {
   function saveTitle() {
     const val = editTitle.trim() || 'Daily Work Log'
     setSetting('app_title', val).then(() => setAppTitle(val))
+  }
+
+  function saveDayStatuses(updated: string[]) {
+    setDayStatuses(updated)
+    setSetting('day_status_options', JSON.stringify(updated))
+  }
+
+  function addDayStatus() {
+    const val = newStatus.trim()
+    if (!val || dayStatuses.includes(val)) return
+    saveDayStatuses([...dayStatuses, val])
+    setNewStatus('')
+  }
+
+  function removeDayStatus(status: string) {
+    saveDayStatuses(dayStatuses.filter(s => s !== status))
   }
 
   const refresh = useCallback(() => setReloadKey(k => k + 1), [])
@@ -203,6 +227,37 @@ export default function App() {
                     {n}
                   </Button>
                 ))}
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Day statuses */}
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-2">Day statuses</p>
+              {dayStatuses.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {dayStatuses.map(s => (
+                    <span key={s} className="inline-flex items-center gap-1 text-xs bg-amber-500/15 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-full">
+                      {s}
+                      <button onClick={() => removeDayStatus(s)} className="hover:text-destructive transition-colors">
+                        <X size={10} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <Input
+                  value={newStatus}
+                  onChange={e => setNewStatus((e.target as HTMLInputElement).value)}
+                  placeholder="e.g. 🤒 Sick"
+                  className="h-7 text-xs flex-1"
+                  onKeyDown={e => { if (e.key === 'Enter') addDayStatus() }}
+                />
+                <Button size="sm" className="h-7 text-xs gap-1" onClick={addDayStatus}>
+                  <Plus size={11} /> Add
+                </Button>
               </div>
             </div>
 

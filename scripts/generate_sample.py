@@ -17,7 +17,7 @@ from api.database import engine, DB_PATH
 from api.models import (
     Workstream, Task, TaskState, Meeting,
     Label, TaskLabelLink, TaskLink, LinkType,
-    MeetingTaskLink,
+    MeetingTaskLink, DayStatus, Setting,
 )
 
 
@@ -255,6 +255,15 @@ def main():
         # Security Review → SAML fix (t4), JWT rotation (t6)
         s.add(MeetingTaskLink(meeting_id=m7.id, task_id=t4.id))
         s.add(MeetingTaskLink(meeting_id=m7.id, task_id=t6.id))
+
+        # ── Day Statuses ──
+        s.add(DayStatus(day=two_days_ago, status="⏰ Half day"))
+
+        # ── Default status options ──
+        import json
+        s.add(Setting(key="day_status_options", value=json.dumps(
+            ["🤒 Sick", "🏠 Kid at home", "🏖️ Vacation", "⏰ Half day", "📅 Out of office"]
+        )))
 
         s.commit()
 

@@ -213,6 +213,18 @@ class Setting(SQLModel, table=True):
     value: str = ""
 
 
+# ── Day Status ───────────────────────────────────────────────────────────────
+
+class DayStatus(SQLModel, table=True):
+    __tablename__ = "day_status"
+    day: date = Field(primary_key=True)
+    status: str
+
+
+class DayStatusUpdate(SQLModel):
+    status: str
+
+
 # ── Day view response ─────────────────────────────────────────────────────────
 
 class WorkstreamWithTasks(SQLModel):
@@ -222,5 +234,6 @@ class WorkstreamWithTasks(SQLModel):
 
 class DayView(SQLModel):
     date: date
+    status: Optional[str] = None
     meetings: List[MeetingRead]
     workstreams: List[WorkstreamWithTasks]

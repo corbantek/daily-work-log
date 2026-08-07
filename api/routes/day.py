@@ -8,6 +8,7 @@ from ..database import get_session
 from ..models import (
     Task, Meeting, Workstream, MeetingTaskLink, TaskState,
     DayView, WorkstreamWithTasks, WorkstreamRead, MeetingRead,
+    DayStatus,
 )
 from .tasks import _enrich
 from .meetings import _read_meeting
@@ -71,4 +72,7 @@ def get_day(day: date, session: Session = Depends(get_session)):
     ).all()
     meetings = [_read_meeting(m, session) for m in meetings_raw]
 
-    return DayView(date=day, meetings=meetings, workstreams=ws_sections)
+    day_status = session.get(DayStatus, day)
+    status = day_status.status if day_status else None
+
+    return DayView(date=day, status=status, meetings=meetings, workstreams=ws_sections)
