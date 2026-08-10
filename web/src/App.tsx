@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
-import { Settings, Sun, Moon, Monitor, X, Plus } from 'lucide-react'
+import { Settings, Sun, Moon, Monitor, X, Plus, Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
@@ -9,8 +9,9 @@ import { ManageWorkstreams } from './components/ManageWorkstreams'
 import { ManageLabels } from './components/ManageLabels'
 import { BackupRestore } from './components/BackupRestore'
 import { ReviewPage } from './pages/ReviewPage'
-import { getSettings, setSetting } from './api/client'
-import { todayStr, toLocalDateStr } from './api/date'
+import { getSettings, setSetting, getDayVisibility, setDayVisibility, clearDayVisibility } from './api/client'
+import { todayStr, toLocalDateStr, isWeekend } from './api/date'
+import { HiddenDaysIndicator } from './components/HiddenDaysIndicator'
 import './index.css'
 
 type Tab = 'log' | 'review'
@@ -26,15 +27,54 @@ function addDays(dateStr: string, n: number): string {
   return toLocalDateStr(dt)
 }
 
-function buildDateRange(today: string, windowSize: number): string[] {
-  const dates: string[] = []
-  for (let i = 0; i < windowSize; i++) {
-    dates.push(addDays(today, -i))
+function isDateVisible(
+  dateStr: string,
+  today: string,
+  hideWeekends: boolean,
+  overrides: Record<string, boolean>,
+): boolean {
+  if (dateStr === today) return true
+  if (dateStr in overrides) return overrides[dateStr]
+  if (hideWeekends && isWeekend(dateStr)) return false
+  return true
+}
+
+function buildDateRange(
+  today: string,
+  windowSize: number,
+  hideWeekends: boolean,
+  overrides: Record<string, boolean>,
+): string[] {
+  const visible: string[] = []
+  const maxLookback = windowSize * 4
+  for (let i = 0; i < maxLookback && visible.length < windowSize; i++) {
+    const d = addDays(today, -i)
+    if (isDateVisible(d, today, hideWeekends, overrides)) {
+      visible.push(d)
+    }
   }
-  return dates
+  return visible
+}
+
+function getHiddenDatesBetween(
+  laterDate: string,
+  earlierDate: string,
+  hideWeekends: boolean,
+  overrides: Record<string, boolean>,
+  today: string,
+): string[] {
+  const hidden: string[] = []
+  for (let d = addDays(laterDate, -1); d > earlierDate; d = addDays(d, -1)) {
+    if (!isDateVisible(d, today, hideWeekends, overrides)) {
+      hidden.push(d)
+    }
+  }
+  return hidden
 }
 
 const WINDOW_OPTIONS = [3, 5, 7, 10, 14]
+
+const DEFAULT_DAY_STATUSES = ['🤒 Sick', '🏠 Kid at home', '🏖️ Vacation', '⏰ Half day', '📅 Out of office']
 
 const THEMES: { value: Theme; label: string; icon: typeof Moon }[] = [
   { value: 'dark', label: 'Dark', icon: Moon },
@@ -57,30 +97,43 @@ export default function App() {
   const [appTitle, setAppTitle] = useState('Daily Work Log')
   const [editTitle, setEditTitle] = useState('')
   const [settingsLoaded, setSettingsLoaded] = useState(false)
-  const [dayStatuses, setDayStatuses] = useState<string[]>([])
+  const [dayStatuses, setDayStatuses] = useState<string[]>(DEFAULT_DAY_STATUSES)
   const [newStatus, setNewStatus] = useState('')
+  const [hideWeekends, setHideWeekends] = useState(false)
+  const [visibilityOverrides, setVisibilityOverrides] = useState<Record<string, boolean>>({})
   const today = todayStr()
-  const dates = buildDateRange(today, windowSize)
+  const dates = buildDateRange(today, windowSize, hideWeekends, visibilityOverrides)
 
   useEffect(() => {
     applyTheme(theme)
   }, [theme])
 
+  function loadVisibilityOverrides() {
+    const from = addDays(today, -60)
+    return getDayVisibility(from, today).then(setVisibilityOverrides).catch(() => {})
+  }
+
   // Load all settings from the database on startup
   useEffect(() => {
-    getSettings().then(s => {
-      if (s.app_title) setAppTitle(s.app_title)
-      if (isTheme(s.theme)) setTheme(s.theme)
-      const days = parseInt(s.days_to_show)
-      if (days && WINDOW_OPTIONS.includes(days)) setWindowSize(days)
-      if (s.day_status_options) {
-        try {
-          const parsed = JSON.parse(s.day_status_options)
-          if (Array.isArray(parsed)) setDayStatuses(parsed)
-        } catch { /* use defaults */ }
-      }
-      setSettingsLoaded(true)
-    }).catch(() => {
+    Promise.all([
+      getSettings().then(s => {
+        if (s.app_title) setAppTitle(s.app_title)
+        if (isTheme(s.theme)) setTheme(s.theme)
+        const days = parseInt(s.days_to_show)
+        if (days && WINDOW_OPTIONS.includes(days)) setWindowSize(days)
+        if (s.hide_weekends === 'true') setHideWeekends(true)
+        if (s.day_status_options) {
+          try {
+            const parsed = JSON.parse(s.day_status_options)
+            if (Array.isArray(parsed)) {
+              const custom = parsed.filter((v: string) => !DEFAULT_DAY_STATUSES.includes(v))
+              setDayStatuses([...DEFAULT_DAY_STATUSES, ...custom])
+            }
+          } catch { /* use defaults */ }
+        }
+      }),
+      loadVisibilityOverrides(),
+    ]).finally(() => {
       setSettingsLoaded(true)
     })
   }, [])
@@ -116,7 +169,29 @@ export default function App() {
     saveDayStatuses(dayStatuses.filter(s => s !== status))
   }
 
-  const refresh = useCallback(() => setReloadKey(k => k + 1), [])
+  function changeHideWeekends(val: boolean) {
+    setHideWeekends(val)
+    setSetting('hide_weekends', String(val))
+  }
+
+  const handleVisibilityChange = useCallback(async (date: string, visible: boolean | null) => {
+    if (visible === null) {
+      await clearDayVisibility(date)
+      setVisibilityOverrides(prev => {
+        const next = { ...prev }
+        delete next[date]
+        return next
+      })
+    } else {
+      await setDayVisibility(date, visible)
+      setVisibilityOverrides(prev => ({ ...prev, [date]: visible }))
+    }
+  }, [])
+
+  const refresh = useCallback(() => {
+    setReloadKey(k => k + 1)
+    loadVisibilityOverrides()
+  }, [])
 
   if (!settingsLoaded) {
     return <div className="min-h-screen" />
@@ -232,13 +307,40 @@ export default function App() {
 
             <Separator />
 
+            {/* Weekends */}
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-2">Weekends</p>
+              <div className="flex gap-1.5">
+                <Button
+                  size="sm"
+                  variant={hideWeekends ? 'default' : 'secondary'}
+                  className="h-8 text-xs gap-1.5 flex-1"
+                  onClick={() => changeHideWeekends(true)}
+                >
+                  <EyeOff size={13} />
+                  Hide
+                </Button>
+                <Button
+                  size="sm"
+                  variant={!hideWeekends ? 'default' : 'secondary'}
+                  className="h-8 text-xs gap-1.5 flex-1"
+                  onClick={() => changeHideWeekends(false)}
+                >
+                  <Eye size={13} />
+                  Show
+                </Button>
+              </div>
+            </div>
+
+            <Separator />
+
             {/* Day statuses */}
             <div>
               <p className="text-xs font-medium text-muted-foreground mb-2">Day statuses</p>
               {dayStatuses.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mb-2">
                   {dayStatuses.map(s => (
-                    <span key={s} className="inline-flex items-center gap-1 text-xs bg-amber-500/15 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-full">
+                    <span key={s} className="inline-flex items-center gap-1 text-xs bg-red-500/15 text-red-400 border border-red-500/30 px-2 py-0.5 rounded-full">
                       {s}
                       <button onClick={() => removeDayStatus(s)} className="hover:text-destructive transition-colors">
                         <X size={10} />
@@ -275,12 +377,29 @@ export default function App() {
       <main>
         {tab === 'log' ? (
           <div className="max-w-5xl mx-auto px-4 py-6 space-y-1">
-            {dates.map((date, i) => (
-              <div key={`${date}-${reloadKey}`}>
-                <DaySection date={date} isToday={i === 0} defaultCollapsed={i > 0} />
-                {i < dates.length - 1 && <Separator className="my-1 opacity-30" />}
-              </div>
-            ))}
+            {dates.map((date, i) => {
+              const hiddenBetween = i > 0
+                ? getHiddenDatesBetween(dates[i - 1], date, hideWeekends, visibilityOverrides, today)
+                : []
+              return (
+                <div key={`${date}-${reloadKey}`}>
+                  {hiddenBetween.length > 0 && (
+                    <HiddenDaysIndicator
+                      hiddenDates={hiddenBetween}
+                      onUnhide={(d) => handleVisibilityChange(d, true)}
+                    />
+                  )}
+                  <DaySection
+                    date={date}
+                    isToday={i === 0}
+                    defaultCollapsed={i > 0}
+                    isHiddenByDefault={hideWeekends && isWeekend(date)}
+                    onVisibilityChange={handleVisibilityChange}
+                  />
+                  {i < dates.length - 1 && <Separator className="my-1 opacity-30" />}
+                </div>
+              )
+            })}
           </div>
         ) : (
           <ReviewPage />

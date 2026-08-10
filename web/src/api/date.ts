@@ -8,3 +8,9 @@ export function toLocalDateStr(dt: Date): string {
 export function todayStr(): string {
   return toLocalDateStr(new Date())
 }
+
+export function isWeekend(dateStr: string): boolean {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const day = new Date(y, m - 1, d).getDay()
+  return day === 0 || day === 6
+}

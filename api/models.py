@@ -225,6 +225,18 @@ class DayStatusUpdate(SQLModel):
     status: str
 
 
+# ── Day Visibility ──────────────────────────────────────────────────────────
+
+class DayVisibility(SQLModel, table=True):
+    __tablename__ = "day_visibility"
+    day: date = Field(primary_key=True)
+    visible: bool
+
+
+class DayVisibilityUpdate(SQLModel):
+    visible: bool
+
+
 # ── Day view response ─────────────────────────────────────────────────────────
 
 class WorkstreamWithTasks(SQLModel):

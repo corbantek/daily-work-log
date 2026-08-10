@@ -139,6 +139,19 @@ export const setDayStatus = (date: string, status: string) =>
 export const clearDayStatus = (date: string) =>
   req<void>(`/day-status/${date}`, { method: 'DELETE' })
 
+// ── Day Visibility ──────────────────────────────────────────────────────────
+export const getDayVisibility = (from: string, to: string) =>
+  req<Record<string, boolean>>(`/day-visibility?from=${from}&to=${to}`)
+
+export const setDayVisibility = (date: string, visible: boolean) =>
+  req<{ date: string; visible: boolean }>(`/day-visibility/${date}`, {
+    method: 'PUT',
+    body: JSON.stringify({ visible }),
+  })
+
+export const clearDayVisibility = (date: string) =>
+  req<void>(`/day-visibility/${date}`, { method: 'DELETE' })
+
 // ── Settings ─────────────────────────────────────────────────────────────────
 export const getSettings = () => req<Record<string, string>>('/settings')
 

@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { ChevronDown, ChevronRight, X, Plus } from 'lucide-react'
+import { ChevronDown, ChevronRight, X, Plus, Eye, EyeOff } from 'lucide-react'
 import type { DayView } from '../api/types'
 import { getDay, setDayStatus, clearDayStatus, getSettings } from '../api/client'
 import { MeetingSection } from './MeetingSection'
@@ -12,9 +12,11 @@ interface Props {
   date: string
   isToday: boolean
   defaultCollapsed?: boolean
+  isHiddenByDefault?: boolean
+  onVisibilityChange?: (date: string, visible: boolean | null) => void
 }
 
-export function DaySection({ date, isToday, defaultCollapsed = false }: Props) {
+export function DaySection({ date, isToday, defaultCollapsed = false, isHiddenByDefault = false, onVisibilityChange }: Props) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed)
   const [data, setData] = useState<DayView | null>(null)
   const [loading, setLoading] = useState(false)
@@ -38,7 +40,11 @@ export function DaySection({ date, isToday, defaultCollapsed = false }: Props) {
       if (s.day_status_options) {
         try {
           const parsed = JSON.parse(s.day_status_options)
-          if (Array.isArray(parsed) && parsed.length > 0) setStatusOptions(parsed)
+          if (Array.isArray(parsed)) {
+            const custom = parsed.filter((v: string) => !DEFAULT_STATUSES.includes(v))
+            const merged = [...DEFAULT_STATUSES, ...custom]
+            if (merged.length > 0) setStatusOptions(merged)
+          }
         } catch { /* use defaults */ }
       }
     })
@@ -76,7 +82,7 @@ export function DaySection({ date, isToday, defaultCollapsed = false }: Props) {
   return (
     <div className={`rounded-xl border ${isToday ? 'border-primary/30 bg-card' : 'border-border/60 bg-card/70'} mb-4`}>
       {/* Day header */}
-      <div className="flex items-center px-4 py-3">
+      <div className="group flex items-center px-4 py-3">
         <button
           onClick={() => setCollapsed(v => !v)}
           className="flex items-center gap-2 text-left"
@@ -93,10 +99,10 @@ export function DaySection({ date, isToday, defaultCollapsed = false }: Props) {
 
         {/* Day status pill */}
         {data?.status ? (
-          <span className="group/status ml-2 inline-flex items-center gap-1 text-xs bg-amber-500/15 text-amber-400 border border-amber-500/30 px-2.5 py-0.5 rounded-full">
+          <span className="group/status ml-2 inline-flex items-center gap-1 text-xs bg-red-500/15 text-red-400 border border-red-500/30 px-2.5 py-0.5 rounded-full">
             <button
               onClick={(e) => { e.stopPropagation(); setStatusPickerOpen(v => !v) }}
-              className="hover:text-amber-300 transition-colors"
+              className="hover:text-red-300 transition-colors"
             >
               {data.status}
             </button>
@@ -133,6 +139,24 @@ export function DaySection({ date, isToday, defaultCollapsed = false }: Props) {
               ))}
             </div>
           </div>
+        )}
+
+        {/* Hide/unhide button */}
+        {!isToday && onVisibilityChange && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              if (isHiddenByDefault) {
+                onVisibilityChange(date, null)
+              } else {
+                onVisibilityChange(date, false)
+              }
+            }}
+            className="ml-1 opacity-0 group-hover:opacity-100 hover:!opacity-100 text-muted-foreground/40 hover:text-muted-foreground transition-all"
+            title={isHiddenByDefault ? 'Shown (click to re-hide)' : 'Hide this day'}
+          >
+            {isHiddenByDefault ? <Eye size={13} /> : <EyeOff size={13} />}
+          </button>
         )}
 
         <div className="flex-1" />
