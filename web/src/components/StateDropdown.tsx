@@ -7,6 +7,7 @@ const STATES: { value: TaskState; label: string; color: string }[] = [
   { value: 'todo',        label: 'TODO',        color: 'text-red-400 border-red-500/40' },
   { value: 'in_progress', label: 'IN PROGRESS', color: 'text-blue-400 border-blue-500/40' },
   { value: 'complete',    label: 'DONE',        color: 'text-green-400 border-green-500/40' },
+  { value: 'abandoned',   label: 'ABANDONED',   color: 'text-gray-400 border-gray-500/40' },
 ]
 
 function stateInfo(v: string) {

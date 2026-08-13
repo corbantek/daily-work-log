@@ -21,8 +21,10 @@ def get_day(day: date, session: Session = Depends(get_session)):
     today = date.today()
     tasks_q = select(Task).where(
         or_(
-            # TODO tasks (no start_date): only show on today
-            and_(Task.start_date == None, day == today),
+            # TODO tasks (no start_date, no end_date): only show on today
+            and_(Task.start_date == None, Task.end_date == None, day == today),
+            # Abandoned-from-TODO (no start_date, has end_date): show on their end_date
+            and_(Task.start_date == None, Task.end_date != None, Task.end_date == day),
             # Started tasks: show from start_date through end_date (or ongoing)
             and_(
                 Task.start_date != None,
@@ -34,7 +36,7 @@ def get_day(day: date, session: Session = Depends(get_session)):
     raw_tasks = session.exec(tasks_q.order_by(Task.created_at)).all()
     enriched = [_enrich(t, session) for t in raw_tasks]
 
-    STATE_ORDER = {TaskState.TODO: 0, TaskState.IN_PROGRESS: 1, TaskState.COMPLETE: 2}
+    STATE_ORDER = {TaskState.TODO: 0, TaskState.IN_PROGRESS: 1, TaskState.COMPLETE: 2, TaskState.ABANDONED: 3}
 
     ws_map: dict[Optional[str], list] = {}
     for t in enriched:

@@ -214,16 +214,17 @@ function MeetingTasks({ meeting, date, onChanged }: { meeting: Meeting; date: st
           <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Tasks</span>
           {meeting.tasks.map(task => (
             <div key={task.id} className="flex items-center gap-2 text-xs group/task rounded border border-border/50 bg-card/30 px-2.5 py-1.5">
-              <span className={cn('flex-1 truncate', task.state === 'complete' ? 'line-through text-muted-foreground' : 'text-foreground')}>
+              <span className={cn('flex-1 truncate', (task.state === 'complete' || task.state === 'abandoned') ? 'line-through text-muted-foreground' : 'text-foreground')}>
                 {task.action}
               </span>
               <span className={cn(
                 'text-xs border rounded-full px-2 py-0.5 font-medium flex-shrink-0',
                 task.state === 'todo' ? 'text-red-400 border-red-500/40' :
                 task.state === 'in_progress' ? 'text-blue-400 border-blue-500/40' :
+                task.state === 'abandoned' ? 'text-gray-400 border-gray-500/40' :
                 'text-green-400 border-green-500/40'
               )}>
-                {task.state === 'todo' ? 'TODO' : task.state === 'in_progress' ? 'IN PROGRESS' : 'DONE'}
+                {task.state === 'todo' ? 'TODO' : task.state === 'in_progress' ? 'IN PROGRESS' : task.state === 'abandoned' ? 'ABANDONED' : 'DONE'}
               </span>
               <button
                 onClick={async () => {
@@ -379,9 +380,10 @@ function LinkExistingTask({ meetingId, date, existingTaskIds, onDone }: {
                   'text-xs flex-shrink-0',
                   task.state === 'todo' ? 'text-red-400' :
                   task.state === 'in_progress' ? 'text-blue-400' :
+                  task.state === 'abandoned' ? 'text-gray-400' :
                   'text-green-400'
                 )}>
-                  {task.state === 'todo' ? 'TODO' : task.state === 'in_progress' ? 'IN PROG' : 'DONE'}
+                  {task.state === 'todo' ? 'TODO' : task.state === 'in_progress' ? 'IN PROG' : task.state === 'abandoned' ? 'ABANDONED' : 'DONE'}
                 </span>
               </button>
             ))}

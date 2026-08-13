@@ -18,6 +18,7 @@ class TaskState(str, Enum):
     TODO = "todo"
     IN_PROGRESS = "in_progress"
     COMPLETE = "complete"
+    ABANDONED = "abandoned"
 
 
 class LinkType(str, Enum):

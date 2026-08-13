@@ -38,7 +38,7 @@ export function TaskRow({ task, onChanged }: Props) {
   const [editHighImpact, setEditHighImpact] = useState(false)
   const [workstreams, setWorkstreams] = useState<Workstream[]>([])
 
-  const isDone = task.state === 'complete'
+  const isDone = task.state === 'complete' || task.state === 'abandoned'
 
   function startEdit() {
     setEditAction(task.action)
@@ -75,7 +75,9 @@ export function TaskRow({ task, onChanged }: Props) {
     if (newState === 'complete') {
       if (!task.start_date) updates.start_date = todayStr()
       updates.end_date = todayStr()
-    } else if (task.state === 'complete') {
+    } else if (newState === 'abandoned') {
+      updates.end_date = todayStr()
+    } else if (task.state === 'complete' || task.state === 'abandoned') {
       updates.end_date = null
     }
     await updateTask(task.id, updates)

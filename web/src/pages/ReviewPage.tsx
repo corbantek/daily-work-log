@@ -15,12 +15,14 @@ const STATE_LABELS: Record<string, string> = {
   todo: 'TODO',
   in_progress: 'IN PROGRESS',
   complete: 'DONE',
+  abandoned: 'ABANDONED',
 }
 
 const STATE_COLORS: Record<string, string> = {
   todo: 'text-red-400 border-red-500/40',
   in_progress: 'text-blue-400 border-blue-500/40',
   complete: 'text-green-400 border-green-500/40',
+  abandoned: 'text-gray-400 border-gray-500/40',
 }
 
 function currentYear() {
@@ -147,7 +149,7 @@ export function ReviewPage() {
         <Separator orientation="vertical" className="h-8" />
 
         {/* State filter */}
-        {(['all', 'todo', 'in_progress', 'complete'] as const).map(s => (
+        {(['all', 'todo', 'in_progress', 'complete', 'abandoned'] as const).map(s => (
           <button
             key={s}
             onClick={() => setFilterState(s)}
@@ -228,7 +230,7 @@ export function ReviewPage() {
                   <div
                     key={task.id}
                     className={`rounded-lg border border-border bg-card/50 px-3 py-2 ${
-                      task.state === 'complete' ? 'opacity-60' : ''
+                      (task.state === 'complete' || task.state === 'abandoned') ? 'opacity-60' : ''
                     }`}
                   >
                     <div className="flex items-start gap-2">

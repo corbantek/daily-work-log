@@ -16,8 +16,8 @@ export function WorkstreamSection({ section, date, onChanged }: Props) {
   const [collapsed, setCollapsed] = useState(false)
   const { workstream, tasks } = section
   const name = workstream?.name ?? 'Unassigned'
-  const activeTasks = tasks.filter(t => t.state !== 'complete')
-  const doneTasks = tasks.filter(t => t.state === 'complete')
+  const activeTasks = tasks.filter(t => t.state !== 'complete' && t.state !== 'abandoned')
+  const doneTasks = tasks.filter(t => t.state === 'complete' || t.state === 'abandoned')
 
   return (
     <div className="mb-5">

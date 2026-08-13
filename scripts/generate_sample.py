@@ -205,6 +205,17 @@ def main():
         s.add(TaskLabelLink(task_id=t11.id, label_id=labels["tech-debt"]))
         s.add(TaskLabelLink(task_id=t11.id, label_id=labels["infra"]))
 
+        t12 = Task(
+            action="Build custom Grafana plugin for deploy tracking",
+            state=TaskState.ABANDONED,
+            workstream_id=ws["Observability"],
+            end_date=yesterday,
+            notes="Decided to use existing annotations API instead of a custom plugin.\nScope changed after discovering built-in deploy markers.",
+        )
+        s.add(t12)
+        s.flush()
+        s.add(TaskLabelLink(task_id=t12.id, label_id=labels["infra"]))
+
         # ── Meetings ──
 
         # Today
