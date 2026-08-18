@@ -1,5 +1,5 @@
-import { useState, useCallback, useEffect } from 'react'
-import { Settings, Sun, Moon, Monitor, X, Plus, Eye, EyeOff, WifiOff } from 'lucide-react'
+import { useState, useCallback, useEffect, useRef } from 'react'
+import { Settings, Sun, Moon, Monitor, X, Plus, Eye, EyeOff, WifiOff, ChevronDown, CalendarDays } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
@@ -63,13 +63,21 @@ function buildDateRange(
   windowSize: number,
   hideWeekends: boolean,
   overrides: Record<string, boolean>,
+  fromDate?: string,
 ): string[] {
   const visible: string[] = []
-  const maxLookback = windowSize * 4
-  for (let i = 0; i < maxLookback && visible.length < windowSize; i++) {
-    const d = addDays(today, -i)
-    if (isDateVisible(d, today, hideWeekends, overrides)) {
-      visible.push(d)
+  if (fromDate) {
+    const maxLookback = 400
+    for (let i = 0; i < maxLookback; i++) {
+      const d = addDays(today, -i)
+      if (isDateVisible(d, today, hideWeekends, overrides)) visible.push(d)
+      if (d <= fromDate) break
+    }
+  } else {
+    const maxLookback = windowSize * 4
+    for (let i = 0; i < maxLookback && visible.length < windowSize; i++) {
+      const d = addDays(today, -i)
+      if (isDateVisible(d, today, hideWeekends, overrides)) visible.push(d)
     }
   }
   return visible
@@ -122,8 +130,12 @@ export default function App() {
   const [visibilityOverrides, setVisibilityOverrides] = useState<Record<string, boolean>>({})
   const [serverUp, setServerUp] = useState(true)
   const [contentWidth, setContentWidth] = useState<ContentWidth>('normal')
+  const [extendedFrom, setExtendedFrom] = useState<string | null>(() => {
+    const p = new URLSearchParams(window.location.search).get('from')
+    return p && /^\d{4}-\d{2}-\d{2}$/.test(p) && p < todayStr() ? p : null
+  })
   const today = todayStr()
-  const dates = buildDateRange(today, windowSize, hideWeekends, visibilityOverrides)
+  const dates = buildDateRange(today, windowSize, hideWeekends, visibilityOverrides, extendedFrom ?? undefined)
 
   useEffect(() => {
     applyTheme(theme)
@@ -143,9 +155,9 @@ export default function App() {
     return () => clearInterval(id)
   }, [])
 
-  function loadVisibilityOverrides() {
-    const from = addDays(today, -60)
-    return getDayVisibility(from, today).then(setVisibilityOverrides).catch(() => {})
+  function loadVisibilityOverrides(from?: string) {
+    const floor = from && from < addDays(today, -60) ? from : addDays(today, -60)
+    return getDayVisibility(floor, today).then(setVisibilityOverrides).catch(() => {})
   }
 
   // Load all settings from the database on startup
@@ -229,10 +241,37 @@ export default function App() {
     }
   }, [])
 
+  function applyExtendedFrom(newFrom: string) {
+    setExtendedFrom(newFrom)
+    history.replaceState(null, '', `?from=${newFrom}`)
+    loadVisibilityOverrides(newFrom)
+  }
+
+  function loadMore() {
+    const currentBottom = dates.length > 0 ? dates[dates.length - 1] : today
+    applyExtendedFrom(addDays(currentBottom, -windowSize))
+  }
+
+  function goToDate(dateStr: string) {
+    if (!dateStr) return
+    const currentBottom = dates.length > 0 ? dates[dates.length - 1] : today
+    if (dateStr < currentBottom) {
+      applyExtendedFrom(dateStr)
+    }
+  }
+
+  const datePickerRef = useRef<HTMLInputElement>(null)
+
   const refresh = useCallback(() => {
     setReloadKey(k => k + 1)
-    loadVisibilityOverrides()
-  }, [])
+    loadVisibilityOverrides(extendedFrom ?? undefined)
+  }, [extendedFrom])
+
+  function resetExtendedFrom() {
+    setExtendedFrom(null)
+    setReloadKey(k => k + 1)
+    history.replaceState(null, '', window.location.pathname)
+  }
 
   if (!settingsLoaded) {
     return <div className="min-h-screen" />
@@ -241,9 +280,12 @@ export default function App() {
   return (
     <div className="min-h-screen text-foreground">
       <header className="sticky top-0 z-10 bg-background/70 backdrop-blur-md border-b border-border/60 px-6 py-3 flex items-center gap-4">
-        <span className="text-base font-semibold text-primary tracking-tight flex-shrink-0">
+        <button
+          onClick={resetExtendedFrom}
+          className="text-base font-semibold text-primary tracking-tight flex-shrink-0 hover:opacity-75 transition-opacity"
+        >
           {appTitle}
-        </span>
+        </button>
 
         <Separator orientation="vertical" className="h-5" />
 
@@ -471,6 +513,30 @@ export default function App() {
                 </div>
               )
             })}
+
+            <div className="flex items-center gap-3 pt-4 pb-2">
+              <button
+                onClick={loadMore}
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+              >
+                <ChevronDown size={13} /> Load {windowSize} more days
+              </button>
+              <Separator orientation="vertical" className="h-4" />
+              <button
+                onClick={() => datePickerRef.current?.showPicker()}
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+              >
+                <CalendarDays size={13} /> Go to date…
+              </button>
+              <input
+                ref={datePickerRef}
+                type="date"
+                max={addDays(today, -1)}
+                className="sr-only"
+                style={{ colorScheme: theme === 'light' ? 'light' : 'dark' }}
+                onChange={e => { goToDate((e.target as HTMLInputElement).value); (e.target as HTMLInputElement).value = '' }}
+              />
+            </div>
           </div>
         ) : (
           <ReviewPage containerClass={`${CONTENT_WIDTH_MAP[contentWidth]} mx-auto px-4 py-6`} />
