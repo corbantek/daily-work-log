@@ -13,6 +13,8 @@ from ..models import (
 
 STATE_ORDER = {TaskState.TODO: 0, TaskState.IN_PROGRESS: 1, TaskState.COMPLETE: 2, TaskState.ABANDONED: 3}
 
+_UNSET = object()
+
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
 
@@ -25,6 +27,23 @@ def _attach_labels(task: Task, label_ids: List[str], session: Session):
     for lid in label_ids:
         if session.get(Label, lid):
             session.add(TaskLabelLink(task_id=task.id, label_id=lid))
+
+
+def _validate_parent(task: Task, parent_id: str, session: Session):
+    if parent_id == task.id:
+        raise HTTPException(400, detail="A task cannot be its own parent")
+    parent = session.get(Task, parent_id)
+    if not parent:
+        raise HTTPException(400, detail="Parent task not found")
+    if parent.parent_task_id is not None:
+        raise HTTPException(400, detail="Cannot nest more than one level deep")
+    if parent.workstream_id != task.workstream_id:
+        raise HTTPException(400, detail="Parent task must be in the same workstream")
+    existing_children = session.exec(
+        select(Task).where(Task.parent_task_id == task.id)
+    ).all()
+    if existing_children:
+        raise HTTPException(400, detail="A task that already has sub-tasks cannot become a sub-task")
 
 
 @router.get("", response_model=List[TaskRead])
@@ -60,6 +79,8 @@ def create_task(body: TaskCreate, session: Session = Depends(get_session)):
     task = Task(**data)
     session.add(task)
     session.flush()
+    if task.parent_task_id:
+        _validate_parent(task, task.parent_task_id, session)
     _attach_labels(task, body.label_ids, session)
     session.commit()
     session.refresh(task)
@@ -80,8 +101,21 @@ def update_task(task_id: str, body: TaskUpdate, session: Session = Depends(get_s
     if not task:
         raise HTTPException(404)
     data = body.model_dump(exclude_unset=True, exclude={"label_ids"})
+    new_state = data.get("state", task.state)
+    if new_state in (TaskState.COMPLETE, TaskState.ABANDONED):
+        open_children = session.exec(
+            select(Task).where(
+                Task.parent_task_id == task_id,
+                Task.state.in_([TaskState.TODO, TaskState.IN_PROGRESS]),
+            )
+        ).all()
+        if open_children:
+            raise HTTPException(400, detail="Resolve all sub-tasks first")
+    new_parent_id = data.get("parent_task_id", _UNSET)
     for k, v in data.items():
         setattr(task, k, v)
+    if new_parent_id is not _UNSET and new_parent_id is not None:
+        _validate_parent(task, new_parent_id, session)
     if body.label_ids is not None:
         _attach_labels(task, body.label_ids, session)
     session.add(task)
@@ -95,6 +129,9 @@ def delete_task(task_id: str, session: Session = Depends(get_session)):
     task = session.get(Task, task_id)
     if not task:
         raise HTTPException(404)
+    for child in session.exec(select(Task).where(Task.parent_task_id == task_id)).all():
+        child.parent_task_id = None
+        session.add(child)
     for link in session.exec(select(TaskLabelLink).where(TaskLabelLink.task_id == task_id)).all():
         session.delete(link)
     for link in session.exec(select(TaskLink).where(TaskLink.task_id == task_id)).all():
@@ -159,9 +196,18 @@ def _enrich(task: Task, session: Session) -> TaskRead:
         m = session.get(Meeting, ml.meeting_id)
         if m:
             meetings.append(MeetingBrief(id=m.id, title=m.title, date=m.date))
+    all_children = session.exec(
+        select(Task).where(Task.parent_task_id == task.id)
+    ).all()
+    subtask_count = len(all_children)
+    open_subtask_count = sum(
+        1 for c in all_children if c.state in (TaskState.TODO, TaskState.IN_PROGRESS)
+    )
     return TaskRead(
         **task.model_dump(),
         labels=labels,
         links=links,
         meetings=meetings,
+        subtask_count=subtask_count,
+        open_subtask_count=open_subtask_count,
     )

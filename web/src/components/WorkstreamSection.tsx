@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import type { WorkstreamWithTasks } from '../api/types'
+import type { WorkstreamWithTasks, Task } from '../api/types'
 import { TaskRow } from './TaskRow'
 import { AddTaskForm } from './AddTaskForm'
 
@@ -16,6 +16,19 @@ export function WorkstreamSection({ section, date, onChanged }: Props) {
   const [collapsed, setCollapsed] = useState(false)
   const { workstream, tasks } = section
   const name = workstream?.name ?? 'Unassigned'
+
+  const taskById = new Map<string, Task>(tasks.map(t => [t.id, t]))
+
+  const topLevel = tasks.filter(t => !t.parent_task_id || !taskById.has(t.parent_task_id))
+  const childrenByParent = new Map<string, Task[]>()
+  for (const t of tasks) {
+    if (t.parent_task_id && taskById.has(t.parent_task_id)) {
+      const arr = childrenByParent.get(t.parent_task_id) ?? []
+      arr.push(t)
+      childrenByParent.set(t.parent_task_id, arr)
+    }
+  }
+
   const activeTasks = tasks.filter(t => t.state !== 'complete' && t.state !== 'abandoned')
   const doneTasks = tasks.filter(t => t.state === 'complete' || t.state === 'abandoned')
 
@@ -47,9 +60,21 @@ export function WorkstreamSection({ section, date, onChanged }: Props) {
         <>
           <Separator className="mb-3 ml-5" />
           <div className="ml-5 space-y-1.5">
-            {tasks.map(task => (
-              <TaskRow key={task.id} task={task} onChanged={onChanged} />
-            ))}
+            {topLevel.map(task => {
+              const children = childrenByParent.get(task.id) ?? []
+              return (
+                <div key={task.id}>
+                  <TaskRow task={task} onChanged={onChanged} />
+                  {children.length > 0 && (
+                    <div className="ml-6 mt-1 space-y-1">
+                      {children.map(child => (
+                        <TaskRow key={child.id} task={child} onChanged={onChanged} isSubtask />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
             <AddTaskForm
               workstreamId={workstream?.id ?? null}
               defaultDate={date}

@@ -29,7 +29,7 @@ function currentYear() {
   return new Date().getFullYear()
 }
 
-export function ReviewPage() {
+export function ReviewPage({ containerClass = 'max-w-5xl mx-auto px-4 py-6' }: { containerClass?: string }) {
   const [tasks, setTasks] = useState<Task[]>([])
   const [workstreams, setWorkstreams] = useState<Workstream[]>([])
   const [labels, setLabels] = useState<Label[]>([])
@@ -120,7 +120,7 @@ export function ReviewPage() {
   ]
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6">
+    <div className={containerClass}>
       {/* Header row */}
       <div className="flex items-center justify-between mb-5">
         <h2 className="text-base font-semibold text-foreground">Review</h2>
@@ -231,7 +231,7 @@ export function ReviewPage() {
                     key={task.id}
                     className={`rounded-lg border border-border bg-card/50 px-3 py-2 ${
                       (task.state === 'complete' || task.state === 'abandoned') ? 'opacity-60' : ''
-                    }`}
+                    } ${task.parent_task_id && wsTasks.some(t => t.id === task.parent_task_id) ? 'ml-6 border-border/60 bg-card/30' : ''}`}
                   >
                     <div className="flex items-start gap-2">
                       {task.high_impact && <Zap size={13} className="text-yellow-400 flex-shrink-0 mt-0.5" />}

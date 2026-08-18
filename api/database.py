@@ -22,6 +22,9 @@ def _run_migrations():
     if "description" in columns and "notes" not in columns:
         cursor.execute("ALTER TABLE task RENAME COLUMN description TO notes")
         conn.commit()
+    if "parent_task_id" not in columns:
+        cursor.execute("ALTER TABLE task ADD COLUMN parent_task_id VARCHAR")
+        conn.commit()
     conn.close()
 
 

@@ -13,9 +13,10 @@ interface Props {
   workstreamId: string | null
   defaultDate?: string
   onCreated: () => void
+  parentTaskId?: string | null
 }
 
-export function AddTaskForm({ workstreamId, defaultDate, onCreated }: Props) {
+export function AddTaskForm({ workstreamId, defaultDate, onCreated, parentTaskId }: Props) {
   const [open, setOpen] = useState(false)
   const [action, setAction] = useState('')
   const [state, setState] = useState<TaskState>('todo')
@@ -32,6 +33,7 @@ export function AddTaskForm({ workstreamId, defaultDate, onCreated }: Props) {
       workstream_id: workstreamId,
       start_date: state === 'in_progress' ? (defaultDate ?? todayStr()) : undefined,
       label_ids: labelIds,
+      parent_task_id: parentTaskId ?? undefined,
     })
     setAction('')
     setState('todo')

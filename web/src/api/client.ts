@@ -19,8 +19,11 @@ async function req<T>(path: string, opts?: RequestInit): Promise<T> {
 export const getDay = (date: string) => req<DayView>(`/day/${date}`)
 
 // ── Tasks ─────────────────────────────────────────────────────────────────────
-export const getTasks = (params?: { active_on?: string }) => {
-  const qs = params?.active_on ? `?active_on=${params.active_on}` : ''
+export const getTasks = (params?: { active_on?: string; workstream_id?: string | null }) => {
+  const p = new URLSearchParams()
+  if (params?.active_on) p.set('active_on', params.active_on)
+  if (params?.workstream_id) p.set('workstream_id', params.workstream_id)
+  const qs = p.toString() ? `?${p}` : ''
   return req<Task[]>(`/tasks${qs}`)
 }
 
@@ -32,6 +35,7 @@ export const createTask = (body: {
   workstream_id?: string | null
   start_date?: string | null
   label_ids?: string[]
+  parent_task_id?: string | null
 }) => req<Task>('/tasks', { method: 'POST', body: JSON.stringify(body) })
 
 export const updateTask = (id: string, body: Partial<{
@@ -43,6 +47,7 @@ export const updateTask = (id: string, body: Partial<{
   start_date: string | null
   end_date: string | null
   label_ids: string[]
+  parent_task_id: string | null
 }>) => req<Task>(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
 
 export const deleteTask = (id: string) =>

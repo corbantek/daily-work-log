@@ -35,6 +35,9 @@ export interface Task {
   labels: Label[]
   links: TaskLink[]
   meetings: MeetingBrief[]
+  parent_task_id: string | null
+  subtask_count: number
+  open_subtask_count: number
 }
 
 export interface Workstream {

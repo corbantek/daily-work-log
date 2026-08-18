@@ -19,6 +19,11 @@ def on_startup():
     init_db()
 
 
+@app.get("/health")
+def health():
+    return {"ok": True}
+
+
 app.include_router(workstreams.router)
 app.include_router(tasks.router)
 app.include_router(meetings.router)

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Zap, ChevronRight, ChevronDown, Plus, Trash2, Pencil, X, Check, CalendarDays } from 'lucide-react'
+import { Zap, ChevronRight, ChevronDown, Plus, Trash2, Pencil, X, Check, CalendarDays, GitBranch } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -11,8 +11,9 @@ import { StateDropdown } from './StateDropdown'
 import { WorkstreamPicker } from './WorkstreamPicker'
 import { LabelPicker } from './LabelPicker'
 import { ClickToEditMarkdown } from './ClickToEditMarkdown'
+import { AddTaskForm } from './AddTaskForm'
 import type { Task, LinkType, TaskState, Workstream } from '../api/types'
-import { updateTask, deleteTask, addTaskLink, updateTaskLink, deleteTaskLink, getWorkstreams, unlinkTaskFromMeeting } from '../api/client'
+import { updateTask, deleteTask, addTaskLink, updateTaskLink, deleteTaskLink, getWorkstreams, unlinkTaskFromMeeting, getTasks } from '../api/client'
 import { cn } from '@/lib/utils'
 import { todayStr } from '../api/date'
 
@@ -21,22 +22,27 @@ const LINK_ICONS: Record<LinkType, string> = { pr: '⤴', issue: '#', doc: '📄
 interface Props {
   task: Task
   onChanged: () => void
+  isSubtask?: boolean
 }
 
-export function TaskRow({ task, onChanged }: Props) {
+export function TaskRow({ task, onChanged, isSubtask }: Props) {
   const [expanded, setExpanded] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [addingLink, setAddingLink] = useState(false)
+  const [addingSubtask, setAddingSubtask] = useState(false)
   const [editingLinkId, setEditingLinkId] = useState<string | null>(null)
   const [linkUrl, setLinkUrl] = useState('')
   const [linkLabel, setLinkLabel] = useState('')
   const [linkType, setLinkType] = useState<LinkType>('pr')
+  const [stateBlockMsg, setStateBlockMsg] = useState<string | null>(null)
 
   const [editAction, setEditAction] = useState('')
   const [editWorkstreamId, setEditWorkstreamId] = useState<string>('')
   const [editLabelIds, setEditLabelIds] = useState<string[]>([])
   const [editHighImpact, setEditHighImpact] = useState(false)
+  const [editParentTaskId, setEditParentTaskId] = useState<string>('__none__')
   const [workstreams, setWorkstreams] = useState<Workstream[]>([])
+  const [parentCandidates, setParentCandidates] = useState<Task[]>([])
 
   const isDone = task.state === 'complete' || task.state === 'abandoned'
 
@@ -45,7 +51,19 @@ export function TaskRow({ task, onChanged }: Props) {
     setEditWorkstreamId(task.workstream_id ?? '__none__')
     setEditLabelIds(task.labels.map(l => l.id))
     setEditHighImpact(task.high_impact)
+    setEditParentTaskId(task.parent_task_id ?? '__none__')
     getWorkstreams().then(setWorkstreams)
+    if (task.subtask_count === 0) {
+      getTasks({ workstream_id: task.workstream_id ?? undefined }).then(all => {
+        setParentCandidates(
+          all.filter(t =>
+            t.id !== task.id &&
+            t.parent_task_id === null &&
+            (t.state === 'todo' || t.state === 'in_progress')
+          )
+        )
+      })
+    }
     setIsEditing(true)
     setExpanded(true)
   }
@@ -57,6 +75,7 @@ export function TaskRow({ task, onChanged }: Props) {
       workstream_id: editWorkstreamId === '__none__' ? null : editWorkstreamId,
       label_ids: editLabelIds,
       high_impact: editHighImpact,
+      parent_task_id: editParentTaskId === '__none__' ? null : editParentTaskId,
     })
     setIsEditing(false)
     onChanged()
@@ -68,6 +87,11 @@ export function TaskRow({ task, onChanged }: Props) {
   }
 
   async function changeState(newState: TaskState) {
+    if ((newState === 'complete' || newState === 'abandoned') && task.open_subtask_count > 0) {
+      setStateBlockMsg('Resolve all sub-tasks first')
+      setTimeout(() => setStateBlockMsg(null), 3000)
+      return
+    }
     const updates: Parameters<typeof updateTask>[1] = { state: newState }
     if (newState === 'in_progress' && !task.start_date) {
       updates.start_date = todayStr()
@@ -80,8 +104,16 @@ export function TaskRow({ task, onChanged }: Props) {
     } else if (task.state === 'complete' || task.state === 'abandoned') {
       updates.end_date = null
     }
-    await updateTask(task.id, updates)
-    onChanged()
+    try {
+      await updateTask(task.id, updates)
+      onChanged()
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      if (msg.includes('400')) {
+        setStateBlockMsg('Resolve all sub-tasks first')
+        setTimeout(() => setStateBlockMsg(null), 3000)
+      }
+    }
   }
 
   async function handleDelete() {
@@ -146,7 +178,8 @@ export function TaskRow({ task, onChanged }: Props) {
   return (
     <div className={cn(
       'group rounded-lg border border-border bg-card px-3 py-2 transition-opacity',
-      isDone && 'opacity-55'
+      isDone && 'opacity-55',
+      isSubtask && 'border-border/60 bg-card/60',
     )}>
       <div className="flex items-start gap-2">
         <button
@@ -185,6 +218,19 @@ export function TaskRow({ task, onChanged }: Props) {
           )
         })() : (
           <div className="flex-1" />
+        )}
+
+        {task.subtask_count > 0 && (
+          <span className="text-xs text-muted-foreground/60 flex items-center gap-0.5 flex-shrink-0 mt-0.5">
+            <GitBranch size={11} />
+            {task.open_subtask_count > 0
+              ? `${task.open_subtask_count}/${task.subtask_count}`
+              : task.subtask_count}
+          </span>
+        )}
+
+        {stateBlockMsg && (
+          <span className="text-xs text-destructive flex-shrink-0 mt-0.5">{stateBlockMsg}</span>
         )}
 
         <StateDropdown value={task.state} onChange={changeState} />
@@ -236,6 +282,14 @@ export function TaskRow({ task, onChanged }: Props) {
                 >
                   <Zap size={13} />
                 </button>
+
+                {task.subtask_count === 0 && (
+                  <ParentPicker
+                    value={editParentTaskId}
+                    candidates={parentCandidates}
+                    onChange={setEditParentTaskId}
+                  />
+                )}
 
                 <Button size="sm" className="h-7 text-xs gap-1 ml-auto" onClick={saveEdit}>
                   <Check size={12} /> Save
@@ -373,17 +427,63 @@ export function TaskRow({ task, onChanged }: Props) {
                   </Button>
                 </form>
               ) : (
-                <button
-                  onClick={() => setAddingLink(true)}
-                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
-                >
-                  <Plus size={12} /> add link
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setAddingLink(true)}
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    <Plus size={12} /> add link
+                  </button>
+                  {!isSubtask && (
+                    <button
+                      onClick={() => { setAddingSubtask(v => !v) }}
+                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+                    >
+                      <GitBranch size={12} /> add sub-task
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {addingSubtask && (
+                <div className="mt-1">
+                  <AddTaskForm
+                    workstreamId={task.workstream_id}
+                    parentTaskId={task.id}
+                    onCreated={() => { setAddingSubtask(false); onChanged() }}
+                  />
+                </div>
               )}
             </>
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+interface ParentPickerProps {
+  value: string
+  candidates: Task[]
+  onChange: (id: string) => void
+}
+
+function ParentPicker({ value, candidates, onChange }: ParentPickerProps) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <GitBranch size={12} className="text-muted-foreground flex-shrink-0" />
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="h-7 text-xs px-2 rounded-md border border-border bg-card text-foreground focus:outline-none focus:border-ring max-w-44"
+      >
+        <option value="__none__">No parent</option>
+        {candidates.map(t => (
+          <option key={t.id} value={t.id}>
+            {t.action.length > 40 ? t.action.slice(0, 40) + '…' : t.action}
+          </option>
+        ))}
+      </select>
     </div>
   )
 }

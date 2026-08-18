@@ -132,6 +132,7 @@ class TaskBase(SQLModel):
     workstream_id: Optional[str] = Field(default=None, foreign_key="workstream.id")
     start_date: Optional[date] = None
     end_date: Optional[date] = None
+    parent_task_id: Optional[str] = Field(default=None, foreign_key="task.id")
 
 
 class Task(TaskBase, table=True):
@@ -160,6 +161,8 @@ class TaskRead(TaskBase):
     labels: List[LabelRead] = []
     links: List[TaskLinkRead] = []
     meetings: List[MeetingBrief] = []
+    subtask_count: int = 0
+    open_subtask_count: int = 0
 
 
 class TaskUpdate(SQLModel):
@@ -171,6 +174,7 @@ class TaskUpdate(SQLModel):
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     label_ids: Optional[List[str]] = None
+    parent_task_id: Optional[str] = None
 
 
 # ── Meeting ───────────────────────────────────────────────────────────────────

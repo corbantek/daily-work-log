@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
-import { Settings, Sun, Moon, Monitor, X, Plus, Eye, EyeOff } from 'lucide-react'
+import { Settings, Sun, Moon, Monitor, X, Plus, Eye, EyeOff, WifiOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
@@ -16,10 +16,29 @@ import './index.css'
 
 type Tab = 'log' | 'review'
 type Theme = 'dark' | 'dim' | 'light'
+type ContentWidth = 'normal' | 'wide' | 'wider' | 'full'
 
 function isTheme(v: string | undefined): v is Theme {
   return v === 'dark' || v === 'dim' || v === 'light'
 }
+
+function isContentWidth(v: string | undefined): v is ContentWidth {
+  return v === 'normal' || v === 'wide' || v === 'wider' || v === 'full'
+}
+
+const CONTENT_WIDTH_MAP: Record<ContentWidth, string> = {
+  normal: 'max-w-5xl',
+  wide:   'max-w-6xl',
+  wider:  'max-w-7xl',
+  full:   'max-w-full',
+}
+
+const CONTENT_WIDTH_OPTIONS: { value: ContentWidth; label: string }[] = [
+  { value: 'normal', label: 'Normal' },
+  { value: 'wide',   label: 'Wide' },
+  { value: 'wider',  label: 'Wider' },
+  { value: 'full',   label: 'Full' },
+]
 
 function addDays(dateStr: string, n: number): string {
   const [y, m, d] = dateStr.split('-').map(Number)
@@ -101,12 +120,28 @@ export default function App() {
   const [newStatus, setNewStatus] = useState('')
   const [hideWeekends, setHideWeekends] = useState(false)
   const [visibilityOverrides, setVisibilityOverrides] = useState<Record<string, boolean>>({})
+  const [serverUp, setServerUp] = useState(true)
+  const [contentWidth, setContentWidth] = useState<ContentWidth>('normal')
   const today = todayStr()
   const dates = buildDateRange(today, windowSize, hideWeekends, visibilityOverrides)
 
   useEffect(() => {
     applyTheme(theme)
   }, [theme])
+
+  useEffect(() => {
+    async function checkHealth() {
+      try {
+        const res = await fetch('/api/health')
+        setServerUp(res.ok)
+      } catch {
+        setServerUp(false)
+      }
+    }
+    checkHealth()
+    const id = setInterval(checkHealth, 15000)
+    return () => clearInterval(id)
+  }, [])
 
   function loadVisibilityOverrides() {
     const from = addDays(today, -60)
@@ -122,6 +157,7 @@ export default function App() {
         const days = parseInt(s.days_to_show)
         if (days && WINDOW_OPTIONS.includes(days)) setWindowSize(days)
         if (s.hide_weekends === 'true') setHideWeekends(true)
+        if (isContentWidth(s.content_width)) setContentWidth(s.content_width)
         if (s.day_status_options) {
           try {
             const parsed = JSON.parse(s.day_status_options)
@@ -172,6 +208,11 @@ export default function App() {
   function changeHideWeekends(val: boolean) {
     setHideWeekends(val)
     setSetting('hide_weekends', String(val))
+  }
+
+  function changeContentWidth(val: ContentWidth) {
+    setContentWidth(val)
+    setSetting('content_width', val)
   }
 
   const handleVisibilityChange = useCallback(async (date: string, visible: boolean | null) => {
@@ -307,6 +348,26 @@ export default function App() {
 
             <Separator />
 
+            {/* Content width */}
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-2">Width</p>
+              <div className="flex gap-1.5">
+                {CONTENT_WIDTH_OPTIONS.map(opt => (
+                  <Button
+                    key={opt.value}
+                    size="sm"
+                    variant={contentWidth === opt.value ? 'default' : 'secondary'}
+                    className="h-8 text-xs flex-1"
+                    onClick={() => changeContentWidth(opt.value)}
+                  >
+                    {opt.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <Separator />
+
             {/* Weekends */}
             <div>
               <p className="text-xs font-medium text-muted-foreground mb-2">Weekends</p>
@@ -374,9 +435,19 @@ export default function App() {
         </DialogContent>
       </Dialog>
 
+      {!serverUp && (
+        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center">
+          <div className="flex flex-col items-center gap-3 text-center">
+            <WifiOff size={32} className="text-muted-foreground" />
+            <p className="text-sm font-medium text-foreground">Server connection lost</p>
+            <p className="text-xs text-muted-foreground">Changes won't be saved until the server comes back.</p>
+          </div>
+        </div>
+      )}
+
       <main>
         {tab === 'log' ? (
-          <div className="max-w-5xl mx-auto px-4 py-6 space-y-1">
+          <div className={`${CONTENT_WIDTH_MAP[contentWidth]} mx-auto px-4 py-6 space-y-1`}>
             {dates.map((date, i) => {
               const hiddenBetween = i > 0
                 ? getHiddenDatesBetween(dates[i - 1], date, hideWeekends, visibilityOverrides, today)
@@ -402,7 +473,7 @@ export default function App() {
             })}
           </div>
         ) : (
-          <ReviewPage />
+          <ReviewPage containerClass={`${CONTENT_WIDTH_MAP[contentWidth]} mx-auto px-4 py-6`} />
         )}
       </main>
     </div>

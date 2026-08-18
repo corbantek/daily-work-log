@@ -92,6 +92,27 @@ def main():
         s.add(TaskLabelLink(task_id=t2.id, label_id=labels["performance"]))
         s.add(TaskLink(task_id=t2.id, url="https://github.com/acme/api/issues/1190", label="Rate limit design", link_type=LinkType.ISSUE))
 
+        t2a = Task(
+            action="Add Redis backend for distributed counting",
+            state=TaskState.COMPLETE,
+            workstream_id=ws["API Redesign"],
+            parent_task_id=t2.id,
+            start_date=yesterday,
+            end_date=today,
+        )
+        s.add(t2a)
+        s.flush()
+        s.add(TaskLabelLink(task_id=t2a.id, label_id=labels["infra"]))
+
+        t2b = Task(
+            action="Write load tests for rate limiter",
+            state=TaskState.TODO,
+            workstream_id=ws["API Redesign"],
+            parent_task_id=t2.id,
+        )
+        s.add(t2b)
+        s.flush()
+
         t3 = Task(
             action="Write OpenAPI spec for /users endpoints",
             state=TaskState.TODO,
