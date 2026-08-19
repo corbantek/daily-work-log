@@ -217,6 +217,24 @@ export function ReviewPage({ containerClass = 'max-w-5xl mx-auto px-4 py-6' }: {
         {orderedGroupKeys.map(key => {
           const wsTasks = grouped[key]
           if (!wsTasks?.length) return null
+          const taskIds = new Set(wsTasks.map(t => t.id))
+          const childrenByParent = new Map<string, typeof wsTasks>()
+          for (const t of wsTasks) {
+            if (t.parent_task_id && taskIds.has(t.parent_task_id)) {
+              const arr = childrenByParent.get(t.parent_task_id) ?? []
+              arr.push(t)
+              childrenByParent.set(t.parent_task_id, arr)
+            }
+          }
+          const ordered: typeof wsTasks = []
+          for (const t of wsTasks) {
+            if (!t.parent_task_id || !taskIds.has(t.parent_task_id)) {
+              ordered.push(t)
+              for (const child of childrenByParent.get(t.id) ?? []) {
+                ordered.push(child)
+              }
+            }
+          }
           return (
             <div key={key}>
               <div className="flex items-center gap-2 mb-2">
@@ -226,7 +244,7 @@ export function ReviewPage({ containerClass = 'max-w-5xl mx-auto px-4 py-6' }: {
                 <Badge variant="secondary" className="text-xs h-4 px-1.5">{wsTasks.length}</Badge>
               </div>
               <div className="space-y-1.5">
-                {wsTasks.map(task => (
+                {ordered.map(task => (
                   <div
                     key={task.id}
                     className={`rounded-lg border border-border bg-card/50 px-3 py-2 ${
