@@ -4,6 +4,7 @@ PLIST_NAME  = local.daily-work-log
 PLIST_DEST  = $(HOME)/Library/LaunchAgents/$(PLIST_NAME).plist
 LOG_DIR     = $(HOME)/Library/Logs/daily-work-log
 PROJECT_DIR = $(shell pwd)
+NODE_BIN    = $(shell dirname $(shell which node))
 
 install:
 	python3 -m venv api/.venv
@@ -48,7 +49,7 @@ install-agent:
 		'    <key>PROJECT_DIR</key>' \
 		'    <string>$(PROJECT_DIR)</string>' \
 		'    <key>PATH</key>' \
-		'    <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>' \
+		'    <string>$(NODE_BIN):/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>' \
 		'  </dict>' \
 		'  <key>ProgramArguments</key>' \
 		'  <array>' \
