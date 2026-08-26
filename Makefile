@@ -1,4 +1,9 @@
-.PHONY: install dev api web sample screenshot demo
+.PHONY: install dev api web sample screenshot demo install-agent uninstall-agent logs open
+
+PLIST_NAME  = local.daily-work-log
+PLIST_DEST  = $(HOME)/Library/LaunchAgents/$(PLIST_NAME).plist
+LOG_DIR     = $(HOME)/Library/Logs/daily-work-log
+PROJECT_DIR = $(shell pwd)
 
 install:
 	python3 -m venv api/.venv
@@ -28,3 +33,49 @@ demo: sample
 
 screenshot:
 	./scripts/take_screenshot.sh
+
+install-agent:
+	mkdir -p $(LOG_DIR)
+	@printf '%s\n' \
+		'<?xml version="1.0" encoding="UTF-8"?>' \
+		'<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' \
+		'<plist version="1.0">' \
+		'<dict>' \
+		'  <key>Label</key>' \
+		'  <string>$(PLIST_NAME)</string>' \
+		'  <key>EnvironmentVariables</key>' \
+		'  <dict>' \
+		'    <key>PROJECT_DIR</key>' \
+		'    <string>$(PROJECT_DIR)</string>' \
+		'    <key>PATH</key>' \
+		'    <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>' \
+		'  </dict>' \
+		'  <key>ProgramArguments</key>' \
+		'  <array>' \
+		'    <string>/bin/bash</string>' \
+		'    <string>$(PROJECT_DIR)/scripts/start.sh</string>' \
+		'  </array>' \
+		'  <key>RunAtLoad</key>' \
+		'  <true/>' \
+		'  <key>KeepAlive</key>' \
+		'  <true/>' \
+		'  <key>StandardOutPath</key>' \
+		'  <string>$(LOG_DIR)/out.log</string>' \
+		'  <key>StandardErrorPath</key>' \
+		'  <string>$(LOG_DIR)/err.log</string>' \
+		'</dict>' \
+		'</plist>' \
+		> $(PLIST_DEST)
+	launchctl load $(PLIST_DEST)
+	@echo "✅ Agent installed and started. Run 'make open' to open the app."
+
+uninstall-agent:
+	-launchctl unload $(PLIST_DEST)
+	rm -f $(PLIST_DEST)
+	@echo "✅ Agent uninstalled."
+
+logs:
+	tail -f $(LOG_DIR)/out.log $(LOG_DIR)/err.log
+
+open:
+	open http://localhost:5173
