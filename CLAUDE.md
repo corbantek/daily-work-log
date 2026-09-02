@@ -24,6 +24,10 @@ make install   # first time: create venv, install pip + npm deps
 make dev       # starts API on :8000 and Vite on :5173
 ```
 
+## Future Improvements
+
+- **Markdown editor (CodeMirror 6):** `ClickToEditMarkdown` currently uses a plain `<textarea>` + `<ReactMarkdown>` preview tab (Option A). If syntax highlighting while typing becomes desirable, replace with CodeMirror 6 (`@codemirror/view` + `@codemirror/lang-markdown` + `@codemirror/theme-one-dark` or similar). CodeMirror 6 manages its own DOM fully so it has no Tailwind CSS interference, and has best-in-class cursor/selection behavior. Avoid `@uiw/react-md-editor` — its overlay-textarea architecture conflicts with Tailwind v4 Preflight.
+
 ## Rules
 
 - **Never delete `worklog.db`** — always backup before schema changes. Use `ALTER TABLE ... RENAME COLUMN` for column renames. Add migration checks in `database.py` `init_db()`.

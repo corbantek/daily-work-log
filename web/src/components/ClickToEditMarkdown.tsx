@@ -1,8 +1,8 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import MDEditor from '@uiw/react-md-editor'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
 interface Props {
   value: string | null
@@ -19,12 +19,21 @@ export function ClickToEditMarkdown({
 }: Props) {
   const [isEditing, setIsEditing] = useState(false)
   const [draft, setDraft] = useState('')
+  const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit')
   const [saving, setSaving] = useState(false)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   function startEditing() {
     setDraft(value ?? '')
+    setActiveTab('edit')
     setIsEditing(true)
   }
+
+  useEffect(() => {
+    if (isEditing && activeTab === 'edit') {
+      textareaRef.current?.focus()
+    }
+  }, [isEditing, activeTab])
 
   const save = useCallback(async () => {
     setSaving(true)
@@ -49,15 +58,62 @@ export function ClickToEditMarkdown({
 
   if (isEditing) {
     return (
-      <div className="space-y-2" data-color-mode="dark" onKeyDown={handleKeyDown}>
-        <MDEditor
-          value={draft}
-          onChange={(v) => setDraft(v ?? '')}
-          preview="edit"
-          height={minHeight}
-          visibleDragbar
-          hideToolbar={false}
-        />
+      <div className="space-y-2">
+        {/* Tab bar */}
+        <div className="flex items-center gap-1 border-b border-border pb-1">
+          <button
+            onClick={() => setActiveTab('edit')}
+            className={cn(
+              'text-xs px-2.5 py-1 rounded-md transition-colors',
+              activeTab === 'edit'
+                ? 'bg-muted text-foreground'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            Edit
+          </button>
+          <button
+            onClick={() => setActiveTab('preview')}
+            className={cn(
+              'text-xs px-2.5 py-1 rounded-md transition-colors',
+              activeTab === 'preview'
+                ? 'bg-muted text-foreground'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            Preview
+          </button>
+        </div>
+
+        {/* Edit pane */}
+        {activeTab === 'edit' && (
+          <textarea
+            ref={textareaRef}
+            value={draft}
+            onChange={e => setDraft(e.target.value)}
+            onKeyDown={handleKeyDown}
+            style={{ minHeight }}
+            className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-ring resize-y font-mono leading-relaxed"
+            placeholder="Write markdown here..."
+          />
+        )}
+
+        {/* Preview pane */}
+        {activeTab === 'preview' && (
+          <div
+            className="rounded-md border border-border bg-card/50 px-3 py-2"
+            style={{ minHeight }}
+          >
+            {draft.trim() ? (
+              <div className="prose-worklog max-w-none">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{draft}</ReactMarkdown>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground/40 italic">Nothing to preview.</p>
+            )}
+          </div>
+        )}
+
         <div className="flex items-center gap-2">
           <Button size="sm" className="h-7 text-xs" onClick={save} disabled={saving}>
             {saving ? 'Saving...' : 'Save'}

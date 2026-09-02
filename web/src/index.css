@@ -293,30 +293,3 @@
   font-weight: normal;
 }
 
-/* MD Editor theme overrides */
-[data-color-mode="dark"] .w-md-editor {
-  --color-canvas-default: var(--card) !important;
-  --color-border-default: var(--border) !important;
-  border-radius: 0.5rem;
-  border: 1px solid var(--border);
-  box-shadow: none !important;
-}
-
-[data-color-mode="dark"] .w-md-editor-toolbar {
-  border-bottom: 1px solid var(--border) !important;
-  background: transparent !important;
-}
-
-[data-color-mode="dark"] .w-md-editor-toolbar li > button {
-  color: oklch(0.55 0.01 264) !important;
-}
-
-[data-color-mode="dark"] .w-md-editor-toolbar li > button:hover {
-  color: var(--foreground) !important;
-}
-
-/* Let the editor manage its own internals — only override font size */
-[data-color-mode="dark"] .w-md-editor-text-pre > code,
-[data-color-mode="dark"] .w-md-editor-text-input {
-  font-size: 13px !important;
-}
