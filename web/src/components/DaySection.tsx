@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { ChevronDown, ChevronRight, X, Plus, Eye, EyeOff, ArrowLeft } from 'lucide-react'
+import { ChevronDown, ChevronRight, X, Plus, Eye, EyeOff, ArrowLeft, Bell } from 'lucide-react'
 import type { DayView } from '../api/types'
 import { getDay, setDayStatus, clearDayStatus, getSettings } from '../api/client'
 import { MeetingSection } from './MeetingSection'
@@ -130,6 +130,14 @@ export function DaySection({ date, isToday, defaultCollapsed = false, isHiddenBy
             <span className="ml-1 text-xs bg-primary/15 text-primary px-2 py-0.5 rounded-full">today</span>
           )}
         </button>
+
+        {/* Oncall pill */}
+        {data?.is_oncall && (
+          <span className="ml-2 inline-flex items-center gap-1 text-xs bg-amber-500/15 text-amber-400 border border-amber-500/30 px-2.5 py-0.5 rounded-full">
+            <Bell size={10} />
+            On-call
+          </span>
+        )}
 
         {/* Day status pill */}
         {data?.status ? (

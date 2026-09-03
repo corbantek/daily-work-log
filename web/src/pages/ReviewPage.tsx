@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Download, Zap } from 'lucide-react'
+import { Download, Zap, Bell } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Button } from '@/components/ui/button'
@@ -7,9 +7,9 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
-import type { Task, Workstream, Label } from '../api/types'
+import type { Task, Workstream, Label, OncallPeriod } from '../api/types'
 import { todayStr } from '../api/date'
-import { getLabels, getWorkstreams } from '../api/client'
+import { getLabels, getWorkstreams, getOncallPeriods } from '../api/client'
 
 const STATE_LABELS: Record<string, string> = {
   todo: 'TODO',
@@ -33,6 +33,7 @@ export function ReviewPage({ containerClass = 'max-w-5xl mx-auto px-4 py-6' }: {
   const [tasks, setTasks] = useState<Task[]>([])
   const [workstreams, setWorkstreams] = useState<Workstream[]>([])
   const [labels, setLabels] = useState<Label[]>([])
+  const [oncallPeriods, setOncallPeriods] = useState<OncallPeriod[]>([])
   const [loading, setLoading] = useState(false)
 
   // Filters
@@ -59,7 +60,12 @@ export function ReviewPage({ containerClass = 'max-w-5xl mx-auto px-4 py-6' }: {
     fetchTasks()
     getWorkstreams().then(setWorkstreams)
     getLabels().then(setLabels)
+    getOncallPeriods().then(setOncallPeriods).catch(() => {})
   }, [fetchTasks])
+
+  function isDateOncall(dateStr: string): boolean {
+    return oncallPeriods.some(p => p.start_date <= dateStr && p.end_date >= dateStr)
+  }
 
   // Client-side filtering for date range and label (avoids extra API params)
   const filtered = tasks.filter(t => {
@@ -269,8 +275,11 @@ export function ReviewPage({ containerClass = 'max-w-5xl mx-auto px-4 py-6' }: {
                     )}
                     <div className="flex flex-wrap items-center gap-2 mt-1.5">
                       {task.start_date && (
-                        <span className="text-xs text-muted-foreground/60">
+                        <span className="text-xs text-muted-foreground/60 flex items-center gap-1">
                           {task.start_date}{task.end_date && task.end_date !== task.start_date ? ` → ${task.end_date}` : ''}
+                          {isDateOncall(task.end_date ?? task.start_date ?? '') && (
+                            <span title="On-call"><Bell size={10} className="text-amber-400" /></span>
+                          )}
                         </span>
                       )}
                       {task.labels.map(l => (

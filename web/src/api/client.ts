@@ -1,6 +1,6 @@
 import type {
   DayView, Task, Workstream, Meeting, Label, TaskLink,
-  TaskState, LinkType,
+  TaskState, LinkType, OncallPeriod,
 } from './types'
 
 const BASE = '/api'
@@ -156,6 +156,18 @@ export const setDayVisibility = (date: string, visible: boolean) =>
 
 export const clearDayVisibility = (date: string) =>
   req<void>(`/day-visibility/${date}`, { method: 'DELETE' })
+
+// ── Oncall Periods ────────────────────────────────────────────────────────────
+export const getOncallPeriods = () => req<OncallPeriod[]>('/oncall')
+
+export const createOncallPeriod = (start_date: string, end_date: string) =>
+  req<OncallPeriod>('/oncall', {
+    method: 'POST',
+    body: JSON.stringify({ start_date, end_date }),
+  })
+
+export const deleteOncallPeriod = (id: string) =>
+  req<void>(`/oncall/${id}`, { method: 'DELETE' })
 
 // ── Settings ─────────────────────────────────────────────────────────────────
 export const getSettings = () => req<Record<string, string>>('/settings')

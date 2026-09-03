@@ -232,6 +232,31 @@ class DayStatusUpdate(SQLModel):
     note: Optional[str] = None
 
 
+# ── Oncall Periods ───────────────────────────────────────────────────────────
+
+class OncallPeriod(SQLModel, table=True):
+    __tablename__ = "oncall_period"
+    id: str = Field(default_factory=new_id, primary_key=True)
+    start_date: date
+    end_date: date
+
+
+class OncallPeriodCreate(SQLModel):
+    start_date: date
+    end_date: date
+
+
+class OncallPeriodRead(SQLModel):
+    id: str
+    start_date: date
+    end_date: date
+
+
+class OncallPeriodUpdate(SQLModel):
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+
+
 # ── Day Visibility ──────────────────────────────────────────────────────────
 
 class DayVisibility(SQLModel, table=True):
@@ -255,5 +280,6 @@ class DayView(SQLModel):
     date: date
     status: Optional[str] = None
     status_note: Optional[str] = None
+    is_oncall: bool = False
     meetings: List[MeetingRead]
     workstreams: List[WorkstreamWithTasks]

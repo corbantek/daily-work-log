@@ -67,6 +67,13 @@ export interface DayView {
   date: string
   status: string | null
   status_note: string | null
+  is_oncall: boolean
   meetings: Meeting[]
   workstreams: WorkstreamWithTasks[]
+}
+
+export interface OncallPeriod {
+  id: string
+  start_date: string
+  end_date: string
 }

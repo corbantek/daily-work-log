@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { Settings, Sun, Moon, Monitor, X, Plus, Eye, EyeOff, WifiOff, ChevronDown, CalendarDays } from 'lucide-react'
+import { Settings, Sun, Moon, Monitor, X, Plus, Eye, EyeOff, WifiOff, ChevronDown, CalendarDays, Bell } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
@@ -9,7 +9,8 @@ import { ManageWorkstreams } from './components/ManageWorkstreams'
 import { ManageLabels } from './components/ManageLabels'
 import { BackupRestore } from './components/BackupRestore'
 import { ReviewPage } from './pages/ReviewPage'
-import { getSettings, setSetting, getDayVisibility, setDayVisibility, clearDayVisibility } from './api/client'
+import { getSettings, setSetting, getDayVisibility, setDayVisibility, clearDayVisibility, getOncallPeriods, createOncallPeriod, deleteOncallPeriod } from './api/client'
+import type { OncallPeriod } from './api/types'
 import { todayStr, toLocalDateStr, isWeekend } from './api/date'
 import { HiddenDaysIndicator } from './components/HiddenDaysIndicator'
 import './index.css'
@@ -134,6 +135,9 @@ export default function App() {
     const p = new URLSearchParams(window.location.search).get('from')
     return p && /^\d{4}-\d{2}-\d{2}$/.test(p) && p < todayStr() ? p : null
   })
+  const [oncallPeriods, setOncallPeriods] = useState<OncallPeriod[]>([])
+  const [newOncallStart, setNewOncallStart] = useState('')
+  const [newOncallEnd, setNewOncallEnd] = useState('')
   const today = todayStr()
   const dates = buildDateRange(today, windowSize, hideWeekends, visibilityOverrides, extendedFrom ?? undefined)
 
@@ -181,6 +185,7 @@ export default function App() {
         }
       }),
       loadVisibilityOverrides(),
+      getOncallPeriods().then(setOncallPeriods).catch(() => {}),
     ]).finally(() => {
       setSettingsLoaded(true)
     })
@@ -271,6 +276,22 @@ export default function App() {
     setExtendedFrom(null)
     setReloadKey(k => k + 1)
     history.replaceState(null, '', window.location.pathname)
+  }
+
+  async function addOncallPeriod() {
+    if (!newOncallStart || !newOncallEnd) return
+    if (newOncallEnd < newOncallStart) return
+    await createOncallPeriod(newOncallStart, newOncallEnd)
+    setNewOncallStart('')
+    setNewOncallEnd('')
+    getOncallPeriods().then(setOncallPeriods)
+    setReloadKey(k => k + 1)
+  }
+
+  async function removeOncallPeriod(id: string) {
+    await deleteOncallPeriod(id)
+    setOncallPeriods(prev => prev.filter(p => p.id !== id))
+    setReloadKey(k => k + 1)
   }
 
   if (!settingsLoaded) {
@@ -461,6 +482,45 @@ export default function App() {
                   onKeyDown={e => { if (e.key === 'Enter') addDayStatus() }}
                 />
                 <Button size="sm" className="h-7 text-xs gap-1" onClick={addDayStatus}>
+                  <Plus size={11} /> Add
+                </Button>
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* On-call periods */}
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
+                <Bell size={11} className="text-amber-400" /> On-call periods
+              </p>
+              {oncallPeriods.length > 0 && (
+                <div className="space-y-1 mb-2">
+                  {oncallPeriods.map(p => (
+                    <div key={p.id} className="flex items-center justify-between text-xs bg-amber-500/10 border border-amber-500/20 rounded-md px-2.5 py-1.5">
+                      <span className="text-amber-400/90">{p.start_date} → {p.end_date}</span>
+                      <button onClick={() => removeOncallPeriod(p.id)} className="text-muted-foreground hover:text-destructive transition-colors ml-2">
+                        <X size={11} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex gap-2 items-center">
+                <Input
+                  type="date"
+                  value={newOncallStart}
+                  onChange={e => setNewOncallStart((e.target as HTMLInputElement).value)}
+                  className="h-7 text-xs flex-1"
+                />
+                <span className="text-xs text-muted-foreground">→</span>
+                <Input
+                  type="date"
+                  value={newOncallEnd}
+                  onChange={e => setNewOncallEnd((e.target as HTMLInputElement).value)}
+                  className="h-7 text-xs flex-1"
+                />
+                <Button size="sm" className="h-7 text-xs gap-1 shrink-0" onClick={addOncallPeriod} disabled={!newOncallStart || !newOncallEnd || newOncallEnd < newOncallStart}>
                   <Plus size={11} /> Add
                 </Button>
               </div>

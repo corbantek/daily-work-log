@@ -8,7 +8,7 @@ from ..database import get_session
 from ..models import (
     Task, Meeting, Workstream, MeetingTaskLink, TaskState,
     DayView, WorkstreamWithTasks, WorkstreamRead, MeetingRead,
-    DayStatus,
+    DayStatus, OncallPeriod,
 )
 from .tasks import _enrich
 from .meetings import _read_meeting
@@ -78,4 +78,11 @@ def get_day(day: date, session: Session = Depends(get_session)):
     status = day_status.status if day_status else None
     status_note = day_status.note if day_status else None
 
-    return DayView(date=day, status=status, status_note=status_note, meetings=meetings, workstreams=ws_sections)
+    is_oncall = session.exec(
+        select(OncallPeriod).where(
+            OncallPeriod.start_date <= day,
+            OncallPeriod.end_date >= day,
+        )
+    ).first() is not None
+
+    return DayView(date=day, status=status, status_note=status_note, is_oncall=is_oncall, meetings=meetings, workstreams=ws_sections)
