@@ -1,4 +1,4 @@
-.PHONY: install dev api web sample screenshot demo install-agent uninstall-agent logs open
+.PHONY: install dev api web sample screenshot demo install-agent uninstall-agent restart-agent logs open
 
 PLIST_NAME  = local.daily-work-log
 PLIST_DEST  = $(HOME)/Library/LaunchAgents/$(PLIST_NAME).plist
@@ -74,6 +74,8 @@ uninstall-agent:
 	-launchctl unload $(PLIST_DEST)
 	rm -f $(PLIST_DEST)
 	@echo "✅ Agent uninstalled."
+
+restart-agent: uninstall-agent install-agent
 
 logs:
 	tail -f $(LOG_DIR)/out.log $(LOG_DIR)/err.log
