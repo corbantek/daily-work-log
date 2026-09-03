@@ -13,11 +13,12 @@ def set_day_status(day: date, body: DayStatusUpdate, session: Session = Depends(
     existing = session.get(DayStatus, day)
     if existing:
         existing.status = body.status
+        existing.note = body.note
         session.add(existing)
     else:
-        session.add(DayStatus(day=day, status=body.status))
+        session.add(DayStatus(day=day, status=body.status, note=body.note))
     session.commit()
-    return {"date": day.isoformat(), "status": body.status}
+    return {"date": day.isoformat(), "status": body.status, "note": body.note}
 
 
 @router.delete("/{day}", status_code=204)

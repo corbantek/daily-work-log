@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { ChevronDown, ChevronRight, X, Plus, Eye, EyeOff } from 'lucide-react'
+import { ChevronDown, ChevronRight, X, Plus, Eye, EyeOff, ArrowLeft } from 'lucide-react'
 import type { DayView } from '../api/types'
 import { getDay, setDayStatus, clearDayStatus, getSettings } from '../api/client'
 import { MeetingSection } from './MeetingSection'
@@ -22,7 +22,11 @@ export function DaySection({ date, isToday, defaultCollapsed = false, isHiddenBy
   const [loading, setLoading] = useState(false)
   const [statusPickerOpen, setStatusPickerOpen] = useState(false)
   const [statusOptions, setStatusOptions] = useState<string[]>(DEFAULT_STATUSES)
+  // Two-step picker state: null = tag list, string = confirm step with this tag
+  const [pendingTag, setPendingTag] = useState<string | null>(null)
+  const [pendingNote, setPendingNote] = useState('')
   const pickerRef = useRef<HTMLDivElement>(null)
+  const noteInputRef = useRef<HTMLInputElement>(null)
 
   function load() {
     setLoading(true)
@@ -50,21 +54,51 @@ export function DaySection({ date, isToday, defaultCollapsed = false, isHiddenBy
     })
   }, [])
 
+  // Focus the note input when the confirm step opens
+  useEffect(() => {
+    if (pendingTag !== null) {
+      noteInputRef.current?.focus()
+    }
+  }, [pendingTag])
+
   // Close picker on outside click
   useEffect(() => {
     if (!statusPickerOpen) return
     function handleClick(e: MouseEvent) {
       if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
-        setStatusPickerOpen(false)
+        closePicker()
       }
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [statusPickerOpen])
 
-  async function handleSetStatus(status: string) {
-    await setDayStatus(date, status)
+  function openPicker(existingTag?: string, existingNote?: string) {
+    if (existingTag) {
+      setPendingTag(existingTag)
+      setPendingNote(existingNote ?? '')
+    } else {
+      setPendingTag(null)
+      setPendingNote('')
+    }
+    setStatusPickerOpen(true)
+  }
+
+  function closePicker() {
     setStatusPickerOpen(false)
+    setPendingTag(null)
+    setPendingNote('')
+  }
+
+  function selectTag(tag: string) {
+    setPendingTag(tag)
+    setPendingNote('')
+  }
+
+  async function confirmStatus() {
+    if (!pendingTag) return
+    await setDayStatus(date, pendingTag, pendingNote.trim() || null)
+    closePicker()
     load()
   }
 
@@ -101,10 +135,10 @@ export function DaySection({ date, isToday, defaultCollapsed = false, isHiddenBy
         {data?.status ? (
           <span className="group/status ml-2 inline-flex items-center gap-1 text-xs bg-red-500/15 text-red-400 border border-red-500/30 px-2.5 py-0.5 rounded-full">
             <button
-              onClick={(e) => { e.stopPropagation(); setStatusPickerOpen(v => !v) }}
+              onClick={(e) => { e.stopPropagation(); openPicker(data.status ?? undefined, data.status_note ?? undefined) }}
               className="hover:text-red-300 transition-colors"
             >
-              {data.status}
+              {data.status}{data.status_note ? <span className="text-red-400/60"> · {data.status_note}</span> : null}
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); handleClearStatus() }}
@@ -116,7 +150,7 @@ export function DaySection({ date, isToday, defaultCollapsed = false, isHiddenBy
           </span>
         ) : (
           <button
-            onClick={(e) => { e.stopPropagation(); setStatusPickerOpen(v => !v) }}
+            onClick={(e) => { e.stopPropagation(); openPicker() }}
             className="ml-2 opacity-0 group-hover:opacity-100 hover:!opacity-100 text-muted-foreground/40 hover:text-muted-foreground text-xs transition-all flex items-center gap-0.5"
             title="Set day status"
           >
@@ -127,16 +161,59 @@ export function DaySection({ date, isToday, defaultCollapsed = false, isHiddenBy
         {/* Status dropdown */}
         {statusPickerOpen && (
           <div ref={pickerRef} className="relative">
-            <div className="absolute left-0 top-2 z-50 bg-popover border border-border rounded-lg shadow-xl p-1 min-w-40">
-              {statusOptions.map(opt => (
-                <button
-                  key={opt}
-                  onClick={() => handleSetStatus(opt)}
-                  className="flex items-center w-full px-2.5 py-1.5 rounded text-xs text-left hover:bg-accent transition-colors"
-                >
-                  {opt}
-                </button>
-              ))}
+            <div className="absolute left-0 top-2 z-50 bg-popover border border-border rounded-lg shadow-xl p-1 min-w-48">
+              {pendingTag === null ? (
+                /* Step 1: tag list */
+                statusOptions.map(opt => (
+                  <button
+                    key={opt}
+                    onClick={() => selectTag(opt)}
+                    className="flex items-center w-full px-2.5 py-1.5 rounded text-xs text-left hover:bg-accent transition-colors"
+                  >
+                    {opt}
+                  </button>
+                ))
+              ) : (
+                /* Step 2: confirm with optional note */
+                <div className="px-1 py-0.5 space-y-2">
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => { setPendingTag(null); setPendingNote('') }}
+                      className="text-muted-foreground hover:text-foreground transition-colors"
+                      title="Back"
+                    >
+                      <ArrowLeft size={13} />
+                    </button>
+                    <span className="text-xs font-medium text-foreground">{pendingTag}</span>
+                  </div>
+                  <input
+                    ref={noteInputRef}
+                    type="text"
+                    value={pendingNote}
+                    onChange={e => setPendingNote(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') { e.preventDefault(); confirmStatus() }
+                      if (e.key === 'Escape') { e.preventDefault(); closePicker() }
+                    }}
+                    placeholder="Note (optional)"
+                    className="w-full text-xs bg-background border border-border rounded px-2 py-1 text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring"
+                  />
+                  <div className="flex gap-1">
+                    <button
+                      onClick={confirmStatus}
+                      className="flex-1 text-xs bg-primary text-primary-foreground rounded px-2 py-1 hover:bg-primary/90 transition-colors"
+                    >
+                      Apply
+                    </button>
+                    <button
+                      onClick={closePicker}
+                      className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded hover:bg-accent transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

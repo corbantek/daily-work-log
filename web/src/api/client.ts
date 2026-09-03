@@ -135,10 +135,10 @@ export const deleteLabel = (id: string) =>
   req<void>(`/labels/${id}`, { method: 'DELETE' })
 
 // ── Day Status ───────────────────────────────────────────────────────────────
-export const setDayStatus = (date: string, status: string) =>
-  req<{ date: string; status: string }>(`/day-status/${date}`, {
+export const setDayStatus = (date: string, status: string, note?: string | null) =>
+  req<{ date: string; status: string; note: string | null }>(`/day-status/${date}`, {
     method: 'PUT',
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({ status, note: note ?? null }),
   })
 
 export const clearDayStatus = (date: string) =>

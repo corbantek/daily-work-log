@@ -76,5 +76,6 @@ def get_day(day: date, session: Session = Depends(get_session)):
 
     day_status = session.get(DayStatus, day)
     status = day_status.status if day_status else None
+    status_note = day_status.note if day_status else None
 
-    return DayView(date=day, status=status, meetings=meetings, workstreams=ws_sections)
+    return DayView(date=day, status=status, status_note=status_note, meetings=meetings, workstreams=ws_sections)

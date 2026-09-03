@@ -25,6 +25,13 @@ def _run_migrations():
     if "parent_task_id" not in columns:
         cursor.execute("ALTER TABLE task ADD COLUMN parent_task_id VARCHAR")
         conn.commit()
+
+    cursor.execute("PRAGMA table_info(day_status)")
+    ds_columns = {row[1] for row in cursor.fetchall()}
+    if "note" not in ds_columns:
+        cursor.execute("ALTER TABLE day_status ADD COLUMN note VARCHAR")
+        conn.commit()
+
     conn.close()
 
 

@@ -224,10 +224,12 @@ class DayStatus(SQLModel, table=True):
     __tablename__ = "day_status"
     day: date = Field(primary_key=True)
     status: str
+    note: Optional[str] = None
 
 
 class DayStatusUpdate(SQLModel):
     status: str
+    note: Optional[str] = None
 
 
 # ── Day Visibility ──────────────────────────────────────────────────────────
@@ -252,5 +254,6 @@ class WorkstreamWithTasks(SQLModel):
 class DayView(SQLModel):
     date: date
     status: Optional[str] = None
+    status_note: Optional[str] = None
     meetings: List[MeetingRead]
     workstreams: List[WorkstreamWithTasks]
