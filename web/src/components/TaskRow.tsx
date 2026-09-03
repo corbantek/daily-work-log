@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
+import { rehypeHighlightTodo } from '@/lib/rehype-highlight-todo'
 import remarkGfm from 'remark-gfm'
 import { Zap, ChevronRight, ChevronDown, Plus, Trash2, Pencil, X, Check, CalendarDays, GitBranch } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -206,7 +207,7 @@ export function TaskRow({ task, onChanged, isSubtask }: Props) {
               onClick={e => { e.stopPropagation(); setExpanded(true) }}
             >
               <div className="prose-worklog prose-worklog-preview max-w-none">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlightTodo]}>
                   {task.notes}
                 </ReactMarkdown>
               </div>

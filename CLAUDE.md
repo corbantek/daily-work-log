@@ -27,6 +27,7 @@ make dev       # starts API on :8000 and Vite on :5173
 ## Future Improvements
 
 - **Markdown editor (CodeMirror 6):** `ClickToEditMarkdown` currently uses a plain `<textarea>` + `<ReactMarkdown>` preview tab (Option A). If syntax highlighting while typing becomes desirable, replace with CodeMirror 6 (`@codemirror/view` + `@codemirror/lang-markdown` + `@codemirror/theme-one-dark` or similar). CodeMirror 6 manages its own DOM fully so it has no Tailwind CSS interference, and has best-in-class cursor/selection behavior. Avoid `@uiw/react-md-editor` — its overlay-textarea architecture conflicts with Tailwind v4 Preflight.
+- **Keyword highlighting in markdown (`web/src/lib/rehype-highlight-todo.ts`):** Currently highlights `TODO` in red via a rehype plugin. To extend to other keywords (e.g. `FIXME`, `BLOCKED`), update the plugin to split on each keyword and assign distinct `className` values (e.g. `fixme-keyword`, `blocked-keyword`), then add corresponding CSS rules in `index.css`.
 
 ## Rules
 
