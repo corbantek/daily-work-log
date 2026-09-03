@@ -345,12 +345,12 @@ export default function App() {
 
       {/* Settings dialog */}
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-sm flex flex-col max-h-[90vh]">
           <DialogHeader>
             <DialogTitle>Settings</DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-5">
+          <div className="space-y-5 overflow-y-auto pr-1">
             {/* App title */}
             <div>
               <p className="text-xs font-medium text-muted-foreground mb-2">App title</p>
@@ -512,6 +512,7 @@ export default function App() {
                   value={newOncallStart}
                   onChange={e => setNewOncallStart((e.target as HTMLInputElement).value)}
                   className="h-7 text-xs flex-1"
+                  style={{ colorScheme: theme === 'light' ? 'light' : 'dark' }}
                 />
                 <span className="text-xs text-muted-foreground">→</span>
                 <Input
@@ -519,6 +520,7 @@ export default function App() {
                   value={newOncallEnd}
                   onChange={e => setNewOncallEnd((e.target as HTMLInputElement).value)}
                   className="h-7 text-xs flex-1"
+                  style={{ colorScheme: theme === 'light' ? 'light' : 'dark' }}
                 />
                 <Button size="sm" className="h-7 text-xs gap-1 shrink-0" onClick={addOncallPeriod} disabled={!newOncallStart || !newOncallEnd || newOncallEnd < newOncallStart}>
                   <Plus size={11} /> Add
