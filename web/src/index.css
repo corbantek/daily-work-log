@@ -293,3 +293,8 @@
   font-weight: normal;
 }
 
+.todo-keyword {
+  color: oklch(0.65 0.22 25);
+  font-weight: 600;
+}
+

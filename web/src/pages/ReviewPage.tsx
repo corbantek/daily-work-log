@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils'
 import type { Task, Workstream, Label, OncallPeriod } from '../api/types'
 import { todayStr } from '../api/date'
 import { getLabels, getWorkstreams, getOncallPeriods } from '../api/client'
+import { rehypeHighlightTodo } from '@/lib/rehype-highlight-todo'
 
 const STATE_LABELS: Record<string, string> = {
   todo: 'TODO',
@@ -268,7 +269,7 @@ export function ReviewPage({ containerClass = 'max-w-5xl mx-auto px-4 py-6' }: {
                     </div>
                     {task.notes && (
                       <div className="prose-worklog max-w-none mt-1.5">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlightTodo]}>
                           {task.notes}
                         </ReactMarkdown>
                       </div>

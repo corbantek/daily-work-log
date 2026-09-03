@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { rehypeHighlightTodo } from '@/lib/rehype-highlight-todo'
 
 interface Props {
   value: string | null
@@ -106,7 +107,7 @@ export function ClickToEditMarkdown({
           >
             {draft.trim() ? (
               <div className="prose-worklog max-w-none">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{draft}</ReactMarkdown>
+                <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlightTodo]}>{draft}</ReactMarkdown>
               </div>
             ) : (
               <p className="text-xs text-muted-foreground/40 italic">Nothing to preview.</p>
@@ -148,6 +149,7 @@ export function ClickToEditMarkdown({
     >
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeHighlightTodo]}
         components={{
           a: ({ children, ...props }) => (
             <a
