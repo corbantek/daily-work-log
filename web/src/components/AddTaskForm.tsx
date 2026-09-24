@@ -13,11 +13,13 @@ interface Props {
   workstreamId: string | null
   defaultDate?: string
   onCreated: () => void
+  onCancel?: () => void
   parentTaskId?: string | null
+  defaultOpen?: boolean
 }
 
-export function AddTaskForm({ workstreamId, defaultDate, onCreated, parentTaskId }: Props) {
-  const [open, setOpen] = useState(false)
+export function AddTaskForm({ workstreamId, defaultDate, onCreated, onCancel, parentTaskId, defaultOpen = false }: Props) {
+  const [open, setOpen] = useState(defaultOpen)
   const [action, setAction] = useState('')
   const [state, setState] = useState<TaskState>('todo')
   const [highImpact, setHighImpact] = useState(false)
@@ -77,7 +79,7 @@ export function AddTaskForm({ workstreamId, defaultDate, onCreated, parentTaskId
         <Zap size={14} />
       </button>
       <Button type="submit" size="sm" className="h-8">Add</Button>
-      <Button type="button" variant="ghost" size="sm" className="h-8" onClick={() => setOpen(false)}>
+      <Button type="button" variant="ghost" size="sm" className="h-8" onClick={() => { setOpen(false); onCancel?.() }}>
         Cancel
       </Button>
     </form>

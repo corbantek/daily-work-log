@@ -451,7 +451,9 @@ export function TaskRow({ task, onChanged, isSubtask }: Props) {
                   <AddTaskForm
                     workstreamId={task.workstream_id}
                     parentTaskId={task.id}
+                    defaultOpen={true}
                     onCreated={() => { setAddingSubtask(false); onChanged() }}
+                    onCancel={() => setAddingSubtask(false)}
                   />
                 </div>
               )}
