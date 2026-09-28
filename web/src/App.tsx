@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { Settings, Sun, Moon, Monitor, X, Plus, Eye, EyeOff, WifiOff, ChevronDown, CalendarDays, Bell } from 'lucide-react'
+import { Settings, Sun, Moon, Monitor, X, Plus, Eye, EyeOff, WifiOff, ChevronDown, CalendarDays, Bell, HardDrive, Save } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
@@ -9,7 +9,8 @@ import { ManageWorkstreams } from './components/ManageWorkstreams'
 import { ManageLabels } from './components/ManageLabels'
 import { BackupRestore } from './components/BackupRestore'
 import { ReviewPage } from './pages/ReviewPage'
-import { getSettings, setSetting, getDayVisibility, setDayVisibility, clearDayVisibility, getOncallPeriods, createOncallPeriod, deleteOncallPeriod } from './api/client'
+import { getSettings, setSetting, getDayVisibility, setDayVisibility, clearDayVisibility, getOncallPeriods, createOncallPeriod, deleteOncallPeriod, getBackupStatus, runAutoBackup } from './api/client'
+import type { BackupStatus } from './api/client'
 import type { OncallPeriod } from './api/types'
 import { todayStr, toLocalDateStr, isWeekend } from './api/date'
 import { HiddenDaysIndicator } from './components/HiddenDaysIndicator'
@@ -138,6 +139,10 @@ export default function App() {
   const [oncallPeriods, setOncallPeriods] = useState<OncallPeriod[]>([])
   const [newOncallStart, setNewOncallStart] = useState('')
   const [newOncallEnd, setNewOncallEnd] = useState('')
+  const [backupStatus, setBackupStatus] = useState<BackupStatus | null>(null)
+  const [editBackupDir, setEditBackupDir] = useState('')
+  const [editRetentionDays, setEditRetentionDays] = useState('')
+  const [backingUp, setBackingUp] = useState(false)
   const today = todayStr()
   const dates = buildDateRange(today, windowSize, hideWeekends, visibilityOverrides, extendedFrom ?? undefined)
 
@@ -186,6 +191,11 @@ export default function App() {
       }),
       loadVisibilityOverrides(),
       getOncallPeriods().then(setOncallPeriods).catch(() => {}),
+      getBackupStatus().then(s => {
+        setBackupStatus(s)
+        setEditBackupDir(s.backup_dir)
+        setEditRetentionDays(String(s.retention_days))
+      }).catch(() => {}),
     ]).finally(() => {
       setSettingsLoaded(true)
     })
@@ -294,6 +304,27 @@ export default function App() {
     setReloadKey(k => k + 1)
   }
 
+  async function saveBackupSettings() {
+    await setSetting('backup_dir', editBackupDir.trim() || '~/daily-work-log-backups')
+    const days = parseInt(editRetentionDays) || 14
+    await setSetting('backup_retention_days', String(days))
+    const s = await getBackupStatus()
+    setBackupStatus(s)
+    setEditBackupDir(s.backup_dir)
+    setEditRetentionDays(String(s.retention_days))
+  }
+
+  async function triggerBackupNow() {
+    setBackingUp(true)
+    try {
+      await runAutoBackup()
+      const s = await getBackupStatus()
+      setBackupStatus(s)
+    } finally {
+      setBackingUp(false)
+    }
+  }
+
   if (!settingsLoaded) {
     return <div className="min-h-screen" />
   }
@@ -345,12 +376,12 @@ export default function App() {
 
       {/* Settings dialog */}
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogContent className="max-w-sm flex flex-col max-h-[90vh]">
+        <DialogContent className="max-w-md flex flex-col max-h-[90vh]">
           <DialogHeader>
             <DialogTitle>Settings</DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-5 overflow-y-auto pr-1">
+          <div className="space-y-5 overflow-y-auto thin-scrollbar">
             {/* App title */}
             <div>
               <p className="text-xs font-medium text-muted-foreground mb-2">App title</p>
@@ -525,6 +556,48 @@ export default function App() {
                 <Button size="sm" className="h-7 text-xs gap-1 shrink-0" onClick={addOncallPeriod} disabled={!newOncallStart || !newOncallEnd || newOncallEnd < newOncallStart}>
                   <Plus size={11} /> Add
                 </Button>
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Auto-backup */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                  <HardDrive size={11} /> Auto-backup
+                </p>
+                {backupStatus && (
+                  <span className="text-xs text-muted-foreground/60">
+                    {backupStatus.last_backup ? `Last: ${backupStatus.last_backup}` : 'Never backed up'} · {backupStatus.backup_count} file{backupStatus.backup_count !== 1 ? 's' : ''}
+                  </span>
+                )}
+              </div>
+              <Input
+                value={editBackupDir}
+                onChange={e => setEditBackupDir((e.target as HTMLInputElement).value)}
+                placeholder="~/daily-work-log-backups"
+                className="h-7 text-xs font-mono mb-2"
+              />
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground/70 shrink-0">Keep</span>
+                <Input
+                  type="number"
+                  min={1}
+                  max={365}
+                  value={editRetentionDays}
+                  onChange={e => setEditRetentionDays((e.target as HTMLInputElement).value)}
+                  className="h-7 text-xs w-16"
+                />
+                <span className="text-xs text-muted-foreground/70 shrink-0">days</span>
+                <div className="flex gap-1.5 ml-auto">
+                  <Button size="sm" className="h-7 text-xs" onClick={saveBackupSettings}>
+                    Save
+                  </Button>
+                  <Button size="sm" variant="secondary" className="h-7 text-xs gap-1" onClick={triggerBackupNow} disabled={backingUp}>
+                    <Save size={11} /> {backingUp ? 'Saving…' : 'Now'}
+                  </Button>
+                </div>
               </div>
             </div>
 

@@ -1,9 +1,11 @@
+import json
+from pathlib import Path
 from fastapi import APIRouter, Depends, UploadFile, File
 from fastapi.responses import JSONResponse
 from sqlmodel import Session, select
-from datetime import datetime
+from datetime import datetime, date
 
-from ..database import get_session
+from ..database import get_session, engine
 from ..models import (
     Workstream, Task, Label, TaskLabelLink, TaskLink,
     Meeting, MeetingTaskLink, Setting, DayStatus, DayVisibility, OncallPeriod,
@@ -25,6 +27,9 @@ TABLES = [
     ("oncall_periods", OncallPeriod),
 ]
 
+DEFAULT_BACKUP_DIR = "~/daily-work-log-backups"
+DEFAULT_RETENTION_DAYS = 14
+
 
 def _serialize(obj) -> dict:
     d = {}
@@ -40,8 +45,22 @@ def _serialize(obj) -> dict:
     return d
 
 
-@router.get("")
-def export_backup(session: Session = Depends(get_session)):
+def _get_backup_settings(session: Session) -> tuple[str, int]:
+    backup_dir = DEFAULT_BACKUP_DIR
+    retention_days = DEFAULT_RETENTION_DAYS
+    row = session.get(Setting, "backup_dir")
+    if row and row.value:
+        backup_dir = row.value
+    row = session.get(Setting, "backup_retention_days")
+    if row and row.value:
+        try:
+            retention_days = int(row.value)
+        except ValueError:
+            pass
+    return backup_dir, retention_days
+
+
+def _export_data(session: Session) -> dict:
     data = {}
     for name, model in TABLES:
         rows = session.exec(select(model)).all()
@@ -50,12 +69,27 @@ def export_backup(session: Session = Depends(get_session)):
         "exported_at": datetime.utcnow().isoformat(),
         "version": 1,
     }
-    return JSONResponse(content=data)
+    return data
+
+
+def _prune_old_backups(backup_path: Path, retention_days: int) -> int:
+    if not backup_path.is_dir():
+        return 0
+    files = sorted(backup_path.glob("worklog-backup-*.json"), reverse=True)
+    removed = 0
+    for f in files[retention_days:]:
+        f.unlink()
+        removed += 1
+    return removed
+
+
+@router.get("")
+def export_backup(session: Session = Depends(get_session)):
+    return JSONResponse(content=_export_data(session))
 
 
 @router.post("")
 async def import_backup(file: UploadFile = File(...), session: Session = Depends(get_session)):
-    import json
     content = await file.read()
     data = json.loads(content)
 
@@ -75,3 +109,49 @@ async def import_backup(file: UploadFile = File(...), session: Session = Depends
     session.commit()
 
     return {"status": "ok", "tables_restored": [name for name, _ in TABLES if name in data]}
+
+
+@router.post("/auto")
+def run_auto_backup(session: Session = Depends(get_session)):
+    backup_dir, retention_days = _get_backup_settings(session)
+    backup_path = Path(backup_dir).expanduser().resolve()
+    backup_path.mkdir(parents=True, exist_ok=True)
+
+    today_str = date.today().isoformat()
+    filename = f"worklog-backup-{today_str}.json"
+    filepath = backup_path / filename
+
+    data = _export_data(session)
+    filepath.write_text(json.dumps(data, indent=2))
+
+    pruned = _prune_old_backups(backup_path, retention_days)
+
+    return {
+        "status": "ok",
+        "file": str(filepath),
+        "date": today_str,
+        "pruned": pruned,
+    }
+
+
+@router.get("/status")
+def backup_status(session: Session = Depends(get_session)):
+    backup_dir, retention_days = _get_backup_settings(session)
+    backup_path = Path(backup_dir).expanduser().resolve()
+
+    last_backup = None
+    backup_count = 0
+    if backup_path.is_dir():
+        files = sorted(backup_path.glob("worklog-backup-*.json"), reverse=True)
+        backup_count = len(files)
+        if files:
+            name = files[0].stem
+            last_backup = name.replace("worklog-backup-", "")
+
+    return {
+        "backup_dir": backup_dir,
+        "backup_dir_resolved": str(backup_path),
+        "retention_days": retention_days,
+        "last_backup": last_backup,
+        "backup_count": backup_count,
+    }

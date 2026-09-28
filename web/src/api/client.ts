@@ -177,3 +177,17 @@ export const setSetting = (key: string, value: string) =>
     method: 'PUT',
     body: JSON.stringify({ value }),
   })
+
+// ── Backup ──────────────────────────────────────────────────────────────────
+export interface BackupStatus {
+  backup_dir: string
+  backup_dir_resolved: string
+  retention_days: number
+  last_backup: string | null
+  backup_count: number
+}
+
+export const getBackupStatus = () => req<BackupStatus>('/backup/status')
+
+export const runAutoBackup = () =>
+  req<{ status: string; file: string; date: string; pruned: number }>('/backup/auto', { method: 'POST' })
