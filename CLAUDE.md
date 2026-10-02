@@ -44,6 +44,7 @@ make open           # open http://localhost:5173
 - **TODO highlighting**: `rehype-highlight-todo.ts` rehype plugin walks HAST, splits text nodes on `TODO`, wraps in `<span class="todo-keyword">`. Applied in `ClickToEditMarkdown`, `TaskRow` (collapsed preview), and `ReviewPage`.
 - **Theme**: Three modes — light (`:root`), dim (`.dim`), dark (`.dark`). Custom variant `@custom-variant dark (&:is(.dark *, .dim *))` for Tailwind.
 - **Content width**: Four options stored as `content_width` setting: `normal` (672px), `wide` (896px), `wider` (1152px), `full` (100%).
+- **People / peer feedback**: `Person` + `Interaction` (dated observations about one person). Interactions carry a `sentiment` (strength/growth/neutral) and multiple `InteractionTag` rows (dimension + optional attribute). Tags reference the `CompetencyDimension` / `CompetencyAttribute` framework, which is seeded on first run (`database.py` `_seed_framework()`) and editable via `/framework`. The `/review-draft/{person_id}` endpoint aggregates a person's interactions into the peer-review structure (per-dimension evidence split by sentiment, ranked continue/focus candidates, untagged neutral "other notes", familiarity suggestion). Deleting a person cascades its interactions + tags; deleting an attribute downgrades its tags to whole-dimension tags.
 
 ## Frontend Component Map
 
@@ -58,6 +59,12 @@ make open           # open http://localhost:5173
 - `ReviewPage.tsx` — filterable task review with workstream grouping, oncall indicators, markdown export
 - `StateDropdown.tsx`, `WorkstreamPicker.tsx`, `LabelPicker.tsx` — custom dropdowns (not base-ui Select)
 - `HiddenDaysIndicator.tsx` — shows hidden day count between visible days
+- `PeoplePage.tsx` (page) — people list, add-person, show-archived toggle; routes to detail / review
+- `PersonDetail.tsx` — person header (inline edit, archive/restore/delete), editable markdown notes, interaction timeline with filters
+- `InteractionForm.tsx` — log/edit an interaction (date, summary, sentiment, competency tags, markdown notes, workstream, high-impact)
+- `CompetencyTagPicker.tsx` — grouped multi-select for competency tags; `dimensionColor()` helper for per-dimension colors
+- `ReviewDraftView.tsx` — aggregated peer-review draft with Markdown export
+- `ManageFramework.tsx` — dialog to edit competency dimensions/attributes (opened from Settings → Competency framework)
 
 ## API Routes
 
@@ -79,6 +86,16 @@ make open           # open http://localhost:5173
 | `/day-visibility/{date}` | PUT, DELETE | Set/clear visibility |
 | `/oncall` | GET, POST | List/create oncall periods |
 | `/oncall/{id}` | PATCH, DELETE | Update/delete oncall period |
+| `/people` | GET, POST | List/create people (`?include_archived`) |
+| `/people/{id}` | GET, PATCH, DELETE | Person CRUD (PATCH sets `archived_at` to archive) |
+| `/interactions` | GET, POST | List (filter person/dimension/sentiment/date) / create |
+| `/interactions/{id}` | GET, PATCH, DELETE | Interaction CRUD (tags set via body) |
+| `/framework` | GET | Competency dimensions + attributes |
+| `/framework/dimensions` | POST | Add dimension |
+| `/framework/dimensions/{key}` | PATCH, DELETE | Edit/delete dimension |
+| `/framework/dimensions/{key}/attributes` | POST | Add attribute |
+| `/framework/attributes/{id}` | PATCH, DELETE | Edit/delete attribute |
+| `/review-draft/{person_id}` | GET | Aggregated peer-review draft (`?date_from&date_to`) |
 | `/settings` | GET | All settings |
 | `/settings/{key}` | PUT | Set one setting |
 | `/backup` | GET, POST | Export/import JSON backup |

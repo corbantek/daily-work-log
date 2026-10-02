@@ -47,11 +47,31 @@ A local-first personal productivity app for tracking daily tasks, meetings, and 
 - `task_label` — Task ↔ Label
 - `meeting_task` — Meeting ↔ Task
 
+### Peer Feedback Entities
+
+**Person** — a coworker you track.
+- `id`, `name`, `role`, `team`, `relationship` (Report/Peer/Manager/Cross-functional/Other), `notes` (markdown), `archived_at` (soft delete), `created_at`
+- Relations: has many Interactions (one-way; interaction holds `person_id`)
+
+**Interaction** — a dated observation about one person.
+- `id`, `person_id` (FK), `date`, `summary`, `notes` (markdown), `sentiment` (strength/growth/neutral), `workstream_id` (FK, optional context), `high_impact` (bool), `created_at`
+- Relations: has many InteractionTags
+
+**InteractionTag** — links an interaction to a competency (multi-tag).
+- `id`, `interaction_id` (FK), `dimension_key`, `attribute_id` (nullable — null = whole-dimension tag)
+
+**CompetencyDimension / CompetencyAttribute** — the editable framework.
+- Dimension: `key` (slug PK), `label`, `sort_order`
+- Attribute: `id`, `dimension_key` (FK), `text`, `sort_order`
+- Seeded on first run from a default (Teamwork / Innovation / Results, 5 attributes each); fully editable via `/framework`
+
+**Sentiment semantics:** sentiment is per-interaction (an observation reads as positive, constructive, or neutral as a whole); competency tags are many-per-interaction since one story often demonstrates multiple dimensions.
+
 ## Frontend Architecture
 
 ### Layout
 
-Single-page app with two tabs: **Log** (main view) and **Review** (analysis).
+Single-page app with three tabs: **Log** (main view), **Review** (task analysis), and **People** (peer feedback).
 
 **Log tab:**
 - Sticky header with app title (click to reset URL), tab switcher, workstream/label management, settings gear
@@ -64,6 +84,13 @@ Single-page app with two tabs: **Log** (main view) and **Review** (analysis).
 - Filter bar: date range, state, workstream, label, high-impact toggle
 - Tasks grouped by workstream with state badges, labels, oncall indicators
 - Markdown export button
+
+**People tab:**
+- People list (cards with interaction counts); add-person form; show-archived toggle
+- Person detail: inline-editable header (name/role/team/relationship, archive/restore/delete), editable markdown notes, and a filterable interaction timeline
+- Log interaction form: date, summary, sentiment, competency tags, markdown notes, optional workstream, high-impact
+- Review Draft (per person + date range): ranked continue/focus candidates, per-dimension evidence (strengths/growth/notes), general "other notes", familiarity suggestion, and Markdown export
+- Competency framework editor (from Settings → Competency framework): edit dimension labels and attributes, add/remove dimensions and attributes
 
 **Settings dialog:**
 - App title, theme (Dark/Dim/Light), days to show, content width, weekends, day statuses, on-call periods, auto-backup config, manual backup/restore
@@ -103,6 +130,12 @@ Applied to both Log and Review containers.
 | StateDropdown | `StateDropdown.tsx` | Custom task state picker |
 | WorkstreamPicker | `WorkstreamPicker.tsx` | Custom workstream selector |
 | LabelPicker | `LabelPicker.tsx` | Custom multi-label selector |
+| PeoplePage | `pages/PeoplePage.tsx` | People list + routing to detail/review |
+| PersonDetail | `PersonDetail.tsx` | Person header, notes, interaction timeline |
+| InteractionForm | `InteractionForm.tsx` | Log/edit an interaction |
+| CompetencyTagPicker | `CompetencyTagPicker.tsx` | Grouped multi-select competency tags |
+| ReviewDraftView | `ReviewDraftView.tsx` | Aggregated peer-review draft + export |
+| ManageFramework | `ManageFramework.tsx` | Edit competency dimensions/attributes |
 
 ### Markdown Rendering
 
@@ -145,6 +178,16 @@ Background asyncio task runs every hour:
 - `POST /backup` — accepts JSON file upload, deletes all data, re-imports
 
 Table order matters for FK constraints. Export/import uses a fixed `TABLES` list.
+
+### Review Draft Aggregation
+
+`GET /review-draft/{person_id}` builds a `ReviewDraft` for a person + date range:
+1. Fetch the person's interactions in range, with their tags
+2. Group into per-dimension buckets (framework order), each split into strengths / growth / notes by sentiment
+3. Rank "continue" candidates (attributes most-tagged on strength interactions) and "focus more on" candidates (on growth interactions)
+4. Collect "other notes" — neutral interactions with no competency tags (pure general notes)
+5. Suggest familiarity from interaction volume
+6. The frontend renders this and can export it as Markdown mirroring the peer-review form
 
 ### Day View Aggregation
 
@@ -192,3 +235,5 @@ The Makefile generates a launchd plist at install time:
 - **Settings in DB not config file**: All settings stored in the `Setting` table so they persist across machines when the DB is copied.
 - **One backup per day**: Auto-backup writes one file per calendar day (overwrites on re-run). Retention is by file count, not age — simpler and predictable.
 - **Oncall separate from day status**: On-call is a date range (often spanning many days) while day status is a per-day tag. Separate models avoid coupling.
+- **Peer feedback modeling**: One person per interaction (keeps sentiment/tags unambiguous and the review rollup clean); multiple competency tags per interaction (one story shows several dimensions); sentiment per interaction (positive/constructive/neutral as a whole). The competency framework is seeded but DB-backed and editable so review language can be customized per company without a code change.
+- **Framework edits preserve tag references**: tags reference attributes by stable `id`. Deleting an attribute downgrades its tags to whole-dimension tags (sets `attribute_id` null) rather than dropping the signal; deleting a dimension removes its tags.
