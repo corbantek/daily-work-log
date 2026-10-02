@@ -461,6 +461,41 @@ class ReviewDraft(SQLModel):
     other_notes: List[InteractionRead] = []
 
 
+# ── Self-review draft (your own year-end summary) ──────────────────────────────
+
+class SelfReviewStats(SQLModel):
+    tasks_completed: int = 0
+    high_impact: int = 0
+    workstreams_touched: int = 0
+    in_progress: int = 0
+    meetings: int = 0
+    oncall_days: int = 0
+
+
+class SelfReviewGroup(SQLModel):
+    workstream: Optional[WorkstreamRead] = None
+    tasks: List[TaskRead] = []
+
+
+class SelfReview(SQLModel):
+    date_from: Optional[DateType] = None
+    date_to: Optional[DateType] = None
+    stats: SelfReviewStats
+    highlights: List[TaskRead] = []
+    groups: List[SelfReviewGroup] = []
+
+
+# ── Global search ──────────────────────────────────────────────────────────────
+
+class SearchResult(SQLModel):
+    type: str  # task | meeting | person | interaction
+    id: str
+    title: str
+    subtitle: Optional[str] = None
+    date: Optional[DateType] = None
+    person_id: Optional[str] = None
+
+
 # Default framework seeded on first run (editable later via the framework editor).
 DEFAULT_FRAMEWORK = [
     {
