@@ -1,6 +1,8 @@
 import type {
   DayView, Task, Workstream, Meeting, Label, TaskLink,
   TaskState, LinkType, OncallPeriod,
+  Person, Interaction, InteractionTagInput, Sentiment,
+  CompetencyDimension, ReviewDraft,
 } from './types'
 
 const BASE = '/api'
@@ -191,3 +193,98 @@ export const getBackupStatus = () => req<BackupStatus>('/backup/status')
 
 export const runAutoBackup = () =>
   req<{ status: string; file: string; date: string; pruned: number }>('/backup/auto', { method: 'POST' })
+
+// ── People / Peer feedback ─────────────────────────────────────────────────────
+export const getFramework = () => req<CompetencyDimension[]>('/framework')
+
+export const createDimension = (label: string) =>
+  req<CompetencyDimension>('/framework/dimensions', { method: 'POST', body: JSON.stringify({ label }) })
+
+export const updateDimension = (key: string, label: string) =>
+  req<CompetencyDimension>(`/framework/dimensions/${key}`, { method: 'PATCH', body: JSON.stringify({ label }) })
+
+export const deleteDimension = (key: string) =>
+  req<void>(`/framework/dimensions/${key}`, { method: 'DELETE' })
+
+export const createAttribute = (dimensionKey: string, text: string) =>
+  req<{ id: string; text: string; sort_order: number }>(`/framework/dimensions/${dimensionKey}/attributes`, { method: 'POST', body: JSON.stringify({ text }) })
+
+export const updateAttribute = (id: string, text: string) =>
+  req<{ id: string; text: string; sort_order: number }>(`/framework/attributes/${id}`, { method: 'PATCH', body: JSON.stringify({ text }) })
+
+export const deleteAttribute = (id: string) =>
+  req<void>(`/framework/attributes/${id}`, { method: 'DELETE' })
+
+export const getPeople = (includeArchived = false) =>
+  req<Person[]>(`/people${includeArchived ? '?include_archived=true' : ''}`)
+
+export const getPerson = (id: string) => req<Person>(`/people/${id}`)
+
+export const createPerson = (body: {
+  name: string
+  role?: string | null
+  team?: string | null
+  relationship?: string | null
+  notes?: string | null
+}) => req<Person>('/people', { method: 'POST', body: JSON.stringify(body) })
+
+export const updatePerson = (id: string, body: Partial<{
+  name: string
+  role: string | null
+  team: string | null
+  relationship: string | null
+  notes: string | null
+  archived_at: string | null
+}>) => req<Person>(`/people/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
+
+export const deletePerson = (id: string) =>
+  req<void>(`/people/${id}`, { method: 'DELETE' })
+
+export const getInteractions = (params?: {
+  person_id?: string
+  dimension?: string
+  sentiment?: Sentiment
+  date_from?: string
+  date_to?: string
+}) => {
+  const p = new URLSearchParams()
+  if (params?.person_id) p.set('person_id', params.person_id)
+  if (params?.dimension) p.set('dimension', params.dimension)
+  if (params?.sentiment) p.set('sentiment', params.sentiment)
+  if (params?.date_from) p.set('date_from', params.date_from)
+  if (params?.date_to) p.set('date_to', params.date_to)
+  const qs = p.toString() ? `?${p}` : ''
+  return req<Interaction[]>(`/interactions${qs}`)
+}
+
+export const createInteraction = (body: {
+  person_id: string
+  date: string
+  summary: string
+  notes?: string | null
+  sentiment?: Sentiment
+  workstream_id?: string | null
+  high_impact?: boolean
+  tags?: InteractionTagInput[]
+}) => req<Interaction>('/interactions', { method: 'POST', body: JSON.stringify(body) })
+
+export const updateInteraction = (id: string, body: Partial<{
+  date: string
+  summary: string
+  notes: string | null
+  sentiment: Sentiment
+  workstream_id: string | null
+  high_impact: boolean
+  tags: InteractionTagInput[]
+}>) => req<Interaction>(`/interactions/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
+
+export const deleteInteraction = (id: string) =>
+  req<void>(`/interactions/${id}`, { method: 'DELETE' })
+
+export const getReviewDraft = (personId: string, dateFrom?: string, dateTo?: string) => {
+  const p = new URLSearchParams()
+  if (dateFrom) p.set('date_from', dateFrom)
+  if (dateTo) p.set('date_to', dateTo)
+  const qs = p.toString() ? `?${p}` : ''
+  return req<ReviewDraft>(`/review-draft/${personId}${qs}`)
+}

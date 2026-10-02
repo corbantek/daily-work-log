@@ -9,6 +9,8 @@ import { ManageWorkstreams } from './components/ManageWorkstreams'
 import { ManageLabels } from './components/ManageLabels'
 import { BackupRestore } from './components/BackupRestore'
 import { ReviewPage } from './pages/ReviewPage'
+import { PeoplePage } from './pages/PeoplePage'
+import { ManageFramework } from './components/ManageFramework'
 import { getSettings, setSetting, getDayVisibility, setDayVisibility, clearDayVisibility, getOncallPeriods, createOncallPeriod, deleteOncallPeriod, getBackupStatus, runAutoBackup } from './api/client'
 import type { BackupStatus } from './api/client'
 import type { OncallPeriod } from './api/types'
@@ -16,7 +18,7 @@ import { todayStr, toLocalDateStr, isWeekend } from './api/date'
 import { HiddenDaysIndicator } from './components/HiddenDaysIndicator'
 import './index.css'
 
-type Tab = 'log' | 'review'
+type Tab = 'log' | 'review' | 'people'
 type Theme = 'dark' | 'dim' | 'light'
 type ContentWidth = 'normal' | 'wide' | 'wider' | 'full'
 
@@ -121,6 +123,7 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('log')
   const [windowSize, setWindowSize] = useState(5)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [frameworkOpen, setFrameworkOpen] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
   const [theme, setTheme] = useState<Theme>('dim')
   const [appTitle, setAppTitle] = useState('Daily Work Log')
@@ -342,7 +345,7 @@ export default function App() {
         <Separator orientation="vertical" className="h-5" />
 
         <nav className="flex gap-1">
-          {(['log', 'review'] as Tab[]).map(t => (
+          {(['log', 'review', 'people'] as Tab[]).map(t => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -603,6 +606,24 @@ export default function App() {
 
             <Separator />
 
+            {/* Competency framework */}
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-2">Competency framework</p>
+              <p className="text-xs text-muted-foreground/70 mb-2">
+                Dimensions and attributes used to tag interactions and build peer-review drafts in the People tab.
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 text-xs"
+                onClick={() => { setSettingsOpen(false); setFrameworkOpen(true) }}
+              >
+                Edit framework
+              </Button>
+            </div>
+
+            <Separator />
+
             {/* Data */}
             <div>
               <p className="text-xs font-medium text-muted-foreground mb-2">Data</p>
@@ -611,6 +632,8 @@ export default function App() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ManageFramework open={frameworkOpen} onOpenChange={setFrameworkOpen} />
 
       {!serverUp && (
         <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center">
@@ -623,7 +646,7 @@ export default function App() {
       )}
 
       <main>
-        {tab === 'log' ? (
+        {tab === 'log' && (
           <div className={`${CONTENT_WIDTH_MAP[contentWidth]} mx-auto px-4 py-6 space-y-1`}>
             {dates.map((date, i) => {
               const hiddenBetween = i > 0
@@ -673,8 +696,12 @@ export default function App() {
               />
             </div>
           </div>
-        ) : (
+        )}
+        {tab === 'review' && (
           <ReviewPage containerClass={`${CONTENT_WIDTH_MAP[contentWidth]} mx-auto px-4 py-6`} />
+        )}
+        {tab === 'people' && (
+          <PeoplePage containerClass={`${CONTENT_WIDTH_MAP[contentWidth]} mx-auto px-4 py-6`} theme={theme} />
         )}
       </main>
     </div>
