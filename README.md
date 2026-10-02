@@ -20,6 +20,8 @@ A personal app for tracking daily tasks, meetings, and workstreams — built to 
 - **Review page** — filter/browse all tasks by date range, state, workstream, label, and high-impact; export to markdown; on-call bell indicators
 - **People & peer feedback** — track coworkers and log dated interactions about them, tagged against a customizable competency framework (dimensions + attributes) and marked as strength / growth / note; keep free-form notes per person; archive or delete people
 - **Review Draft** — for a chosen person and date range, generate a peer-review draft that ranks "continue" and "focus more on" candidates, groups evidence by dimension, lists general notes, and exports to Markdown
+- **Self-Review** — in the Review tab, generate a year-end summary of your own work: stat tiles, high-impact highlights, and tasks grouped by workstream, exportable to Markdown
+- **Global search (⌘K)** — command palette to search across tasks, meetings, people, and interactions; jump straight to a result
 - **Auto-backup** — daily JSON backup to a configurable folder (default `~/daily-work-log-backups`) with configurable retention (default 14 days); manual "Backup Now" button
 - **Manual backup & restore** — JSON export/import of all data from Settings
 - **Load past days** — load additional days or jump to a specific past date from the main view
@@ -83,6 +85,8 @@ api/                  Python FastAPI backend
     oncall.py         On-call period CRUD
     people.py         Person CRUD (+ archive)
     review_draft.py   Aggregated peer-review draft
+    search.py         Global search across tasks/meetings/people/interactions
+    self_review.py    Aggregated self-review of your own work
     settings.py       Key-value settings
     tasks.py          Task CRUD + sub-tasks + links
     workstreams.py    Workstream CRUD

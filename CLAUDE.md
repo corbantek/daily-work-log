@@ -65,6 +65,9 @@ make open           # open http://localhost:5173
 - `CompetencyTagPicker.tsx` — grouped multi-select for competency tags; `dimensionColor()` helper for per-dimension colors
 - `ReviewDraftView.tsx` — aggregated peer-review draft with Markdown export
 - `ManageFramework.tsx` — dialog to edit competency dimensions/attributes (opened from Settings → Competency framework)
+- `SelfReviewDraft.tsx` — your own year-end summary (stat tiles, high-impact highlights, tasks grouped by workstream) + Markdown export; shown via the Review tab's Tasks/Self-Review toggle
+- `CommandPalette.tsx` — ⌘K / Ctrl-K global search overlay; opens a person in the People tab, or a focused read-only detail (`ItemDetailDialog`) for a task/meeting (tasks live inside collapsed days, so jumping the Log view to them is unreliable — a recall dialog is used instead)
+- `ItemDetailDialog.tsx` — read-only detail view for a task or meeting selected from search (state, workstream, dates, labels, links, notes, linked items)
 
 ## API Routes
 
@@ -96,12 +99,24 @@ make open           # open http://localhost:5173
 | `/framework/dimensions/{key}/attributes` | POST | Add attribute |
 | `/framework/attributes/{id}` | PATCH, DELETE | Edit/delete attribute |
 | `/review-draft/{person_id}` | GET | Aggregated peer-review draft (`?date_from&date_to`) |
+| `/self-review` | GET | Aggregated self-review of your own work (`?date_from&date_to`) |
+| `/search` | GET | Global search across tasks/meetings/people/interactions (`?q`) |
 | `/settings` | GET | All settings |
 | `/settings/{key}` | PUT | Set one setting |
 | `/backup` | GET, POST | Export/import JSON backup |
 | `/backup/auto` | POST | Trigger auto-backup to file |
 | `/backup/status` | GET | Backup dir, last date, count |
 | `/health` | GET | Health check |
+
+## Feature backlog
+
+Ideas scoped but not yet built (from a 2026-10-02 planning pass):
+
+- **Insights dashboard** — stat tiles + charts: time across workstreams, high-impact trend, meeting load, oncall days. (Medium–Large; some overlap with the self-review stats which already compute these counts.)
+- **Restore-from-auto-backup UI** — auto-backup writes dated JSON files, but restore is only via manual upload. Add an endpoint to list backup files and restore by filename, plus a picker in Settings.
+- **Open-TODO aggregator** — surface all `TODO`/`FIXME` keywords found across task/interaction notes in one "loose ends" list (the rehype plugin already identifies them for rendering).
+- **Task due dates + overdue view** — add a `due_date` to tasks and a "due soon / overdue" filter.
+- **Quick-log interaction from the Log tab** + the ability to link an interaction to a specific task/meeting (not just a workstream). Interactions were intentionally kept to one person each; multi-person tagging was also deferred.
 
 ## Future Improvements
 

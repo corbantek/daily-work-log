@@ -80,10 +80,11 @@ Single-page app with three tabs: **Log** (main view), **Review** (task analysis)
 - Today is expanded; past days collapsed by default (click to expand)
 - "Load N more days" and "Go to date" controls at the bottom for viewing historical data
 
-**Review tab:**
-- Filter bar: date range, state, workstream, label, high-impact toggle
-- Tasks grouped by workstream with state badges, labels, oncall indicators
-- Markdown export button
+**Review tab:** a Tasks / Self-Review toggle.
+- *Tasks*: filter bar (date range, state, workstream, label, high-impact), tasks grouped by workstream with state badges, labels, oncall indicators, Markdown export
+- *Self-Review*: year-end summary of your own work — stat tiles (completed, high-impact, workstreams, in-progress, meetings, oncall days), high-impact highlights with notes, tasks grouped by workstream, Markdown export
+
+**Global search (⌘K):** a command-palette overlay (opened by ⌘K/Ctrl-K or the header Search button) that searches tasks, meetings, people, and interactions; selecting a person/interaction opens that person in the People tab, while a task/meeting opens a focused read-only detail dialog (recall view) — tasks live inside collapsed days nested in workstreams, so jumping the Log view to them is unreliable.
 
 **People tab:**
 - People list (cards with interaction counts); add-person form; show-archived toggle
@@ -136,6 +137,9 @@ Applied to both Log and Review containers.
 | CompetencyTagPicker | `CompetencyTagPicker.tsx` | Grouped multi-select competency tags |
 | ReviewDraftView | `ReviewDraftView.tsx` | Aggregated peer-review draft + export |
 | ManageFramework | `ManageFramework.tsx` | Edit competency dimensions/attributes |
+| SelfReviewDraft | `SelfReviewDraft.tsx` | Your own year-end summary + export |
+| CommandPalette | `CommandPalette.tsx` | ⌘K global search overlay |
+| ItemDetailDialog | `ItemDetailDialog.tsx` | Read-only recall view for a searched task/meeting |
 
 ### Markdown Rendering
 
@@ -188,6 +192,10 @@ Table order matters for FK constraints. Export/import uses a fixed `TABLES` list
 4. Collect "other notes" — neutral interactions with no competency tags (pure general notes)
 5. Suggest familiarity from interaction volume
 6. The frontend renders this and can export it as Markdown mirroring the peer-review form
+
+### Self-Review & Search
+
+`GET /self-review?date_from&date_to` aggregates *your own* tasks (by effective date = end/start/created): high-impact highlights, tasks grouped by workstream (high-impact first, abandoned excluded), and summary stats (completed, high-impact, workstreams, in-progress, meetings, oncall days). `GET /search?q=` runs case-insensitive LIKE across tasks, meetings, people, and interactions, capped per type. Both are read-only derived endpoints (no new tables).
 
 ### Day View Aggregation
 
