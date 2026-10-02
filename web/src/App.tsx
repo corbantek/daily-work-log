@@ -417,13 +417,13 @@ export default function App() {
 
       {/* Settings dialog */}
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogContent className="max-w-md flex flex-col max-h-[90vh]">
+        <DialogContent className="sm:max-w-3xl flex flex-col max-h-[90vh]">
           <DialogHeader>
             <DialogTitle>Settings</DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-5 overflow-y-auto thin-scrollbar">
-            {/* App title */}
+          <div className="overflow-y-auto thin-scrollbar pr-1 space-y-6">
+            {/* App title (full width) */}
             <div>
               <p className="text-xs font-medium text-muted-foreground mb-2">App title</p>
               <div className="flex gap-2">
@@ -440,232 +440,220 @@ export default function App() {
               </div>
             </div>
 
-            <Separator />
-
-            {/* Theme */}
-            <div>
-              <p className="text-xs font-medium text-muted-foreground mb-2">Theme</p>
-              <div className="flex gap-1.5">
-                {THEMES.map(t => (
-                  <Button
-                    key={t.value}
-                    size="sm"
-                    variant={theme === t.value ? 'default' : 'secondary'}
-                    className="h-8 text-xs gap-1.5 flex-1"
-                    onClick={() => changeTheme(t.value)}
-                  >
-                    <t.icon size={13} />
-                    {t.label}
-                  </Button>
-                ))}
-              </div>
-            </div>
-
-            <Separator />
-
-            {/* Day window */}
-            <div>
-              <p className="text-xs font-medium text-muted-foreground mb-2">Days to show</p>
-              <div className="flex flex-wrap gap-1.5">
-                {WINDOW_OPTIONS.map(n => (
-                  <Button
-                    key={n}
-                    size="sm"
-                    variant={windowSize === n ? 'default' : 'secondary'}
-                    className="h-7 w-10 text-xs p-0"
-                    onClick={() => changeWindowSize(n)}
-                  >
-                    {n}
-                  </Button>
-                ))}
-              </div>
-            </div>
-
-            <Separator />
-
-            {/* Content width */}
-            <div>
-              <p className="text-xs font-medium text-muted-foreground mb-2">Width</p>
-              <div className="flex gap-1.5">
-                {CONTENT_WIDTH_OPTIONS.map(opt => (
-                  <Button
-                    key={opt.value}
-                    size="sm"
-                    variant={contentWidth === opt.value ? 'default' : 'secondary'}
-                    className="h-8 text-xs flex-1"
-                    onClick={() => changeContentWidth(opt.value)}
-                  >
-                    {opt.label}
-                  </Button>
-                ))}
-              </div>
-            </div>
-
-            <Separator />
-
-            {/* Weekends */}
-            <div>
-              <p className="text-xs font-medium text-muted-foreground mb-2">Weekends</p>
-              <div className="flex gap-1.5">
-                <Button
-                  size="sm"
-                  variant={hideWeekends ? 'default' : 'secondary'}
-                  className="h-8 text-xs gap-1.5 flex-1"
-                  onClick={() => changeHideWeekends(true)}
-                >
-                  <EyeOff size={13} />
-                  Hide
-                </Button>
-                <Button
-                  size="sm"
-                  variant={!hideWeekends ? 'default' : 'secondary'}
-                  className="h-8 text-xs gap-1.5 flex-1"
-                  onClick={() => changeHideWeekends(false)}
-                >
-                  <Eye size={13} />
-                  Show
-                </Button>
-              </div>
-            </div>
-
-            <Separator />
-
-            {/* Day statuses */}
-            <div>
-              <p className="text-xs font-medium text-muted-foreground mb-2">Day statuses</p>
-              {dayStatuses.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mb-2">
-                  {dayStatuses.map(s => (
-                    <span key={s} className="inline-flex items-center gap-1 text-xs bg-red-500/15 text-red-400 border border-red-500/30 px-2 py-0.5 rounded-full">
-                      {s}
-                      <button onClick={() => removeDayStatus(s)} className="hover:text-destructive transition-colors">
-                        <X size={10} />
-                      </button>
-                    </span>
-                  ))}
+            <div className="flex flex-col sm:flex-row gap-8">
+              {/* ── Left column: appearance + day statuses ── */}
+              <div className="flex-1 min-w-0 space-y-6">
+                {/* Theme */}
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Theme</p>
+                  <div className="flex gap-1.5">
+                    {THEMES.map(t => (
+                      <Button
+                        key={t.value}
+                        size="sm"
+                        variant={theme === t.value ? 'default' : 'secondary'}
+                        className="h-8 text-xs gap-1.5 flex-1"
+                        onClick={() => changeTheme(t.value)}
+                      >
+                        <t.icon size={13} />
+                        {t.label}
+                      </Button>
+                    ))}
+                  </div>
                 </div>
-              )}
-              <div className="flex gap-2">
-                <Input
-                  value={newStatus}
-                  onChange={e => setNewStatus((e.target as HTMLInputElement).value)}
-                  placeholder="e.g. 🤒 Sick"
-                  className="h-7 text-xs flex-1"
-                  onKeyDown={e => { if (e.key === 'Enter') addDayStatus() }}
-                />
-                <Button size="sm" className="h-7 text-xs gap-1" onClick={addDayStatus}>
-                  <Plus size={11} /> Add
-                </Button>
-              </div>
-            </div>
 
-            <Separator />
+                {/* Days to show */}
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Days to show</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {WINDOW_OPTIONS.map(n => (
+                      <Button
+                        key={n}
+                        size="sm"
+                        variant={windowSize === n ? 'default' : 'secondary'}
+                        className="h-7 w-10 text-xs p-0"
+                        onClick={() => changeWindowSize(n)}
+                      >
+                        {n}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
 
-            {/* On-call periods */}
-            <div>
-              <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
-                <Bell size={11} className="text-amber-400" /> On-call periods
-              </p>
-              {oncallPeriods.length > 0 && (
-                <div className="space-y-1 mb-2">
-                  {oncallPeriods.map(p => (
-                    <div key={p.id} className="flex items-center justify-between text-xs bg-amber-500/10 border border-amber-500/20 rounded-md px-2.5 py-1.5">
-                      <span className="text-amber-400/90">{p.start_date} → {p.end_date}</span>
-                      <button onClick={() => removeOncallPeriod(p.id)} className="text-muted-foreground hover:text-destructive transition-colors ml-2">
-                        <X size={11} />
-                      </button>
+                {/* Width */}
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Width</p>
+                  <div className="flex gap-1.5">
+                    {CONTENT_WIDTH_OPTIONS.map(opt => (
+                      <Button
+                        key={opt.value}
+                        size="sm"
+                        variant={contentWidth === opt.value ? 'default' : 'secondary'}
+                        className="h-8 text-xs flex-1 px-1"
+                        onClick={() => changeContentWidth(opt.value)}
+                      >
+                        {opt.label}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Weekends */}
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Weekends</p>
+                  <div className="flex gap-1.5">
+                    <Button
+                      size="sm"
+                      variant={hideWeekends ? 'default' : 'secondary'}
+                      className="h-8 text-xs gap-1.5 flex-1"
+                      onClick={() => changeHideWeekends(true)}
+                    >
+                      <EyeOff size={13} />
+                      Hide
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={!hideWeekends ? 'default' : 'secondary'}
+                      className="h-8 text-xs gap-1.5 flex-1"
+                      onClick={() => changeHideWeekends(false)}
+                    >
+                      <Eye size={13} />
+                      Show
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Day statuses */}
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Day statuses</p>
+                  {dayStatuses.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {dayStatuses.map(s => (
+                        <span key={s} className="inline-flex items-center gap-1 text-xs bg-red-500/15 text-red-400 border border-red-500/30 px-2 py-0.5 rounded-full">
+                          {s}
+                          <button onClick={() => removeDayStatus(s)} className="hover:text-destructive transition-colors">
+                            <X size={10} />
+                          </button>
+                        </span>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              )}
-              <div className="flex gap-2 items-center">
-                <Input
-                  type="date"
-                  value={newOncallStart}
-                  onChange={e => setNewOncallStart((e.target as HTMLInputElement).value)}
-                  className="h-7 text-xs flex-1"
-                  style={{ colorScheme: theme === 'light' ? 'light' : 'dark' }}
-                />
-                <span className="text-xs text-muted-foreground">→</span>
-                <Input
-                  type="date"
-                  value={newOncallEnd}
-                  onChange={e => setNewOncallEnd((e.target as HTMLInputElement).value)}
-                  className="h-7 text-xs flex-1"
-                  style={{ colorScheme: theme === 'light' ? 'light' : 'dark' }}
-                />
-                <Button size="sm" className="h-7 text-xs gap-1 shrink-0" onClick={addOncallPeriod} disabled={!newOncallStart || !newOncallEnd || newOncallEnd < newOncallStart}>
-                  <Plus size={11} /> Add
-                </Button>
-              </div>
-            </div>
-
-            <Separator />
-
-            {/* Auto-backup */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                  <HardDrive size={11} /> Auto-backup
-                </p>
-                {backupStatus && (
-                  <span className="text-xs text-muted-foreground/60">
-                    {backupStatus.last_backup ? `Last: ${backupStatus.last_backup}` : 'Never backed up'} · {backupStatus.backup_count} file{backupStatus.backup_count !== 1 ? 's' : ''}
-                  </span>
-                )}
-              </div>
-              <Input
-                value={editBackupDir}
-                onChange={e => setEditBackupDir((e.target as HTMLInputElement).value)}
-                placeholder="~/daily-work-log-backups"
-                className="h-7 text-xs font-mono mb-2"
-              />
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground/70 shrink-0">Keep</span>
-                <Input
-                  type="number"
-                  min={1}
-                  max={365}
-                  value={editRetentionDays}
-                  onChange={e => setEditRetentionDays((e.target as HTMLInputElement).value)}
-                  className="h-7 text-xs w-16"
-                />
-                <span className="text-xs text-muted-foreground/70 shrink-0">days</span>
-                <div className="flex gap-1.5 ml-auto">
-                  <Button size="sm" className="h-7 text-xs" onClick={saveBackupSettings}>
-                    Save
-                  </Button>
-                  <Button size="sm" variant="secondary" className="h-7 text-xs gap-1" onClick={triggerBackupNow} disabled={backingUp}>
-                    <Save size={11} /> {backingUp ? 'Saving…' : 'Now'}
-                  </Button>
+                  )}
+                  <div className="flex gap-2">
+                    <Input
+                      value={newStatus}
+                      onChange={e => setNewStatus((e.target as HTMLInputElement).value)}
+                      placeholder="e.g. 🤒 Sick"
+                      className="h-7 text-xs flex-1 min-w-0"
+                      onKeyDown={e => { if (e.key === 'Enter') addDayStatus() }}
+                    />
+                    <Button size="sm" className="h-7 text-xs gap-1" onClick={addDayStatus}>
+                      <Plus size={11} /> Add
+                    </Button>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <Separator />
+              {/* ── Right column: periods, data, framework ── */}
+              <div className="flex-1 min-w-0 space-y-6">
+                {/* On-call periods */}
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
+                    <Bell size={11} className="text-amber-400" /> On-call periods
+                  </p>
+                  {oncallPeriods.length > 0 && (
+                    <div className="space-y-1 mb-2">
+                      {oncallPeriods.map(p => (
+                        <div key={p.id} className="flex items-center justify-between text-xs bg-amber-500/10 border border-amber-500/20 rounded-md px-2.5 py-1.5">
+                          <span className="text-amber-400/90">{p.start_date} → {p.end_date}</span>
+                          <button onClick={() => removeOncallPeriod(p.id)} className="text-muted-foreground hover:text-destructive transition-colors ml-2">
+                            <X size={11} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex gap-2 items-center">
+                    <Input
+                      type="date"
+                      value={newOncallStart}
+                      onChange={e => setNewOncallStart((e.target as HTMLInputElement).value)}
+                      className="h-7 text-xs flex-1 min-w-0"
+                      style={{ colorScheme: theme === 'light' ? 'light' : 'dark' }}
+                    />
+                    <span className="text-xs text-muted-foreground">→</span>
+                    <Input
+                      type="date"
+                      value={newOncallEnd}
+                      onChange={e => setNewOncallEnd((e.target as HTMLInputElement).value)}
+                      className="h-7 text-xs flex-1 min-w-0"
+                      style={{ colorScheme: theme === 'light' ? 'light' : 'dark' }}
+                    />
+                  </div>
+                  <Button size="sm" className="h-7 text-xs gap-1 w-full mt-2" onClick={addOncallPeriod} disabled={!newOncallStart || !newOncallEnd || newOncallEnd < newOncallStart}>
+                    <Plus size={11} /> Add period
+                  </Button>
+                </div>
 
-            {/* Competency framework */}
-            <div>
-              <p className="text-xs font-medium text-muted-foreground mb-2">Competency framework</p>
-              <p className="text-xs text-muted-foreground/70 mb-2">
-                Dimensions and attributes used to tag interactions and build peer-review drafts in the People tab.
-              </p>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 text-xs"
-                onClick={() => { setSettingsOpen(false); setFrameworkOpen(true) }}
-              >
-                Edit framework
-              </Button>
-            </div>
+                {/* Auto-backup */}
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
+                    <HardDrive size={11} /> Auto-backup
+                  </p>
+                  {backupStatus && (
+                    <p className="text-xs text-muted-foreground/60 mb-2">
+                      {backupStatus.last_backup ? `Last: ${backupStatus.last_backup}` : 'Never backed up'} · {backupStatus.backup_count} file{backupStatus.backup_count !== 1 ? 's' : ''}
+                    </p>
+                  )}
+                  <Input
+                    value={editBackupDir}
+                    onChange={e => setEditBackupDir((e.target as HTMLInputElement).value)}
+                    placeholder="~/daily-work-log-backups"
+                    className="h-7 text-xs font-mono mb-2"
+                  />
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground/70 shrink-0">Keep</span>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={365}
+                      value={editRetentionDays}
+                      onChange={e => setEditRetentionDays((e.target as HTMLInputElement).value)}
+                      className="h-7 text-xs w-16"
+                    />
+                    <span className="text-xs text-muted-foreground/70 shrink-0">days</span>
+                    <div className="flex gap-1.5 ml-auto">
+                      <Button size="sm" className="h-7 text-xs" onClick={saveBackupSettings}>
+                        Save
+                      </Button>
+                      <Button size="sm" variant="secondary" className="h-7 text-xs gap-1" onClick={triggerBackupNow} disabled={backingUp}>
+                        <Save size={11} /> {backingUp ? 'Saving…' : 'Now'}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
 
-            <Separator />
+                {/* Competency framework */}
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Competency framework</p>
+                  <p className="text-xs text-muted-foreground/70 mb-2">
+                    Dimensions and attributes used to tag interactions and build peer-review drafts in the People tab.
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs"
+                    onClick={() => { setSettingsOpen(false); setFrameworkOpen(true) }}
+                  >
+                    Edit framework
+                  </Button>
+                </div>
 
-            {/* Data */}
-            <div>
-              <p className="text-xs font-medium text-muted-foreground mb-2">Data</p>
-              <BackupRestore onRestored={refresh} />
+                {/* Data */}
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Data</p>
+                  <BackupRestore onRestored={refresh} />
+                </div>
+              </div>
             </div>
           </div>
         </DialogContent>

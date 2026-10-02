@@ -76,7 +76,7 @@ export function ManageFramework({ open, onOpenChange, onChanged }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg flex flex-col max-h-[90vh]">
+      <DialogContent className="sm:max-w-lg flex flex-col max-h-[90vh]">
         <DialogHeader>
           <DialogTitle>Competency framework</DialogTitle>
         </DialogHeader>

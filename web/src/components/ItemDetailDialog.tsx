@@ -46,7 +46,7 @@ export function ItemDetailDialog({ result, onClose }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={o => { if (!o) onClose() }}>
-      <DialogContent className="max-w-lg flex flex-col max-h-[85vh]">
+      <DialogContent className="sm:max-w-lg flex flex-col max-h-[85vh]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 pr-6">
             {result?.type === 'meeting' && <Calendar size={15} className="text-muted-foreground shrink-0" />}
