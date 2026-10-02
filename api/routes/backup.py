@@ -9,6 +9,7 @@ from ..database import get_session, engine
 from ..models import (
     Workstream, Task, Label, TaskLabelLink, TaskLink,
     Meeting, MeetingTaskLink, Setting, DayStatus, DayVisibility, OncallPeriod,
+    Person, Interaction, InteractionTag, CompetencyDimension, CompetencyAttribute,
 )
 
 router = APIRouter(prefix="/backup", tags=["backup"])
@@ -25,6 +26,11 @@ TABLES = [
     ("day_statuses", DayStatus),
     ("day_visibility", DayVisibility),
     ("oncall_periods", OncallPeriod),
+    ("competency_dimensions", CompetencyDimension),
+    ("competency_attributes", CompetencyAttribute),
+    ("people", Person),
+    ("interactions", Interaction),
+    ("interaction_tags", InteractionTag),
 ]
 
 DEFAULT_BACKUP_DIR = "~/daily-work-log-backups"

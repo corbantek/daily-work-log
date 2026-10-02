@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session
 
 from .database import init_db, engine
-from .routes import workstreams, tasks, meetings, labels, day, day_status, day_visibility, backup, settings, oncall
+from .routes import workstreams, tasks, meetings, labels, day, day_status, day_visibility, backup, settings, oncall, people, interactions, framework, review_draft
 from .routes.backup import _get_backup_settings, _export_data, _prune_old_backups, DEFAULT_BACKUP_DIR
 
 logger = logging.getLogger("daily-work-log")
@@ -74,3 +74,7 @@ app.include_router(day_visibility.router)
 app.include_router(backup.router)
 app.include_router(settings.router)
 app.include_router(oncall.router)
+app.include_router(people.router)
+app.include_router(interactions.router)
+app.include_router(framework.router)
+app.include_router(review_draft.router)

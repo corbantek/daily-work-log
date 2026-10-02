@@ -1,7 +1,7 @@
 import os
 import shutil
 import sqlite3
-from sqlmodel import SQLModel, create_engine, Session
+from sqlmodel import SQLModel, create_engine, Session, select
 from pathlib import Path
 
 _db_name = os.environ.get("WORKLOG_DB", "worklog.db")
@@ -35,9 +35,26 @@ def _run_migrations():
     conn.close()
 
 
+def _seed_framework():
+    from .models import CompetencyDimension, CompetencyAttribute, DEFAULT_FRAMEWORK
+
+    with Session(engine) as session:
+        existing = session.exec(select(CompetencyDimension)).first()
+        if existing:
+            return
+        for d_order, dim in enumerate(DEFAULT_FRAMEWORK):
+            session.add(CompetencyDimension(key=dim["key"], label=dim["label"], sort_order=d_order))
+            for a_order, text in enumerate(dim["attributes"]):
+                session.add(CompetencyAttribute(
+                    dimension_key=dim["key"], text=text, sort_order=a_order,
+                ))
+        session.commit()
+
+
 def init_db():
     _run_migrations()
     SQLModel.metadata.create_all(engine)
+    _seed_framework()
 
 
 def get_session():

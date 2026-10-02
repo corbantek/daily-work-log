@@ -5,6 +5,11 @@ from enum import Enum
 import uuid
 import sqlalchemy as sa
 
+# Alias so models with a field literally named `date` and a default value can
+# annotate it without the field name shadowing the `date` type (a field such as
+# `date: Optional[date] = None` otherwise resolves the annotation to NoneType).
+DateType = date
+
 
 def _enum_by_value(enum_cls):
     return sa.Enum(enum_cls, values_callable=lambda e: [x.value for x in e])
@@ -205,7 +210,7 @@ class MeetingRead(MeetingBase):
 
 class MeetingUpdate(SQLModel):
     title: Optional[str] = None
-    date: Optional[date] = None
+    date: Optional[DateType] = None
     duration_minutes: Optional[int] = None
     notes: Optional[str] = None
     task_ids: Optional[List[str]] = None
@@ -283,3 +288,212 @@ class DayView(SQLModel):
     is_oncall: bool = False
     meetings: List[MeetingRead]
     workstreams: List[WorkstreamWithTasks]
+
+
+# ── Competency framework (peer feedback) ───────────────────────────────────────
+
+class CompetencyDimension(SQLModel, table=True):
+    __tablename__ = "competency_dimension"
+    key: str = Field(primary_key=True)
+    label: str
+    sort_order: int = 0
+
+
+class CompetencyAttribute(SQLModel, table=True):
+    __tablename__ = "competency_attribute"
+    id: str = Field(default_factory=new_id, primary_key=True)
+    dimension_key: str = Field(foreign_key="competency_dimension.key")
+    text: str
+    sort_order: int = 0
+
+
+class CompetencyAttributeRead(SQLModel):
+    id: str
+    text: str
+    sort_order: int
+
+
+class CompetencyDimensionRead(SQLModel):
+    key: str
+    label: str
+    sort_order: int
+    attributes: List[CompetencyAttributeRead] = []
+
+
+# ── People ─────────────────────────────────────────────────────────────────────
+
+class PersonBase(SQLModel):
+    name: str
+    role: Optional[str] = None
+    team: Optional[str] = None
+    relationship: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class Person(PersonBase, table=True):
+    __tablename__ = "person"
+    id: str = Field(default_factory=new_id, primary_key=True)
+    archived_at: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class PersonCreate(PersonBase):
+    pass
+
+
+class PersonUpdate(SQLModel):
+    name: Optional[str] = None
+    role: Optional[str] = None
+    team: Optional[str] = None
+    relationship: Optional[str] = None
+    notes: Optional[str] = None
+    archived_at: Optional[datetime] = None
+
+
+class PersonRead(PersonBase):
+    id: str
+    archived_at: Optional[datetime]
+    created_at: datetime
+    interaction_count: int = 0
+    last_interaction_date: Optional[date] = None
+
+
+# ── Interactions (dated observations about a person) ────────────────────────────
+
+class Sentiment(str, Enum):
+    STRENGTH = "strength"
+    GROWTH = "growth"
+    NEUTRAL = "neutral"
+
+
+class Interaction(SQLModel, table=True):
+    __tablename__ = "interaction"
+    id: str = Field(default_factory=new_id, primary_key=True)
+    person_id: str = Field(foreign_key="person.id")
+    date: date
+    summary: str
+    notes: Optional[str] = None
+    sentiment: Sentiment = Field(default=Sentiment.NEUTRAL, sa_type=_enum_by_value(Sentiment))
+    workstream_id: Optional[str] = Field(default=None, foreign_key="workstream.id")
+    high_impact: bool = False
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class InteractionTag(SQLModel, table=True):
+    __tablename__ = "interaction_tag"
+    id: str = Field(default_factory=new_id, primary_key=True)
+    interaction_id: str = Field(foreign_key="interaction.id")
+    dimension_key: str
+    attribute_id: Optional[str] = None
+
+
+class InteractionTagInput(SQLModel):
+    dimension_key: str
+    attribute_id: Optional[str] = None
+
+
+class InteractionTagRead(SQLModel):
+    dimension_key: str
+    dimension_label: Optional[str] = None
+    attribute_id: Optional[str] = None
+    attribute_text: Optional[str] = None
+
+
+class InteractionBase(SQLModel):
+    person_id: str
+    date: date
+    summary: str
+    notes: Optional[str] = None
+    sentiment: Sentiment = Sentiment.NEUTRAL
+    workstream_id: Optional[str] = None
+    high_impact: bool = False
+
+
+class InteractionCreate(InteractionBase):
+    tags: List[InteractionTagInput] = []
+
+
+class InteractionUpdate(SQLModel):
+    date: Optional[DateType] = None
+    summary: Optional[str] = None
+    notes: Optional[str] = None
+    sentiment: Optional[Sentiment] = None
+    workstream_id: Optional[str] = None
+    high_impact: Optional[bool] = None
+    tags: Optional[List[InteractionTagInput]] = None
+
+
+class InteractionRead(InteractionBase):
+    id: str
+    created_at: datetime
+    tags: List[InteractionTagRead] = []
+    workstream_name: Optional[str] = None
+
+
+# ── Review draft (aggregated peer-feedback helper) ─────────────────────────────
+
+class ReviewDraftDimension(SQLModel):
+    key: str
+    label: str
+    strengths: List[InteractionRead] = []
+    growth: List[InteractionRead] = []
+    neutral: List[InteractionRead] = []
+
+
+class ReviewDraftCandidate(SQLModel):
+    dimension_key: str
+    dimension_label: str
+    attribute_id: Optional[str] = None
+    attribute_text: Optional[str] = None
+    count: int = 0
+
+
+class ReviewDraft(SQLModel):
+    person: PersonRead
+    date_from: Optional[date] = None
+    date_to: Optional[date] = None
+    total_interactions: int = 0
+    familiarity_suggestion: str
+    dimensions: List[ReviewDraftDimension] = []
+    focus_candidates: List[ReviewDraftCandidate] = []
+    continue_candidates: List[ReviewDraftCandidate] = []
+    comments_interactions: List[InteractionRead] = []
+    other_notes: List[InteractionRead] = []
+
+
+# Default framework seeded on first run (editable later via the framework editor).
+DEFAULT_FRAMEWORK = [
+    {
+        "key": "teamwork",
+        "label": "Teamwork",
+        "attributes": [
+            "Cultivated relationships and worked collaboratively",
+            "Communicated openly and effectively",
+            "Positively influenced the performance of the team",
+            "Provided leadership and inspiration to others",
+            "Encouraged others to share their perspectives",
+        ],
+    },
+    {
+        "key": "innovation",
+        "label": "Innovation",
+        "attributes": [
+            "Approached problems with creativity, curiosity, and new ideas",
+            "Applied expertise to find better ways to do things",
+            "Focused on details that produce excellence",
+            "Took smart, courageous risks",
+            "Included perspectives of others in pursuit of the best approach or idea",
+        ],
+    },
+    {
+        "key": "results",
+        "label": "Results",
+        "attributes": [
+            "Produced high-quality outcomes",
+            "Accomplished goals and objectives on time",
+            "Exercised good judgment and took responsibility for decisions",
+            "Exemplified company values and supported a culture of inclusion for all",
+            "Enriched the customer experience",
+        ],
+    },
+]
