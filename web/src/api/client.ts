@@ -2,7 +2,7 @@ import type {
   DayView, Task, Workstream, Meeting, Label, TaskLink,
   TaskState, LinkType, OncallPeriod,
   Person, Interaction, InteractionTagInput, Sentiment,
-  CompetencyDimension, ReviewDraft,
+  CompetencyDimension, ReviewDraft, SelfReview, SearchResult,
 } from './types'
 
 const BASE = '/api'
@@ -51,6 +51,8 @@ export const updateTask = (id: string, body: Partial<{
   label_ids: string[]
   parent_task_id: string | null
 }>) => req<Task>(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
+
+export const getTask = (id: string) => req<Task>(`/tasks/${id}`)
 
 export const deleteTask = (id: string) =>
   req<void>(`/tasks/${id}`, { method: 'DELETE' })
@@ -288,3 +290,14 @@ export const getReviewDraft = (personId: string, dateFrom?: string, dateTo?: str
   const qs = p.toString() ? `?${p}` : ''
   return req<ReviewDraft>(`/review-draft/${personId}${qs}`)
 }
+
+export const getSelfReview = (dateFrom?: string, dateTo?: string) => {
+  const p = new URLSearchParams()
+  if (dateFrom) p.set('date_from', dateFrom)
+  if (dateTo) p.set('date_to', dateTo)
+  const qs = p.toString() ? `?${p}` : ''
+  return req<SelfReview>(`/self-review${qs}`)
+}
+
+export const search = (q: string) =>
+  req<SearchResult[]>(`/search?q=${encodeURIComponent(q)}`)

@@ -162,3 +162,40 @@ export interface ReviewDraft {
   comments_interactions: Interaction[]
   other_notes: Interaction[]
 }
+
+// ── Self-review ────────────────────────────────────────────────────────────────
+
+export interface SelfReviewStats {
+  tasks_completed: number
+  high_impact: number
+  workstreams_touched: number
+  in_progress: number
+  meetings: number
+  oncall_days: number
+}
+
+export interface SelfReviewGroup {
+  workstream: Workstream | null
+  tasks: Task[]
+}
+
+export interface SelfReview {
+  date_from: string | null
+  date_to: string | null
+  stats: SelfReviewStats
+  highlights: Task[]
+  groups: SelfReviewGroup[]
+}
+
+// ── Global search ──────────────────────────────────────────────────────────────
+
+export type SearchResultType = 'task' | 'meeting' | 'person' | 'interaction'
+
+export interface SearchResult {
+  type: SearchResultType
+  id: string
+  title: string
+  subtitle: string | null
+  date: string | null
+  person_id: string | null
+}

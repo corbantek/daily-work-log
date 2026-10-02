@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { Settings, Sun, Moon, Monitor, X, Plus, Eye, EyeOff, WifiOff, ChevronDown, CalendarDays, Bell, HardDrive, Save } from 'lucide-react'
+import { Settings, Sun, Moon, Monitor, X, Plus, Eye, EyeOff, WifiOff, ChevronDown, CalendarDays, Bell, HardDrive, Save, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
@@ -11,6 +11,9 @@ import { BackupRestore } from './components/BackupRestore'
 import { ReviewPage } from './pages/ReviewPage'
 import { PeoplePage } from './pages/PeoplePage'
 import { ManageFramework } from './components/ManageFramework'
+import { CommandPalette } from './components/CommandPalette'
+import { ItemDetailDialog } from './components/ItemDetailDialog'
+import type { SearchResult } from './api/types'
 import { getSettings, setSetting, getDayVisibility, setDayVisibility, clearDayVisibility, getOncallPeriods, createOncallPeriod, deleteOncallPeriod, getBackupStatus, runAutoBackup } from './api/client'
 import type { BackupStatus } from './api/client'
 import type { OncallPeriod } from './api/types'
@@ -124,6 +127,9 @@ export default function App() {
   const [windowSize, setWindowSize] = useState(5)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [frameworkOpen, setFrameworkOpen] = useState(false)
+  const [paletteOpen, setPaletteOpen] = useState(false)
+  const [peopleTarget, setPeopleTarget] = useState<string | null>(null)
+  const [detailResult, setDetailResult] = useState<SearchResult | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
   const [theme, setTheme] = useState<Theme>('dim')
   const [appTitle, setAppTitle] = useState('Daily Work Log')
@@ -278,6 +284,29 @@ export default function App() {
     }
   }
 
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setPaletteOpen(o => !o)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  function handleSearchNavigate(r: SearchResult) {
+    if (r.type === 'person' || r.type === 'interaction') {
+      if (r.person_id) {
+        setPeopleTarget(r.person_id)
+        setTab('people')
+      }
+    } else {
+      // Tasks/meetings live inside collapsed days; show a focused recall view instead.
+      setDetailResult(r)
+    }
+  }
+
   const datePickerRef = useRef<HTMLInputElement>(null)
 
   const refresh = useCallback(() => {
@@ -361,6 +390,15 @@ export default function App() {
         </nav>
 
         <div className="flex-1" />
+
+        <button
+          onClick={() => setPaletteOpen(true)}
+          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground border border-border rounded-md px-2 h-8 transition-colors"
+          title="Search (⌘K)"
+        >
+          <Search size={13} /> <span className="hidden sm:inline">Search</span>
+          <kbd className="hidden sm:inline text-xs text-muted-foreground/50 border border-border rounded px-1 ml-0.5">⌘K</kbd>
+        </button>
 
         <ManageWorkstreams onChanged={refresh} />
         <ManageLabels />
@@ -635,6 +673,10 @@ export default function App() {
 
       <ManageFramework open={frameworkOpen} onOpenChange={setFrameworkOpen} />
 
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} onNavigate={handleSearchNavigate} />
+
+      <ItemDetailDialog result={detailResult} onClose={() => setDetailResult(null)} />
+
       {!serverUp && (
         <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center">
           <div className="flex flex-col items-center gap-3 text-center">
@@ -698,10 +740,15 @@ export default function App() {
           </div>
         )}
         {tab === 'review' && (
-          <ReviewPage containerClass={`${CONTENT_WIDTH_MAP[contentWidth]} mx-auto px-4 py-6`} />
+          <ReviewPage containerClass={`${CONTENT_WIDTH_MAP[contentWidth]} mx-auto px-4 py-6`} theme={theme} />
         )}
         {tab === 'people' && (
-          <PeoplePage containerClass={`${CONTENT_WIDTH_MAP[contentWidth]} mx-auto px-4 py-6`} theme={theme} />
+          <PeoplePage
+            containerClass={`${CONTENT_WIDTH_MAP[contentWidth]} mx-auto px-4 py-6`}
+            theme={theme}
+            targetPersonId={peopleTarget}
+            onTargetConsumed={() => setPeopleTarget(null)}
+          />
         )}
       </main>
     </div>

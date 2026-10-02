@@ -11,6 +11,7 @@ import type { Task, Workstream, Label, OncallPeriod } from '../api/types'
 import { todayStr } from '../api/date'
 import { getLabels, getWorkstreams, getOncallPeriods } from '../api/client'
 import { rehypeHighlightTodo } from '@/lib/rehype-highlight-todo'
+import { SelfReviewDraft } from '../components/SelfReviewDraft'
 
 const STATE_LABELS: Record<string, string> = {
   todo: 'TODO',
@@ -30,7 +31,8 @@ function currentYear() {
   return new Date().getFullYear()
 }
 
-export function ReviewPage({ containerClass = 'max-w-5xl mx-auto px-4 py-6' }: { containerClass?: string }) {
+export function ReviewPage({ containerClass = 'max-w-5xl mx-auto px-4 py-6', theme }: { containerClass?: string; theme?: 'light' | 'dim' | 'dark' }) {
+  const [mode, setMode] = useState<'tasks' | 'self'>('tasks')
   const [tasks, setTasks] = useState<Task[]>([])
   const [workstreams, setWorkstreams] = useState<Workstream[]>([])
   const [labels, setLabels] = useState<Label[]>([])
@@ -130,12 +132,31 @@ export function ReviewPage({ containerClass = 'max-w-5xl mx-auto px-4 py-6' }: {
     <div className={containerClass}>
       {/* Header row */}
       <div className="flex items-center justify-between mb-5">
-        <h2 className="text-base font-semibold text-foreground">Review</h2>
-        <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs" onClick={exportMarkdown}>
-          <Download size={13} /> Export Markdown
-        </Button>
+        <div className="flex items-center gap-1">
+          {(['tasks', 'self'] as const).map(m => (
+            <button
+              key={m}
+              onClick={() => setMode(m)}
+              className={cn(
+                'text-sm px-3 py-1 rounded-md transition-colors',
+                mode === m ? 'bg-primary/15 text-primary font-medium' : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              {m === 'tasks' ? 'Tasks' : 'Self-Review'}
+            </button>
+          ))}
+        </div>
+        {mode === 'tasks' && (
+          <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs" onClick={exportMarkdown}>
+            <Download size={13} /> Export Markdown
+          </Button>
+        )}
       </div>
 
+      {mode === 'self' && <SelfReviewDraft theme={theme} />}
+
+      {mode === 'tasks' && (
+      <>
       {/* Filter bar */}
       <div className="flex flex-wrap gap-2 mb-5 p-3 rounded-lg border border-border bg-card/50">
         {/* Date range */}
@@ -304,6 +325,8 @@ export function ReviewPage({ containerClass = 'max-w-5xl mx-auto px-4 py-6' }: {
           <p className="text-sm text-muted-foreground/50 text-center py-12">No tasks match the current filters.</p>
         )}
       </div>
+      </>
+      )}
     </div>
   )
 }

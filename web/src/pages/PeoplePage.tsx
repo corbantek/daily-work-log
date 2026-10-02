@@ -12,9 +12,11 @@ const RELATIONSHIPS = ['Report', 'Peer', 'Manager', 'Cross-functional', 'Other']
 interface Props {
   containerClass?: string
   theme?: 'light' | 'dim' | 'dark'
+  targetPersonId?: string | null
+  onTargetConsumed?: () => void
 }
 
-export function PeoplePage({ containerClass = 'max-w-5xl mx-auto px-4 py-6', theme }: Props) {
+export function PeoplePage({ containerClass = 'max-w-5xl mx-auto px-4 py-6', theme, targetPersonId, onTargetConsumed }: Props) {
   const [people, setPeople] = useState<Person[]>([])
   const [framework, setFramework] = useState<CompetencyDimension[]>([])
   const [workstreams, setWorkstreams] = useState<Workstream[]>([])
@@ -34,6 +36,14 @@ export function PeoplePage({ containerClass = 'max-w-5xl mx-auto px-4 py-6', the
     getFramework().then(setFramework)
     getWorkstreams().then(setWorkstreams)
   }, [loadPeople])
+
+  useEffect(() => {
+    if (targetPersonId) {
+      setSelectedId(targetPersonId)
+      setMode('timeline')
+      onTargetConsumed?.()
+    }
+  }, [targetPersonId, onTargetConsumed])
 
   async function handleAdd() {
     if (!name.trim()) return
