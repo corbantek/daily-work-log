@@ -6,8 +6,10 @@ LOG_DIR     = $(HOME)/Library/Logs/daily-work-log
 PROJECT_DIR = $(shell pwd)
 NODE_BIN    = $(shell dirname $(shell which node))
 
+PYTHON ?= python3.13
+
 install:
-	python3 -m venv api/.venv
+	$(PYTHON) -m venv api/.venv
 	api/.venv/bin/pip install -r api/requirements.txt
 	cd web && npm install
 
