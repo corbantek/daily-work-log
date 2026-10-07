@@ -245,3 +245,7 @@ The Makefile generates a launchd plist at install time:
 - **Oncall separate from day status**: On-call is a date range (often spanning many days) while day status is a per-day tag. Separate models avoid coupling.
 - **Peer feedback modeling**: One person per interaction (keeps sentiment/tags unambiguous and the review rollup clean); multiple competency tags per interaction (one story shows several dimensions); sentiment per interaction (positive/constructive/neutral as a whole). The competency framework is seeded but DB-backed and editable so review language can be customized per company without a code change.
 - **Framework edits preserve tag references**: tags reference attributes by stable `id`. Deleting an attribute downgrades its tags to whole-dimension tags (sets `attribute_id` null) rather than dropping the signal; deleting a dimension removes its tags.
+
+## Future Improvements
+
+- **Calendar picker for Apple Calendar import**: Let the user choose which calendars sync in Settings (e.g. exclude Birthdays and US Holidays). The backend already honors the `calendar_included_ids` setting (JSON array of calendar identifiers; empty = all) and `GET /calendar/status` returns the available calendars (id, title, source). Remaining work is the Settings UI, likely a checklist grouped by account inside `CalendarAccess.tsx`, saved via `PUT /settings/calendar_included_ids`.
