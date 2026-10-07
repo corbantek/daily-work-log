@@ -18,7 +18,7 @@ import type { SearchResult } from './api/types'
 import { getSettings, setSetting, getDayVisibility, setDayVisibility, clearDayVisibility, getOncallPeriods, createOncallPeriod, deleteOncallPeriod, getBackupStatus, runAutoBackup } from './api/client'
 import type { BackupStatus } from './api/client'
 import type { OncallPeriod } from './api/types'
-import { todayStr, toLocalDateStr, isWeekend } from './api/date'
+import { todayStr, toLocalDateStr, isWeekend, isTimeFormat, type TimeFormat } from './api/date'
 import { HiddenDaysIndicator } from './components/HiddenDaysIndicator'
 import './index.css'
 
@@ -142,6 +142,7 @@ export default function App() {
   const [visibilityOverrides, setVisibilityOverrides] = useState<Record<string, boolean>>({})
   const [serverUp, setServerUp] = useState(true)
   const [contentWidth, setContentWidth] = useState<ContentWidth>('normal')
+  const [timeFormat, setTimeFormat] = useState<TimeFormat>('12h')
   const [extendedFrom, setExtendedFrom] = useState<string | null>(() => {
     const p = new URLSearchParams(window.location.search).get('from')
     return p && /^\d{4}-\d{2}-\d{2}$/.test(p) && p < todayStr() ? p : null
@@ -189,6 +190,7 @@ export default function App() {
         if (days && WINDOW_OPTIONS.includes(days)) setWindowSize(days)
         if (s.hide_weekends === 'true') setHideWeekends(true)
         if (isContentWidth(s.content_width)) setContentWidth(s.content_width)
+        if (isTimeFormat(s.time_format)) setTimeFormat(s.time_format)
         if (s.day_status_options) {
           try {
             const parsed = JSON.parse(s.day_status_options)
@@ -250,6 +252,11 @@ export default function App() {
   function changeContentWidth(val: ContentWidth) {
     setContentWidth(val)
     setSetting('content_width', val)
+  }
+
+  function changeTimeFormat(val: TimeFormat) {
+    setTimeFormat(val)
+    setSetting('time_format', val)
   }
 
   const handleVisibilityChange = useCallback(async (date: string, visible: boolean | null) => {
@@ -499,6 +506,24 @@ export default function App() {
                   </div>
                 </div>
 
+                {/* Meeting time format */}
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Meeting times</p>
+                  <div className="flex gap-1.5">
+                    {([['12h', '12-hour (1:30 PM)'], ['24h', '24-hour (13:30)']] as const).map(([value, label]) => (
+                      <Button
+                        key={value}
+                        size="sm"
+                        variant={timeFormat === value ? 'default' : 'secondary'}
+                        className="h-8 text-xs flex-1 px-1"
+                        onClick={() => changeTimeFormat(value)}
+                      >
+                        {label}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
                 {/* Weekends */}
                 <div>
                   <p className="text-xs font-medium text-muted-foreground mb-2">Weekends</p>
@@ -702,6 +727,7 @@ export default function App() {
                     isToday={i === 0}
                     defaultCollapsed={i > 0}
                     isHiddenByDefault={hideWeekends && isWeekend(date)}
+                    timeFormat={timeFormat}
                     onVisibilityChange={handleVisibilityChange}
                   />
                   {i < dates.length - 1 && <Separator className="my-1 opacity-30" />}

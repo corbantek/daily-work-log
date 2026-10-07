@@ -3,6 +3,7 @@ import { ChevronDown, ChevronRight, X, Plus, Eye, EyeOff, ArrowLeft, Bell } from
 import type { DayView } from '../api/types'
 import { getDay, setDayStatus, clearDayStatus, getSettings } from '../api/client'
 import { MeetingSection } from './MeetingSection'
+import type { TimeFormat } from '../api/date'
 import { WorkstreamSection } from './WorkstreamSection'
 import { AddTaskGlobal } from './AddTaskGlobal'
 
@@ -14,9 +15,10 @@ interface Props {
   defaultCollapsed?: boolean
   isHiddenByDefault?: boolean
   onVisibilityChange?: (date: string, visible: boolean | null) => void
+  timeFormat?: TimeFormat
 }
 
-export function DaySection({ date, isToday, defaultCollapsed = false, isHiddenByDefault = false, onVisibilityChange }: Props) {
+export function DaySection({ date, isToday, defaultCollapsed = false, isHiddenByDefault = false, onVisibilityChange, timeFormat = '12h' }: Props) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed)
   const [data, setData] = useState<DayView | null>(null)
   const [loading, setLoading] = useState(false)
@@ -260,7 +262,7 @@ export function DaySection({ date, isToday, defaultCollapsed = false, isHiddenBy
           {loading && <p className="text-xs text-muted-foreground/50 py-4">Loading…</p>}
           {data && (
             <>
-              <MeetingSection meetings={data.meetings} date={date} onChanged={load} />
+              <MeetingSection meetings={data.meetings} date={date} onChanged={load} timeFormat={timeFormat} />
               <div>
                 {data.workstreams.length > 0 && (
                   <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">

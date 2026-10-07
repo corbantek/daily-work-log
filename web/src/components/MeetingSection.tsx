@@ -13,15 +13,17 @@ import {
   createTask, linkTaskToMeeting, unlinkTaskFromMeeting,
   getDay, getWorkstreams, syncCalendarDay,
 } from '../api/client'
+import { formatTime, type TimeFormat } from '../api/date'
 import { cn } from '@/lib/utils'
 
 interface Props {
   meetings: Meeting[]
   date: string
   onChanged: () => void
+  timeFormat?: TimeFormat
 }
 
-export function MeetingSection({ meetings, date, onChanged }: Props) {
+export function MeetingSection({ meetings, date, onChanged, timeFormat = '12h' }: Props) {
   const [adding, setAdding] = useState(false)
   const [title, setTitle] = useState('')
   const [duration, setDuration] = useState('')
@@ -184,7 +186,7 @@ export function MeetingSection({ meetings, date, onChanged }: Props) {
                   }
                 </button>
                 {meeting.start_time && (
-                  <span className="text-xs tabular-nums text-muted-foreground flex-shrink-0">{meeting.start_time}</span>
+                  <span className="text-xs tabular-nums text-muted-foreground flex-shrink-0">{formatTime(meeting.start_time, timeFormat)}</span>
                 )}
                 <span className="flex-1 text-sm text-foreground">{meeting.title}</span>
                 {meeting.missing_from_source && (
