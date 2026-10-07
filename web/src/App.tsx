@@ -11,6 +11,7 @@ import { BackupRestore } from './components/BackupRestore'
 import { ReviewPage } from './pages/ReviewPage'
 import { PeoplePage } from './pages/PeoplePage'
 import { ManageFramework } from './components/ManageFramework'
+import { CalendarAccess } from './components/CalendarAccess'
 import { CommandPalette } from './components/CommandPalette'
 import { ItemDetailDialog } from './components/ItemDetailDialog'
 import type { SearchResult } from './api/types'
@@ -646,6 +647,12 @@ export default function App() {
                   >
                     Edit framework
                   </Button>
+                </div>
+
+                {/* Apple Calendar */}
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Apple Calendar</p>
+                  <CalendarAccess />
                 </div>
 
                 {/* Data */}

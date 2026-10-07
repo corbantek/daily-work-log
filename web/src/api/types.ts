@@ -55,7 +55,22 @@ export interface Meeting {
   duration_minutes: number | null
   notes: string | null
   created_at: string
+  source: string | null
+  start_time: string | null
+  missing_from_source: boolean
   tasks: Task[]
+}
+
+export interface CalendarSyncResult {
+  created: number
+  updated: number
+  linked: number
+  flagged: number
+}
+
+export interface CalendarStatus {
+  status: 'unavailable' | 'not_determined' | 'restricted' | 'denied' | 'authorized' | 'write_only'
+  calendars: { id: string; title: string; source: string }[]
 }
 
 export interface WorkstreamWithTasks {

@@ -194,6 +194,12 @@ class MeetingBase(SQLModel):
 class Meeting(MeetingBase, table=True):
     id: str = Field(default_factory=new_id, primary_key=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    # Set for meetings imported from a calendar; null for manually entered ones.
+    source: Optional[str] = None
+    external_id: Optional[str] = Field(default=None, index=True)
+    start_time: Optional[str] = None  # local "HH:MM"
+    # Imported meeting that no longer appears on the calendar (kept: it may have notes).
+    missing_from_source: bool = False
 
     tasks: List[Task] = Relationship(back_populates="meetings", link_model=MeetingTaskLink)
 
@@ -205,6 +211,9 @@ class MeetingCreate(MeetingBase):
 class MeetingRead(MeetingBase):
     id: str
     created_at: datetime
+    source: Optional[str] = None
+    start_time: Optional[str] = None
+    missing_from_source: bool = False
     tasks: List[TaskRead] = []
 
 

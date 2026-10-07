@@ -44,6 +44,7 @@ make open           # open http://localhost:5173
 - **TODO highlighting**: `rehype-highlight-todo.ts` rehype plugin walks HAST, splits text nodes on `TODO`, wraps in `<span class="todo-keyword">`. Applied in `ClickToEditMarkdown`, `TaskRow` (collapsed preview), and `ReviewPage`.
 - **Theme**: Three modes — light (`:root`), dim (`.dim`), dark (`.dark`). Custom variant `@custom-variant dark (&:is(.dark *, .dim *))` for Tailwind.
 - **Content width**: Four options stored as `content_width` setting: `normal` (672px), `wide` (896px), `wider` (1152px), `full` (100%).
+- **Calendar import**: `api/calendar_source.py` reads Apple Calendar via EventKit (`pyobjc-framework-EventKit`, macOS only; all EventKit access is isolated there). `POST /calendar/sync?date=` upserts that one day's events as `Meeting` rows (`source="apple_calendar"`, `external_id` = eventIdentifier + start, `start_time` "HH:MM"). Sync only overwrites title/date/duration/start_time of imported meetings — never notes or task links. A hand-entered meeting with the same title that day is adopted instead of duplicated. Imported meetings that vanish from the calendar get `missing_from_source=true` (flagged, never auto-deleted). Declined, cancelled and all-day events are skipped by default. Settings: `calendar_included_ids` (JSON array, empty = all), `calendar_skip_declined`, `calendar_skip_allday` (`"true"`/`"false"`). Manual per-day only (the "sync" button in the Meetings header) — no auto-sync. **macOS Calendar permission (TCC) is granted to the launching app**: it prompts from Terminal.app but silently denies from the VS Code terminal; `GET /calendar/status` shows the state.
 - **People / peer feedback**: `Person` + `Interaction` (dated observations about one person). Interactions carry a `sentiment` (strength/growth/neutral) and multiple `InteractionTag` rows (dimension + optional attribute). Tags reference the `CompetencyDimension` / `CompetencyAttribute` framework, which is seeded on first run (`database.py` `_seed_framework()`) and editable via `/framework`. The `/review-draft/{person_id}` endpoint aggregates a person's interactions into the peer-review structure (per-dimension evidence split by sentiment, ranked continue/focus candidates, untagged neutral "other notes", familiarity suggestion). Deleting a person cascades its interactions + tags; deleting an attribute downgrades its tags to whole-dimension tags.
 
 ## Frontend Component Map
@@ -101,6 +102,9 @@ make open           # open http://localhost:5173
 | `/review-draft/{person_id}` | GET | Aggregated peer-review draft (`?date_from&date_to`) |
 | `/self-review` | GET | Aggregated self-review of your own work (`?date_from&date_to`) |
 | `/search` | GET | Global search across tasks/meetings/people/interactions (`?q`) |
+| `/calendar/status` | GET | Calendar permission state + available calendars |
+| `/calendar/request-access` | POST | Ask macOS for Calendar access |
+| `/calendar/sync` | POST | Import one day's events as meetings (`?date=`) |
 | `/settings` | GET | All settings |
 | `/settings/{key}` | PUT | Set one setting |
 | `/backup` | GET, POST | Export/import JSON backup |
@@ -115,6 +119,7 @@ Ideas scoped but not yet built (from a 2026-10-02 planning pass):
 - **Insights dashboard** — stat tiles + charts: time across workstreams, high-impact trend, meeting load, oncall days. (Medium–Large; some overlap with the self-review stats which already compute these counts.)
 - **Restore-from-auto-backup UI** — auto-backup writes dated JSON files, but restore is only via manual upload. Add an endpoint to list backup files and restore by filename, plus a picker in Settings.
 - **Open-TODO aggregator** — surface all `TODO`/`FIXME` keywords found across task/interaction notes in one "loose ends" list (the rehype plugin already identifies them for rendering).
+- **Calendar picker for Apple Calendar import** — choose which calendars to sync in Settings (e.g. skip Birthdays/US Holidays). Backend already honors the `calendar_included_ids` setting and `GET /calendar/status` lists calendars; only the Settings UI is missing (`CalendarAccess.tsx` is the natural home).
 - **Task due dates + overdue view** — add a `due_date` to tasks and a "due soon / overdue" filter.
 - **Quick-log interaction from the Log tab** + the ability to link an interaction to a specific task/meeting (not just a workstream). Interactions were intentionally kept to one person each; multi-person tagging was also deferred.
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { ChevronDown, ChevronRight, Clock, Plus, Trash2, Pencil, Check, X, Link2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, Clock, Plus, Trash2, Pencil, Check, X, Link2, RefreshCw, CalendarDays } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
@@ -11,7 +11,7 @@ import type { Meeting, Task, TaskState, Workstream } from '../api/types'
 import {
   createMeeting, updateMeeting, deleteMeeting,
   createTask, linkTaskToMeeting, unlinkTaskFromMeeting,
-  getDay, getWorkstreams,
+  getDay, getWorkstreams, syncCalendarDay,
 } from '../api/client'
 import { cn } from '@/lib/utils'
 
@@ -29,6 +29,28 @@ export function MeetingSection({ meetings, date, onChanged }: Props) {
   const [editingMeeting, setEditingMeeting] = useState<string | null>(null)
   const [editTitle, setEditTitle] = useState('')
   const [editDuration, setEditDuration] = useState('')
+  const [syncing, setSyncing] = useState(false)
+  const [syncMsg, setSyncMsg] = useState<{ text: string; error: boolean } | null>(null)
+
+  async function syncCalendar() {
+    setSyncing(true)
+    setSyncMsg(null)
+    try {
+      const r = await syncCalendarDay(date)
+      const parts = [
+        r.created && `${r.created} added`,
+        r.updated && `${r.updated} updated`,
+        r.linked && `${r.linked} matched`,
+        r.flagged && `${r.flagged} no longer on calendar`,
+      ].filter(Boolean)
+      setSyncMsg({ text: parts.length ? parts.join(', ') : 'Up to date', error: false })
+      onChanged()
+    } catch (err) {
+      setSyncMsg({ text: err instanceof Error ? err.message : 'Sync failed', error: true })
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   async function submitMeeting(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -73,12 +95,27 @@ export function MeetingSection({ meetings, date, onChanged }: Props) {
         <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
           Meetings
         </span>
-        <button
-          onClick={() => setAdding(v => !v)}
-          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
-        >
-          <Plus size={12} /> add
-        </button>
+        <div className="flex items-center gap-3">
+          {syncMsg && (
+            <span className={cn('text-xs', syncMsg.error ? 'text-destructive' : 'text-muted-foreground')}>
+              {syncMsg.text}
+            </span>
+          )}
+          <button
+            onClick={syncCalendar}
+            disabled={syncing}
+            title="Import this day's meetings from Apple Calendar"
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
+          >
+            <RefreshCw size={12} className={cn(syncing && 'animate-spin')} /> sync
+          </button>
+          <button
+            onClick={() => setAdding(v => !v)}
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+          >
+            <Plus size={12} /> add
+          </button>
+        </div>
       </div>
 
       {adding && (
@@ -146,7 +183,23 @@ export function MeetingSection({ meetings, date, onChanged }: Props) {
                     : <ChevronRight size={14} />
                   }
                 </button>
+                {meeting.start_time && (
+                  <span className="text-xs tabular-nums text-muted-foreground flex-shrink-0">{meeting.start_time}</span>
+                )}
                 <span className="flex-1 text-sm text-foreground">{meeting.title}</span>
+                {meeting.missing_from_source && (
+                  <span
+                    title="This imported meeting is no longer on your calendar. It was kept in case it has notes."
+                    className="text-xs text-amber-600 dark:text-amber-400 flex-shrink-0"
+                  >
+                    not on calendar
+                  </span>
+                )}
+                {meeting.source && !meeting.missing_from_source && (
+                  <span title="Imported from Apple Calendar" className="text-muted-foreground/50 flex-shrink-0">
+                    <CalendarDays size={12} />
+                  </span>
+                )}
                 {meeting.tasks.length > 0 && (
                   <span className="text-xs text-muted-foreground/50 flex-shrink-0">
                     {meeting.tasks.length} task{meeting.tasks.length !== 1 ? 's' : ''}

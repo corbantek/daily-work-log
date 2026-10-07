@@ -3,6 +3,7 @@ import type {
   TaskState, LinkType, OncallPeriod,
   Person, Interaction, InteractionTagInput, Sentiment,
   CompetencyDimension, ReviewDraft, SelfReview, SearchResult,
+  CalendarSyncResult, CalendarStatus,
 } from './types'
 
 const BASE = '/api'
@@ -19,6 +20,21 @@ async function req<T>(path: string, opts?: RequestInit): Promise<T> {
 
 // ── Day ───────────────────────────────────────────────────────────────────────
 export const getDay = (date: string) => req<DayView>(`/day/${date}`)
+
+// ── Calendar ──────────────────────────────────────────────────────────────────
+export const getCalendarStatus = () => req<CalendarStatus>('/calendar/status')
+
+export const requestCalendarAccess = () =>
+  req<CalendarStatus>('/calendar/request-access', { method: 'POST' })
+
+export async function syncCalendarDay(date: string): Promise<CalendarSyncResult> {
+  const res = await fetch(`${BASE}/calendar/sync?date=${date}`, { method: 'POST' })
+  if (!res.ok) {
+    const body = await res.json().catch(() => null)
+    throw new Error(body?.detail ?? `${res.status} ${res.statusText}`)
+  }
+  return res.json()
+}
 
 // ── Tasks ─────────────────────────────────────────────────────────────────────
 export const getTasks = (params?: { active_on?: string; workstream_id?: string | null }) => {

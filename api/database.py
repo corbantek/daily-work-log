@@ -32,6 +32,19 @@ def _run_migrations():
         cursor.execute("ALTER TABLE day_status ADD COLUMN note VARCHAR")
         conn.commit()
 
+    cursor.execute("PRAGMA table_info(meeting)")
+    meeting_columns = {row[1] for row in cursor.fetchall()}
+    if meeting_columns:
+        for col, ddl in [
+            ("source", "VARCHAR"),
+            ("external_id", "VARCHAR"),
+            ("start_time", "VARCHAR"),
+            ("missing_from_source", "BOOLEAN NOT NULL DEFAULT 0"),
+        ]:
+            if col not in meeting_columns:
+                cursor.execute(f"ALTER TABLE meeting ADD COLUMN {col} {ddl}")
+        conn.commit()
+
     conn.close()
 
 
