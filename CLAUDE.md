@@ -24,15 +24,16 @@ web/           React + Vite + TypeScript frontend (Tailwind CSS v4)
 
 ```bash
 make install        # first time: create venv, install pip + npm deps
-make dev            # starts API on :8000 and Vite on :5173
+make dev            # starts API on :4747 and Vite on :4748
 make install-agent  # macOS launchd agent (runs at login, KeepAlive)
 make restart-agent  # needed after backend changes (no --reload in daemon)
 make logs           # tail agent stdout/stderr
-make open           # open http://localhost:5173
+make open           # open http://localhost:4748
 ```
 
 ## Key Architecture
 
+- **Ports**: API `4747`, web `4748` (demo/screenshot use `4757`/`4758`) — chosen to avoid common defaults. Override with `API_PORT` / `WEB_PORT` env vars (Makefile, `scripts/start.sh`, `web/vite.config.ts` and CORS in `api/main.py` all read them). Vite uses `strictPort`. The launchd plist bakes the ports in at `make install-agent`, so changing them needs `make restart-agent`.
 - **Database**: SQLite via SQLModel. DB path configurable via `WORKLOG_DB` env var (default: `worklog.db`).
 - **Migrations**: `database.py` `_run_migrations()` runs guarded `ALTER TABLE` statements before `create_all`. Always copies DB to `.db.bak` first.
 - **Day view**: `GET /day/{date}` returns an aggregated `DayView` with status, oncall flag, meetings, and tasks grouped by workstream.

@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
 from datetime import date
 from pathlib import Path
@@ -53,7 +54,7 @@ app = FastAPI(title="Daily Work Log", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=[f"http://localhost:{os.environ.get('WEB_PORT', '4748')}"],
     allow_methods=["*"],
     allow_headers=["*"],
 )

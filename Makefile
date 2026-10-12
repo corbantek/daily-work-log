@@ -1,5 +1,11 @@
 .PHONY: install dev api web sample screenshot demo install-agent uninstall-agent restart-agent logs open
 
+# Ports are deliberately off the common defaults (3000/5173/8000/8080) so this
+# app doesn't collide with other dev servers. Override: make dev API_PORT=... WEB_PORT=...
+API_PORT ?= 4747
+WEB_PORT ?= 4748
+export API_PORT WEB_PORT
+
 PLIST_NAME  = local.daily-work-log
 PLIST_DEST  = $(HOME)/Library/LaunchAgents/$(PLIST_NAME).plist
 LOG_DIR     = $(HOME)/Library/Logs/daily-work-log
@@ -15,12 +21,12 @@ install:
 
 dev:
 	@trap 'kill %1 %2 2>/dev/null; exit' INT; \
-	api/.venv/bin/uvicorn api.main:app --reload --port 8000 & \
+	api/.venv/bin/uvicorn api.main:app --reload --port $(API_PORT) & \
 	cd web && npm run dev & \
 	wait
 
 api:
-	api/.venv/bin/uvicorn api.main:app --reload --port 8000
+	api/.venv/bin/uvicorn api.main:app --reload --port $(API_PORT)
 
 web:
 	cd web && npm run dev
@@ -30,8 +36,8 @@ sample:
 
 demo: sample
 	@trap 'kill %1 %2 2>/dev/null; exit' INT; \
-	WORKLOG_DB=worklog-sample.db api/.venv/bin/uvicorn api.main:app --reload --port 8099 & \
-	cd web && VITE_SAMPLE_API_PORT=8099 npx vite --port 4174 --strictPort & \
+	WORKLOG_DB=worklog-sample.db api/.venv/bin/uvicorn api.main:app --reload --port 4757 & \
+	cd web && API_PORT=4757 WEB_PORT=4758 npm run dev & \
 	wait
 
 screenshot:
@@ -48,6 +54,10 @@ install-agent:
 		'  <string>$(PLIST_NAME)</string>' \
 		'  <key>EnvironmentVariables</key>' \
 		'  <dict>' \
+		'    <key>API_PORT</key>' \
+		'    <string>$(API_PORT)</string>' \
+		'    <key>WEB_PORT</key>' \
+		'    <string>$(WEB_PORT)</string>' \
 		'    <key>PROJECT_DIR</key>' \
 		'    <string>$(PROJECT_DIR)</string>' \
 		'    <key>PATH</key>' \
@@ -83,4 +93,4 @@ logs:
 	tail -f $(LOG_DIR)/out.log $(LOG_DIR)/err.log
 
 open:
-	open http://localhost:5173
+	open http://localhost:$(WEB_PORT)

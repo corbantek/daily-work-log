@@ -215,7 +215,7 @@ The Makefile generates a launchd plist at install time:
 - `RunAtLoad: true`, `KeepAlive: true`
 - Logs to `~/Library/Logs/daily-work-log/`
 
-`scripts/start.sh` runs uvicorn (port 8000) and Vite dev server in parallel.
+`scripts/start.sh` runs uvicorn (port `API_PORT`, default 4747) and Vite dev server in parallel.
 
 **Important:** The agent runs without `--reload`, so backend code changes require `make restart-agent`.
 

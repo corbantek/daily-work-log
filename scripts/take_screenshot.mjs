@@ -15,7 +15,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const puppeteerPath = join(__dirname, '..', 'web', 'node_modules', 'puppeteer', 'lib', 'puppeteer', 'puppeteer.js')
 const puppeteer = await import(puppeteerPath)
 
-const URL = process.env.SCREENSHOT_URL || 'http://localhost:4174'
+const URL = process.env.SCREENSHOT_URL || 'http://localhost:4758'
 const OUTPUT = process.env.SCREENSHOT_OUTPUT || 'docs/screenshot.png'
 
 async function main() {

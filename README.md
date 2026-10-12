@@ -47,10 +47,10 @@ A personal app for tracking daily tasks, meetings, and workstreams — built to 
 # Install dependencies (creates venv, installs pip + npm packages)
 make install
 
-# Start for real use (API on :8000, frontend on :5173)
+# Start for real use (API on :4747, frontend on :4748)
 make dev
 
-# Try with sample data (separate DB, API on :8099, frontend on :4174)
+# Try with sample data (separate DB, API on :4757, frontend on :4758)
 make demo
 ```
 
@@ -63,7 +63,7 @@ make install-agent   # Install and start launchd agent (runs at login)
 make restart-agent   # Restart after code changes (no --reload in daemon mode)
 make uninstall-agent # Stop and remove
 make logs            # Tail agent logs
-make open            # Open http://localhost:5173
+make open            # Open http://localhost:4748
 ```
 
 ## Project Structure
