@@ -128,6 +128,34 @@ class TaskLinkRead(TaskLinkBase):
     created_at: datetime
 
 
+# ── TaskAttachment ────────────────────────────────────────────────────────────
+
+class TaskAttachment(SQLModel, table=True):
+    """A file stored on disk (see api/attachments.py); `stored_name` is its UUID-hex name."""
+    __tablename__ = "task_attachment"
+    id: str = Field(default_factory=new_id, primary_key=True)
+    task_id: str = Field(foreign_key="task.id", index=True)
+    filename: str
+    stored_name: str
+    content_type: Optional[str] = None
+    size_bytes: int = 0
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class AttachmentRead(SQLModel):
+    id: str
+    task_id: str
+    filename: str
+    content_type: Optional[str] = None
+    size_bytes: int
+    created_at: datetime
+    kind: str  # markdown | pdf | image | text | other
+
+
+class AttachmentRename(SQLModel):
+    filename: str
+
+
 # ── Task ──────────────────────────────────────────────────────────────────────
 
 class TaskBase(SQLModel):
@@ -166,6 +194,7 @@ class TaskRead(TaskBase):
     created_at: datetime
     labels: List[LabelRead] = []
     links: List[TaskLinkRead] = []
+    attachments: List[AttachmentRead] = []
     meetings: List[MeetingBrief] = []
     subtask_count: int = 0
     open_subtask_count: int = 0

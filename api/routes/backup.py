@@ -5,10 +5,11 @@ from fastapi.responses import JSONResponse
 from sqlmodel import Session, select
 from datetime import datetime, date
 
+from ..attachments import mirror_attachments
 from ..database import get_session, engine
 from ..models import (
     Workstream, Task, Label, TaskLabelLink, TaskLink,
-    Meeting, MeetingTaskLink, DismissedCalendarEvent, Setting, DayStatus, DayVisibility, OncallPeriod,
+    Meeting, MeetingTaskLink, DismissedCalendarEvent, TaskAttachment, Setting, DayStatus, DayVisibility, OncallPeriod,
     Person, Interaction, InteractionTag, CompetencyDimension, CompetencyAttribute,
 )
 
@@ -20,6 +21,7 @@ TABLES = [
     ("tasks", Task),
     ("task_labels", TaskLabelLink),
     ("task_links", TaskLink),
+    ("task_attachments", TaskAttachment),
     ("meetings", Meeting),
     ("meeting_tasks", MeetingTaskLink),
     ("dismissed_calendar_events", DismissedCalendarEvent),
@@ -132,9 +134,11 @@ def run_auto_backup(session: Session = Depends(get_session)):
     filepath.write_text(json.dumps(data, indent=2))
 
     pruned = _prune_old_backups(backup_path, retention_days)
+    mirrored = mirror_attachments(backup_path)
 
     return {
         "status": "ok",
+        "attachments_copied": mirrored,
         "file": str(filepath),
         "date": today_str,
         "pruned": pruned,

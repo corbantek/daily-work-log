@@ -22,6 +22,22 @@ export interface MeetingBrief {
   date: string
 }
 
+export interface TaskAttachment {
+  id: string
+  task_id: string
+  filename: string
+  content_type: string | null
+  size_bytes: number
+  created_at: string
+  kind: 'markdown' | 'pdf' | 'image' | 'text' | 'other'
+}
+
+export interface AttachmentStats {
+  count: number
+  total_bytes: number
+  missing_files: number
+}
+
 export interface Task {
   id: string
   action: string
@@ -34,6 +50,7 @@ export interface Task {
   created_at: string
   labels: Label[]
   links: TaskLink[]
+  attachments: TaskAttachment[]
   meetings: MeetingBrief[]
   parent_task_id: string | null
   subtask_count: number

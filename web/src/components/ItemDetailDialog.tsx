@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Zap, Calendar, ExternalLink } from 'lucide-react'
+import { Zap, Calendar, ExternalLink, Paperclip } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 import { rehypeHighlightTodo } from '@/lib/rehype-highlight-todo'
 import type { SearchResult, Task, Meeting } from '../api/types'
-import { getTask, getMeeting } from '../api/client'
+import { getTask, getMeeting, attachmentOpenUrl } from '../api/client'
 
 const STATE_LABELS: Record<string, string> = {
   todo: 'TODO', in_progress: 'IN PROGRESS', complete: 'DONE', abandoned: 'ABANDONED',
@@ -95,6 +95,18 @@ export function ItemDetailDialog({ result, onClose }: Props) {
                     <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer"
                       className="flex items-center gap-1.5 text-xs text-primary hover:underline">
                       <ExternalLink size={12} /> {link.label || link.url}
+                    </a>
+                  ))}
+                </div>
+              )}
+
+              {task.attachments.length > 0 && (
+                <div className="space-y-1">
+                  {task.attachments.map(a => (
+                    <a key={a.id} href={attachmentOpenUrl(a)}
+                      {...(a.kind === 'other' ? { download: a.filename } : { target: '_blank', rel: 'noopener noreferrer' })}
+                      className="flex items-center gap-1.5 text-xs text-primary hover:underline">
+                      <Paperclip size={12} /> {a.filename}
                     </a>
                   ))}
                 </div>

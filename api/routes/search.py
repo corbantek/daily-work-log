@@ -4,7 +4,7 @@ from typing import List
 
 from ..database import get_session
 from ..models import (
-    Task, Meeting, Person, Interaction, Workstream, SearchResult,
+    Task, TaskAttachment, Meeting, Person, Interaction, Workstream, SearchResult,
 )
 
 router = APIRouter(prefix="/search", tags=["search"])
@@ -31,6 +31,16 @@ def search(q: str = "", session: Session = Depends(get_session)):
             subtitle=ws_names.get(t.workstream_id) if t.workstream_id else None,
             date=t.end_date or t.start_date or t.created_at.date(),
         ))
+
+    seen = {t.id for t in tasks}
+    for att in session.exec(select(TaskAttachment).where(TaskAttachment.filename.ilike(like)).limit(PER_TYPE)).all():
+        t = session.get(Task, att.task_id)
+        if t and t.id not in seen:
+            seen.add(t.id)
+            results.append(SearchResult(
+                type="task", id=t.id, title=t.action, subtitle=f"Attachment: {att.filename}",
+                date=t.end_date or t.start_date or t.created_at.date(),
+            ))
 
     meetings = session.exec(
         select(Meeting).where(Meeting.title.ilike(like) | Meeting.notes.ilike(like)).limit(PER_TYPE)

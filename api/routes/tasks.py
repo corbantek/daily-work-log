@@ -3,10 +3,11 @@ from sqlmodel import Session, select
 from typing import List, Optional
 from datetime import date
 
+from ..attachments import delete_task_attachments, read_attachment, unlink_stored
 from ..database import get_session
 from ..models import (
     Task, TaskCreate, TaskRead, TaskUpdate, TaskState,
-    TaskLink, TaskLinkCreate, TaskLinkRead,
+    TaskLink, TaskLinkCreate, TaskLinkRead, TaskAttachment,
     Label, TaskLabelLink, MeetingTaskLink,
     Meeting, MeetingBrief,
 )
@@ -138,8 +139,10 @@ def delete_task(task_id: str, session: Session = Depends(get_session)):
         session.delete(link)
     for link in session.exec(select(MeetingTaskLink).where(MeetingTaskLink.task_id == task_id)).all():
         session.delete(link)
+    stored_names = delete_task_attachments(session, task_id)
     session.delete(task)
     session.commit()
+    unlink_stored(stored_names)
 
 
 # ── Task links ────────────────────────────────────────────────────────────────
@@ -188,6 +191,9 @@ def _enrich(task: Task, session: Session) -> TaskRead:
     links = session.exec(
         select(TaskLink).where(TaskLink.task_id == task.id)
     ).all()
+    attachments = session.exec(
+        select(TaskAttachment).where(TaskAttachment.task_id == task.id).order_by(TaskAttachment.created_at)
+    ).all()
     meeting_links = session.exec(
         select(MeetingTaskLink).where(MeetingTaskLink.task_id == task.id)
     ).all()
@@ -207,6 +213,7 @@ def _enrich(task: Task, session: Session) -> TaskRead:
         **task.model_dump(),
         labels=labels,
         links=links,
+        attachments=[read_attachment(a) for a in attachments],
         meetings=meetings,
         subtask_count=subtask_count,
         open_subtask_count=open_subtask_count,

@@ -13,6 +13,7 @@ import { PeoplePage } from './pages/PeoplePage'
 import { ManageFramework } from './components/ManageFramework'
 import { CalendarAccess } from './components/CalendarAccess'
 import { DeletedCalendarMeetings } from './components/DeletedCalendarMeetings'
+import { AttachmentsBackup } from './components/AttachmentsBackup'
 import { DismissedEventsDialog } from './components/DismissedEventsDialog'
 import { CommandPalette } from './components/CommandPalette'
 import { ItemDetailDialog } from './components/ItemDetailDialog'
@@ -572,6 +573,10 @@ export default function App() {
                 <div>
                   <p className="text-xs font-medium text-muted-foreground mb-2">Data</p>
                   <BackupRestore onRestored={refresh} />
+                  <div className="mt-3">
+                    <p className="text-xs font-medium text-muted-foreground mb-1">Attachments</p>
+                    <AttachmentsBackup onRestored={refresh} />
+                  </div>
                 </div>
               </div>
 

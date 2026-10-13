@@ -13,6 +13,7 @@ import { WorkstreamPicker } from './WorkstreamPicker'
 import { LabelPicker } from './LabelPicker'
 import { ClickToEditMarkdown } from './ClickToEditMarkdown'
 import { AddTaskForm } from './AddTaskForm'
+import { AttachButton, TaskAttachments, useAttachmentUpload } from './TaskAttachments'
 import type { Task, LinkType, TaskState, Workstream } from '../api/types'
 import { updateTask, deleteTask, addTaskLink, updateTaskLink, deleteTaskLink, getWorkstreams, unlinkTaskFromMeeting, getTasks } from '../api/client'
 import { cn } from '@/lib/utils'
@@ -36,6 +37,7 @@ export function TaskRow({ task, onChanged, isSubtask }: Props) {
   const [linkLabel, setLinkLabel] = useState('')
   const [linkType, setLinkType] = useState<LinkType>('pr')
   const [stateBlockMsg, setStateBlockMsg] = useState<string | null>(null)
+  const att = useAttachmentUpload(task.id, onChanged)
 
   const [editAction, setEditAction] = useState('')
   const [editWorkstreamId, setEditWorkstreamId] = useState<string>('')
@@ -251,7 +253,7 @@ export function TaskRow({ task, onChanged, isSubtask }: Props) {
       </div>
 
       {expanded && (
-        <div className="mt-2 ml-10 space-y-2">
+        <div className="mt-2 ml-10 space-y-2" {...att.dropProps}>
           {isEditing ? (
             <div className="space-y-2">
               <Input
@@ -403,6 +405,8 @@ export function TaskRow({ task, onChanged, isSubtask }: Props) {
                 </div>
               )}
 
+              <TaskAttachments task={task} att={att} onChanged={onChanged} />
+
               {addingLink ? (
                 <form onSubmit={submitLink} className="flex flex-wrap gap-2 items-end">
                   <Select value={linkType} onValueChange={(v: string | null) => { if (v) setLinkType(v as LinkType) }}>
@@ -435,6 +439,7 @@ export function TaskRow({ task, onChanged, isSubtask }: Props) {
                   >
                     <Plus size={12} /> add link
                   </button>
+                  <AttachButton att={att} />
                   {!isSubtask && (
                     <button
                       onClick={() => { setAddingSubtask(v => !v) }}

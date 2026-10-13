@@ -26,6 +26,8 @@ A local-first personal productivity app for tracking daily tasks, meetings, and 
 - Relations: has many Tasks (M2M via `task_label`)
 
 **TaskLink** — a URL attached to a task.
+
+**TaskAttachment** — a file attached to a task. The bytes live on disk (`api/<db-name>-attachments/`, UUID-hex names); the row stores the original `filename`, `stored_name`, `content_type`, `size_bytes`. Served from the app's origin, so serving is allowlisted: safe types inline, anything scriptable (HTML/SVG/XML) download-only, with `nosniff` and a CSP sandbox.
 - `id`, `task_id` (FK), `url`, `label`, `link_type` (pr/issue/doc/slack/other), `created_at`
 
 ### Supporting Entities
@@ -182,6 +184,8 @@ Background asyncio task runs every hour:
 - `POST /backup` — accepts JSON file upload, deletes all data, re-imports
 
 Table order matters for FK constraints. Export/import uses a fixed `TABLES` list.
+
+The JSON export covers attachment **metadata only**. File contents are exported separately with `GET /attachments/archive` (tar.gz of the UUID-named files plus an informational `manifest.json`) and restored with `POST /attachments/archive`; to restore everything, restore the database backup first, then the archive. `GET /attachments/stats` reports how many attachment rows are missing their file.
 
 ### Review Draft Aggregation
 
