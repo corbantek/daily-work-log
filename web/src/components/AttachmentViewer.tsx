@@ -4,12 +4,12 @@ import remarkGfm from 'remark-gfm'
 import { Download } from 'lucide-react'
 import { rehypeHighlightTodo } from '@/lib/rehype-highlight-todo'
 import { getAttachment, getSettings, attachmentFileUrl } from '../api/client'
-import type { TaskAttachment } from '../api/types'
-import { formatBytes } from './TaskAttachments'
+import type { Attachment } from '../api/types'
+import { formatBytes } from './Attachments'
 
 /** Standalone page (opened in a new tab via /?attachment=<id>) that renders a markdown attachment. */
 export function AttachmentViewer({ id }: { id: string }) {
-  const [meta, setMeta] = useState<TaskAttachment | null>(null)
+  const [meta, setMeta] = useState<Attachment | null>(null)
   const [text, setText] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 

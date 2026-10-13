@@ -4,7 +4,7 @@ from typing import List
 
 from ..database import get_session
 from ..models import (
-    Task, TaskAttachment, Meeting, Person, Interaction, Workstream, SearchResult,
+    Task, TaskAttachment, MeetingAttachment, Meeting, Person, Interaction, Workstream, SearchResult,
 )
 
 router = APIRouter(prefix="/search", tags=["search"])
@@ -47,6 +47,13 @@ def search(q: str = "", session: Session = Depends(get_session)):
     ).all()
     for m in meetings:
         results.append(SearchResult(type="meeting", id=m.id, title=m.title, subtitle="Meeting", date=m.date))
+
+    seen_meetings = {m.id for m in meetings}
+    for att in session.exec(select(MeetingAttachment).where(MeetingAttachment.filename.ilike(like)).limit(PER_TYPE)).all():
+        m = session.get(Meeting, att.meeting_id)
+        if m and m.id not in seen_meetings:
+            seen_meetings.add(m.id)
+            results.append(SearchResult(type="meeting", id=m.id, title=m.title, subtitle=f"Attachment: {att.filename}", date=m.date))
 
     people = session.exec(
         select(Person).where(

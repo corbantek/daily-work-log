@@ -3,7 +3,7 @@ import type {
   TaskState, LinkType, OncallPeriod,
   Person, Interaction, InteractionTagInput, Sentiment,
   CompetencyDimension, ReviewDraft, SelfReview, SearchResult,
-  CalendarSyncResult, CalendarStatus, DismissedCalendarEvent, TaskAttachment, AttachmentStats,
+  CalendarSyncResult, CalendarStatus, DismissedCalendarEvent, Attachment, AttachmentStats,
 } from './types'
 
 const BASE = '/api'
@@ -27,28 +27,29 @@ async function failMessage(res: Response): Promise<string> {
   return typeof body?.detail === 'string' ? body.detail : `${res.status} ${res.statusText}`
 }
 
-export async function uploadTaskAttachment(taskId: string, file: File): Promise<TaskAttachment> {
+/** `owner` is the API path of whatever the file belongs to, e.g. `/tasks/<id>` or `/meetings/<id>`. */
+export async function uploadAttachment(owner: string, file: File): Promise<Attachment> {
   const form = new FormData() // no JSON Content-Type header: the browser sets the multipart boundary
   form.append('file', file)
-  const res = await fetch(`${BASE}/tasks/${taskId}/attachments`, { method: 'POST', body: form })
+  const res = await fetch(`${BASE}${owner}/attachments`, { method: 'POST', body: form })
   if (!res.ok) throw new Error(await failMessage(res))
   return res.json()
 }
 
-export const getAttachment = (id: string) => req<TaskAttachment>(`/attachments/${id}`)
+export const getAttachment = (id: string) => req<Attachment>(`/attachments/${id}`)
 
 export const renameAttachment = (id: string, filename: string) =>
-  req<TaskAttachment>(`/attachments/${id}`, { method: 'PATCH', body: JSON.stringify({ filename }) })
+  req<Attachment>(`/attachments/${id}`, { method: 'PATCH', body: JSON.stringify({ filename }) })
 
 export const deleteAttachment = (id: string) =>
   req<void>(`/attachments/${id}`, { method: 'DELETE' })
 
 /** The file itself (the filename segment is cosmetic: tab title / download name). */
-export const attachmentFileUrl = (a: Pick<TaskAttachment, 'id' | 'filename'>) =>
+export const attachmentFileUrl = (a: Pick<Attachment, 'id' | 'filename'>) =>
   `${BASE}/attachments/${a.id}/${encodeURIComponent(a.filename)}`
 
 /** Where a click should go: markdown opens in the rendered viewer, everything else is the file. */
-export const attachmentOpenUrl = (a: Pick<TaskAttachment, 'id' | 'filename' | 'kind'>) =>
+export const attachmentOpenUrl = (a: Pick<Attachment, 'id' | 'filename' | 'kind'>) =>
   a.kind === 'markdown' ? `/?attachment=${a.id}` : attachmentFileUrl(a)
 
 export const getAttachmentStats = () => req<AttachmentStats>('/attachments/stats')

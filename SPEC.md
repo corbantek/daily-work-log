@@ -27,7 +27,7 @@ A local-first personal productivity app for tracking daily tasks, meetings, and 
 
 **TaskLink** — a URL attached to a task.
 
-**TaskAttachment** — a file attached to a task. The bytes live on disk (`api/<db-name>-attachments/`, UUID-hex names); the row stores the original `filename`, `stored_name`, `content_type`, `size_bytes`. Served from the app's origin, so serving is allowlisted: safe types inline, anything scriptable (HTML/SVG/XML) download-only, with `nosniff` and a CSP sandbox.
+**TaskAttachment** / **MeetingAttachment** — a file attached to a task or to a meeting (two tables with the same columns; `task_attachment.task_id` is NOT NULL, so meetings get their own). The bytes live on disk (`api/<db-name>-attachments/`, UUID-hex names); the row stores the original `filename`, `stored_name`, `content_type`, `size_bytes`. Served from the app's origin, so serving is allowlisted: safe types inline, anything scriptable (HTML/SVG/XML) download-only, with `nosniff` and a CSP sandbox.
 - `id`, `task_id` (FK), `url`, `label`, `link_type` (pr/issue/doc/slack/other), `created_at`
 
 ### Supporting Entities

@@ -1,5 +1,6 @@
 """Task attachments. Run: api/.venv/bin/python -m unittest discover -s api/tests -t ."""
 import io
+import json
 import os
 import shutil
 import tarfile
@@ -11,11 +12,14 @@ from fastapi import HTTPException, UploadFile
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from api.attachments import attachment_kind, mirror_attachments, safe_filename, serve_profile
-from api.models import Task, TaskAttachment
+from datetime import date
+
+from api.models import Meeting, MeetingAttachment, Task, TaskAttachment
 from api.routes.attachments import (
-    attachment_stats, delete_attachment, export_archive, get_attachment_file, import_archive,
+    upload_meeting_attachment, attachment_stats, delete_attachment, export_archive, get_attachment_file, import_archive,
     rename_attachment, upload_attachment,
 )
+from api.routes.meetings import _read_meeting, delete_meeting
 from api.routes.search import search
 from api.routes.tasks import _enrich, delete_task
 from api.models import AttachmentRename
@@ -216,6 +220,95 @@ class AttachmentTests(unittest.TestCase):
         results = search("failover", self.session)
         self.assertEqual([(r.type, r.title) for r in results], [("task", "Write how-to")])
         self.assertIn("runbook-failover.md", results[0].subtitle)
+
+
+class MeetingAttachmentTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        os.environ["WORKLOG_FILES"] = str(self.tmp / "files")
+        os.environ.pop("WORKLOG_MAX_ATTACHMENT_MB", None)
+        self.engine = create_engine("sqlite://")
+        SQLModel.metadata.create_all(self.engine)
+        self.session = Session(self.engine)
+        self.task = Task(action="A task")
+        self.meeting = Meeting(date=date(2026, 10, 13), title="Design review")
+        self.session.add(self.task)
+        self.session.add(self.meeting)
+        self.session.commit()
+        self.files = self.tmp / "files"
+
+    def tearDown(self):
+        self.session.close()
+        self.engine.dispose()
+        os.environ.pop("WORKLOG_FILES", None)
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def add(self, name="deck.pdf", data=b"%PDF slides", meeting=None):
+        return upload_meeting_attachment((meeting or self.meeting).id, upload(name, data), self.session)
+
+    def stored(self):
+        return sorted(p.name for p in self.files.iterdir()) if self.files.exists() else []
+
+    def test_upload_belongs_to_the_meeting(self):
+        a = self.add()
+        self.assertEqual((a.meeting_id, a.task_id, a.filename, a.kind), (self.meeting.id, None, "deck.pdf", "pdf"))
+        self.assertEqual([x.filename for x in _read_meeting(self.meeting, self.session).attachments], ["deck.pdf"])
+        self.assertEqual(len(self.stored()), 1)
+
+    def test_upload_to_missing_meeting_is_404_and_stores_nothing(self):
+        with self.assertRaises(HTTPException) as cm:
+            upload_meeting_attachment("nope", upload("a.pdf"), self.session)
+        self.assertEqual(cm.exception.status_code, 404)
+        self.assertEqual(self.stored(), [])
+
+    def test_shared_endpoints_work_for_meeting_attachments(self):
+        a = self.add("page.html", b"<b>x</b>")
+        r = get_attachment_file(a.id, "x", self.session)
+        self.assertEqual(r.media_type, "application/octet-stream")  # same allowlist as task files
+        self.assertEqual(rename_attachment(a.id, AttachmentRename(filename="slides.pdf"), self.session).filename, "slides.pdf")
+        delete_attachment(a.id, self.session)
+        self.assertEqual(self.stored(), [])
+        self.assertEqual(self.session.exec(select(MeetingAttachment)).all(), [])
+
+    def test_delete_meeting_removes_only_its_files(self):
+        other = Meeting(date=date(2026, 10, 13), title="Other")
+        self.session.add(other)
+        self.session.commit()
+        self.add("mine.pdf")
+        self.add("theirs.pdf", meeting=other)
+        upload_attachment(self.task.id, upload("task.md"), self.session)
+        delete_meeting(self.meeting.id, self.session)
+        self.assertEqual(sorted(r.filename for r in self.session.exec(select(MeetingAttachment)).all()), ["theirs.pdf"])
+        self.assertEqual(len(self.session.exec(select(TaskAttachment)).all()), 1)
+        self.assertEqual(len(self.stored()), 2)
+
+    def test_stats_and_archive_cover_both_kinds(self):
+        self.add("m.pdf", b"meeting-bytes")
+        upload_attachment(self.task.id, upload("t.md", b"task-bytes"), self.session)
+        s = attachment_stats(self.session)
+        self.assertEqual((s["count"], s["total_bytes"], s["missing_files"]), (2, 23, 0))
+
+        archive = self.tmp / "out.tar.gz"
+        resp = export_archive(self.session)
+        shutil.copy(resp.path, archive)
+        os.unlink(resp.path)
+        with tarfile.open(archive) as tar:
+            manifest = json.load(tar.extractfile("manifest.json"))
+        by_name = {m["filename"]: m for m in manifest}
+        self.assertEqual(by_name["m.pdf"]["meeting"], "Design review")
+        self.assertEqual(by_name["t.md"]["task"], "A task")
+
+        shutil.rmtree(self.files)
+        self.assertEqual(attachment_stats(self.session)["missing_files"], 2)
+        with open(archive, "rb") as f:
+            result = import_archive(UploadFile(file=f, filename="out.tar.gz"), self.session)
+        self.assertEqual((result["restored"], result["missing_files"]), (2, 0))
+
+    def test_search_finds_meeting_by_attachment_filename(self):
+        self.add("q3-roadmap-deck.pdf")
+        results = search("roadmap", self.session)
+        self.assertEqual([(r.type, r.title) for r in results], [("meeting", "Design review")])
+        self.assertIn("q3-roadmap-deck.pdf", results[0].subtitle)
 
 
 if __name__ == "__main__":

@@ -142,9 +142,22 @@ class TaskAttachment(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
+class MeetingAttachment(SQLModel, table=True):
+    """Same as TaskAttachment, but owned by a meeting (separate table: task_id is NOT NULL there)."""
+    __tablename__ = "meeting_attachment"
+    id: str = Field(default_factory=new_id, primary_key=True)
+    meeting_id: str = Field(foreign_key="meeting.id", index=True)
+    filename: str
+    stored_name: str
+    content_type: Optional[str] = None
+    size_bytes: int = 0
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
 class AttachmentRead(SQLModel):
     id: str
-    task_id: str
+    task_id: Optional[str] = None  # exactly one of task_id / meeting_id is set
+    meeting_id: Optional[str] = None
     filename: str
     content_type: Optional[str] = None
     size_bytes: int
@@ -265,6 +278,7 @@ class MeetingRead(MeetingBase):
     source: Optional[str] = None
     missing_from_source: bool = False
     tasks: List[TaskRead] = []
+    attachments: List[AttachmentRead] = []
 
 
 class MeetingUpdate(SQLModel):

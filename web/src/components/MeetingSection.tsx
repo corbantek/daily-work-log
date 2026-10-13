@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { ChevronDown, ChevronRight, Clock, Plus, Trash2, Pencil, Check, X, Link2, RefreshCw, CalendarDays } from 'lucide-react'
+import { ChevronDown, ChevronRight, Clock, Plus, Trash2, Pencil, Check, X, Link2, RefreshCw, CalendarDays, Paperclip } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
@@ -14,6 +14,7 @@ import {
   getDay, getWorkstreams, syncCalendarDay,
 } from '../api/client'
 import { formatTime, type TimeFormat } from '../api/date'
+import { AttachButton, AttachmentList, useAttachmentUpload } from './Attachments'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -73,9 +74,11 @@ export function MeetingSection({ meetings, date, onChanged, timeFormat = '12h' }
     onChanged()
   }
 
-  async function handleDelete(id: string, meetingTitle: string) {
-    if (!confirm(`Delete "${meetingTitle}"?`)) return
-    await deleteMeeting(id)
+  async function handleDelete(meeting: Meeting) {
+    const n = meeting.attachments.length
+    const extra = n > 0 ? ` and its ${n} attached file${n === 1 ? '' : 's'}` : ''
+    if (!confirm(`Delete "${meeting.title}"${extra}?`)) return
+    await deleteMeeting(meeting.id)
     onChanged()
   }
 
@@ -223,6 +226,14 @@ export function MeetingSection({ meetings, date, onChanged, timeFormat = '12h' }
                     <CalendarDays size={12} />
                   </span>
                 )}
+                {meeting.attachments.length > 0 && (
+                  <span
+                    title={meeting.attachments.map(a => a.filename).join('\n')}
+                    className="flex items-center gap-0.5 text-xs text-muted-foreground/50 flex-shrink-0"
+                  >
+                    <Paperclip size={11} />{meeting.attachments.length}
+                  </span>
+                )}
                 {meeting.tasks.length > 0 && (
                   <span className="text-xs text-muted-foreground/50 flex-shrink-0">
                     {meeting.tasks.length} task{meeting.tasks.length !== 1 ? 's' : ''}
@@ -241,7 +252,7 @@ export function MeetingSection({ meetings, date, onChanged, timeFormat = '12h' }
                   <Pencil size={13} />
                 </button>
                 <button
-                  onClick={() => handleDelete(meeting.id, meeting.title)}
+                  onClick={() => handleDelete(meeting)}
                   className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all flex-shrink-0"
                 >
                   <Trash2 size={14} />
@@ -250,20 +261,7 @@ export function MeetingSection({ meetings, date, onChanged, timeFormat = '12h' }
             )}
 
             {expandedId === meeting.id && editingMeeting !== meeting.id && (
-              <div className="mt-2 ml-6">
-                <Separator className="mb-2" />
-                <ClickToEditMarkdown
-                  value={meeting.notes}
-                  onSave={async (newNotes) => {
-                    await updateMeeting(meeting.id, { notes: newNotes })
-                    onChanged()
-                  }}
-                  placeholder="Click to add meeting notes..."
-                  minHeight={200}
-                />
-
-                <MeetingTasks meeting={meeting} date={date} onChanged={onChanged} />
-              </div>
+              <MeetingDetails meeting={meeting} date={date} onChanged={onChanged} />
             )}
           </div>
         ))}
@@ -272,6 +270,35 @@ export function MeetingSection({ meetings, date, onChanged, timeFormat = '12h' }
           <span className="text-xs text-muted-foreground/40">No meetings</span>
         )}
       </div>
+    </div>
+  )
+}
+
+
+// ── Expanded meeting: notes, attachments, linked tasks ──────────────────────
+
+function MeetingDetails({ meeting, date, onChanged }: { meeting: Meeting; date: string; onChanged: () => void }) {
+  const att = useAttachmentUpload(`/meetings/${meeting.id}`, onChanged)
+
+  return (
+    <div className="mt-2 ml-6" {...att.dropProps}>
+      <Separator className="mb-2" />
+      <ClickToEditMarkdown
+        value={meeting.notes}
+        onSave={async (newNotes) => {
+          await updateMeeting(meeting.id, { notes: newNotes })
+          onChanged()
+        }}
+        placeholder="Click to add meeting notes..."
+        minHeight={200}
+      />
+
+      <div className="mt-3 space-y-1">
+        <AttachmentList attachments={meeting.attachments} att={att} onChanged={onChanged} />
+        <AttachButton att={att} />
+      </div>
+
+      <MeetingTasks meeting={meeting} date={date} onChanged={onChanged} />
     </div>
   )
 }

@@ -134,6 +134,18 @@ export function ItemDetailDialog({ result, onClose }: Props) {
                 </div>
               )}
 
+              {meeting.attachments.length > 0 && (
+                <div className="space-y-1">
+                  {meeting.attachments.map(a => (
+                    <a key={a.id} href={attachmentOpenUrl(a)}
+                      {...(a.kind === 'other' ? { download: a.filename } : { target: '_blank', rel: 'noopener noreferrer' })}
+                      className="flex items-center gap-1.5 text-xs text-primary hover:underline">
+                      <Paperclip size={12} /> {a.filename}
+                    </a>
+                  ))}
+                </div>
+              )}
+
               {meeting.tasks.length > 0 && (
                 <div>
                   <p className="text-xs font-medium text-muted-foreground mb-1.5">Linked tasks</p>

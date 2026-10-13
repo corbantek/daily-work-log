@@ -13,11 +13,13 @@ from sqlmodel import Session, select
 from starlette.background import BackgroundTask
 
 from ..attachments import (
-    STORED_NAME, attachments_dir, guess_content_type, max_bytes, read_attachment,
-    safe_filename, serve_profile, unlink_stored,
+    STORED_NAME, all_attachments, attachments_dir, find_attachment, guess_content_type, max_bytes,
+    read_attachment, safe_filename, serve_profile, unlink_stored,
 )
 from ..database import get_session
-from ..models import AttachmentRead, AttachmentRename, Task, TaskAttachment
+from ..models import (
+    AttachmentRead, AttachmentRename, Meeting, MeetingAttachment, Task, TaskAttachment,
+)
 
 router = APIRouter(tags=["attachments"])
 
@@ -47,14 +49,35 @@ def _write_stream(src, dest_dir, limit: int) -> tuple:
     return stored, size
 
 
+def _store_upload(file: UploadFile) -> tuple:
+    """Write the upload to disk; returns (display filename, stored name, size)."""
+    filename = safe_filename(file.filename)
+    stored, size = _write_stream(file.file, attachments_dir(), max_bytes())
+    return filename, stored, size
+
+
 @router.post("/tasks/{task_id}/attachments", response_model=AttachmentRead, status_code=201)
 def upload_attachment(task_id: str, file: UploadFile = File(...), session: Session = Depends(get_session)):
     if not session.get(Task, task_id):
         raise HTTPException(404, "Task not found")
-    filename = safe_filename(file.filename)
-    stored, size = _write_stream(file.file, attachments_dir(), max_bytes())
+    filename, stored, size = _store_upload(file)
     row = TaskAttachment(
         task_id=task_id, filename=filename, stored_name=stored,
+        content_type=guess_content_type(filename), size_bytes=size,
+    )
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    return read_attachment(row)
+
+
+@router.post("/meetings/{meeting_id}/attachments", response_model=AttachmentRead, status_code=201)
+def upload_meeting_attachment(meeting_id: str, file: UploadFile = File(...), session: Session = Depends(get_session)):
+    if not session.get(Meeting, meeting_id):
+        raise HTTPException(404, "Meeting not found")
+    filename, stored, size = _store_upload(file)
+    row = MeetingAttachment(
+        meeting_id=meeting_id, filename=filename, stored_name=stored,
         content_type=guess_content_type(filename), size_bytes=size,
     )
     session.add(row)
@@ -68,7 +91,7 @@ def upload_attachment(task_id: str, file: UploadFile = File(...), session: Sessi
 @router.get("/attachments/stats")
 def attachment_stats(session: Session = Depends(get_session)):
     d = attachments_dir()
-    rows = session.exec(select(TaskAttachment)).all()
+    rows = all_attachments(session)
     return {
         "count": len(rows),
         "total_bytes": sum(r.size_bytes for r in rows),
@@ -81,10 +104,12 @@ def export_archive(session: Session = Depends(get_session)):
     """tar.gz of every stored file plus a manifest.json mapping ids to original names."""
     d = attachments_dir()
     tasks = {t.id: t.action for t in session.exec(select(Task)).all()}
+    meetings = {m.id: m.title for m in session.exec(select(Meeting)).all()}
     manifest = [
-        {"id": r.id, "task_id": r.task_id, "task": tasks.get(r.task_id), "filename": r.filename,
-         "stored_name": r.stored_name, "size_bytes": r.size_bytes}
-        for r in session.exec(select(TaskAttachment)).all()
+        {"id": r.id, "task_id": getattr(r, "task_id", None), "task": tasks.get(getattr(r, "task_id", None)),
+         "meeting_id": getattr(r, "meeting_id", None), "meeting": meetings.get(getattr(r, "meeting_id", None)),
+         "filename": r.filename, "stored_name": r.stored_name, "size_bytes": r.size_bytes}
+        for r in all_attachments(session)
     ]
     fd, tmp = tempfile.mkstemp(suffix=".tar.gz")
     os.close(fd)
@@ -136,7 +161,7 @@ def import_archive(file: UploadFile = File(...), session: Session = Depends(get_
                 restored += 1
     except (tarfile.TarError, EOFError, OSError) as e:
         raise HTTPException(400, f"Not a valid attachments archive: {e}")
-    rows = session.exec(select(TaskAttachment)).all()
+    rows = all_attachments(session)
     return {
         "restored": restored,
         "skipped": skipped,
@@ -146,8 +171,8 @@ def import_archive(file: UploadFile = File(...), session: Session = Depends(get_
 
 # ── Single attachment ────────────────────────────────────────────────────────
 
-def _get(session: Session, attachment_id: str) -> TaskAttachment:
-    row = session.get(TaskAttachment, attachment_id)
+def _get(session: Session, attachment_id: str):
+    row = find_attachment(session, attachment_id)
     if not row:
         raise HTTPException(404, "Attachment not found")
     return row

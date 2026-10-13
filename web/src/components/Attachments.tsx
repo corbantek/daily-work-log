@@ -1,9 +1,9 @@
 import { useRef, useState } from 'react'
 import { File as FileIcon, FileImage, FileText, Download, Paperclip, Pencil, Trash2, Check, X } from 'lucide-react'
 import { Input } from '@/components/ui/input'
-import type { Task, TaskAttachment } from '../api/types'
+import type { Attachment } from '../api/types'
 import {
-  uploadTaskAttachment, deleteAttachment, renameAttachment, attachmentFileUrl, attachmentOpenUrl,
+  uploadAttachment, deleteAttachment, renameAttachment, attachmentFileUrl, attachmentOpenUrl,
 } from '../api/client'
 import { cn } from '@/lib/utils'
 
@@ -13,14 +13,14 @@ export function formatBytes(n: number): string {
   return `${(n / (1024 * 1024)).toFixed(1)} MB`
 }
 
-function KindIcon({ kind }: { kind: TaskAttachment['kind'] }) {
+function KindIcon({ kind }: { kind: Attachment['kind'] }) {
   if (kind === 'image') return <FileImage size={12} />
   if (kind === 'markdown' || kind === 'text') return <FileText size={12} />
   return <FileIcon size={12} />
 }
 
-/** Upload state, the hidden file picker and drag-and-drop handlers for one task. */
-export function useAttachmentUpload(taskId: string, onChanged: () => void) {
+/** Upload state, the hidden file picker and drag-and-drop handlers for one task or meeting (`owner` = `/tasks/<id>` or `/meetings/<id>`). */
+export function useAttachmentUpload(owner: string, onChanged: () => void) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
   const [dragging, setDragging] = useState(false)
@@ -34,7 +34,7 @@ export function useAttachmentUpload(taskId: string, onChanged: () => void) {
     const failures: string[] = []
     for (const f of list) {
       try {
-        await uploadTaskAttachment(taskId, f)
+        await uploadAttachment(owner, f)
       } catch (e) {
         failures.push(`${f.name}: ${e instanceof Error ? e.message : 'failed'}`)
       }
@@ -90,28 +90,28 @@ export function AttachButton({ att }: { att: AttachmentUpload }) {
   )
 }
 
-export function TaskAttachments({ task, att, onChanged }: { task: Task; att: AttachmentUpload; onChanged: () => void }) {
+export function AttachmentList({ attachments, att, onChanged }: { attachments: Attachment[]; att: AttachmentUpload; onChanged: () => void }) {
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [name, setName] = useState('')
 
-  async function saveRename(a: TaskAttachment) {
+  async function saveRename(a: Attachment) {
     if (name.trim() && name.trim() !== a.filename) await renameAttachment(a.id, name.trim())
     setRenamingId(null)
     onChanged()
   }
 
-  async function remove(a: TaskAttachment) {
+  async function remove(a: Attachment) {
     if (!confirm(`Delete "${a.filename}"? The file is removed from disk.`)) return
     await deleteAttachment(a.id)
     onChanged()
   }
 
-  if (task.attachments.length === 0 && !att.error && !att.dragging) return null
+  if (attachments.length === 0 && !att.error && !att.dragging) return null
 
   return (
     <div className={cn('space-y-1 rounded-md', att.dragging && 'ring-1 ring-primary/60 bg-primary/5 p-1')}>
-      {att.dragging && <p className="text-xs text-primary">Drop to attach to this task</p>}
-      {task.attachments.map(a => (
+      {att.dragging && <p className="text-xs text-primary">Drop to attach here</p>}
+      {attachments.map(a => (
         renamingId === a.id ? (
           <form key={a.id} onSubmit={e => { e.preventDefault(); saveRename(a) }} className="flex items-center gap-2">
             <Input autoFocus value={name} onChange={e => setName((e.target as HTMLInputElement).value)} className="h-7 text-xs w-64" />

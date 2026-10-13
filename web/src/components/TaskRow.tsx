@@ -13,7 +13,7 @@ import { WorkstreamPicker } from './WorkstreamPicker'
 import { LabelPicker } from './LabelPicker'
 import { ClickToEditMarkdown } from './ClickToEditMarkdown'
 import { AddTaskForm } from './AddTaskForm'
-import { AttachButton, TaskAttachments, useAttachmentUpload } from './TaskAttachments'
+import { AttachButton, AttachmentList, useAttachmentUpload } from './Attachments'
 import type { Task, LinkType, TaskState, Workstream } from '../api/types'
 import { updateTask, deleteTask, addTaskLink, updateTaskLink, deleteTaskLink, getWorkstreams, unlinkTaskFromMeeting, getTasks } from '../api/client'
 import { cn } from '@/lib/utils'
@@ -37,7 +37,7 @@ export function TaskRow({ task, onChanged, isSubtask }: Props) {
   const [linkLabel, setLinkLabel] = useState('')
   const [linkType, setLinkType] = useState<LinkType>('pr')
   const [stateBlockMsg, setStateBlockMsg] = useState<string | null>(null)
-  const att = useAttachmentUpload(task.id, onChanged)
+  const att = useAttachmentUpload(`/tasks/${task.id}`, onChanged)
 
   const [editAction, setEditAction] = useState('')
   const [editWorkstreamId, setEditWorkstreamId] = useState<string>('')
@@ -405,7 +405,7 @@ export function TaskRow({ task, onChanged, isSubtask }: Props) {
                 </div>
               )}
 
-              <TaskAttachments task={task} att={att} onChanged={onChanged} />
+              <AttachmentList attachments={task.attachments} att={att} onChanged={onChanged} />
 
               {addingLink ? (
                 <form onSubmit={submitLink} className="flex flex-wrap gap-2 items-end">

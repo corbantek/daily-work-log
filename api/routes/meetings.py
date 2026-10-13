@@ -3,8 +3,9 @@ from sqlmodel import Session, select
 from typing import List, Optional
 from datetime import date
 
+from ..attachments import delete_meeting_attachments, read_attachment, unlink_stored
 from ..database import get_session
-from ..models import Meeting, MeetingCreate, MeetingRead, MeetingUpdate, Task, MeetingTaskLink
+from ..models import Meeting, MeetingAttachment, MeetingCreate, MeetingRead, MeetingUpdate, Task, MeetingTaskLink
 from .tasks import _enrich
 from .calendar import record_dismissal
 
@@ -19,7 +20,10 @@ def _read_meeting(meeting: Meeting, session: Session) -> MeetingRead:
         select(MeetingTaskLink).where(MeetingTaskLink.meeting_id == meeting.id)
     ).all()
     tasks = [_enrich(session.get(Task, tl.task_id), session) for tl in task_links if session.get(Task, tl.task_id)]
-    return MeetingRead(**meeting.model_dump(), tasks=tasks)
+    attachments = session.exec(
+        select(MeetingAttachment).where(MeetingAttachment.meeting_id == meeting.id).order_by(MeetingAttachment.created_at)
+    ).all()
+    return MeetingRead(**meeting.model_dump(), tasks=tasks, attachments=[read_attachment(a) for a in attachments])
 
 
 @router.get("", response_model=List[MeetingRead])
@@ -84,5 +88,7 @@ def delete_meeting(meeting_id: str, session: Session = Depends(get_session)):
     for link in session.exec(select(MeetingTaskLink).where(MeetingTaskLink.meeting_id == meeting_id)).all():
         session.delete(link)
     record_dismissal(session, meeting)
+    stored_names = delete_meeting_attachments(session, meeting_id)
     session.delete(meeting)
     session.commit()
+    unlink_stored(stored_names)

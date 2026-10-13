@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Download, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ATTACHMENTS_ARCHIVE_URL, getAttachmentStats, importAttachmentsArchive } from '../api/client'
-import { formatBytes } from './TaskAttachments'
+import { formatBytes } from './Attachments'
 import type { AttachmentStats } from '../api/types'
 
 export function AttachmentsBackup({ onRestored }: { onRestored: () => void }) {

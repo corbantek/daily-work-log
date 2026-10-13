@@ -13,7 +13,7 @@ from typing import Iterable, Optional, Tuple
 from sqlmodel import Session, select
 
 from .database import DB_PATH
-from .models import AttachmentRead, TaskAttachment
+from .models import AttachmentRead, MeetingAttachment, TaskAttachment
 
 STORED_NAME = re.compile(r"^[0-9a-f]{32}$")  # uuid4().hex
 
@@ -109,6 +109,24 @@ def delete_task_attachments(session: Session, task_id: str) -> list:
     for r in rows:
         session.delete(r)
     return names
+
+
+def delete_meeting_attachments(session: Session, meeting_id: str) -> list:
+    """Delete a meeting's attachment rows; returns stored names to unlink after commit."""
+    rows = session.exec(select(MeetingAttachment).where(MeetingAttachment.meeting_id == meeting_id)).all()
+    names = [r.stored_name for r in rows]
+    for r in rows:
+        session.delete(r)
+    return names
+
+
+def find_attachment(session: Session, attachment_id: str):
+    """An attachment row from either owner table (ids are UUIDs, so they never collide)."""
+    return session.get(TaskAttachment, attachment_id) or session.get(MeetingAttachment, attachment_id)
+
+
+def all_attachments(session: Session) -> list:
+    return [*session.exec(select(TaskAttachment)).all(), *session.exec(select(MeetingAttachment)).all()]
 
 
 def mirror_attachments(dest_root: Path) -> int:

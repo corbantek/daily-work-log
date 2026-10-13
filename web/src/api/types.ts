@@ -22,9 +22,10 @@ export interface MeetingBrief {
   date: string
 }
 
-export interface TaskAttachment {
+export interface Attachment {
   id: string
-  task_id: string
+  task_id: string | null
+  meeting_id: string | null
   filename: string
   content_type: string | null
   size_bytes: number
@@ -50,7 +51,7 @@ export interface Task {
   created_at: string
   labels: Label[]
   links: TaskLink[]
-  attachments: TaskAttachment[]
+  attachments: Attachment[]
   meetings: MeetingBrief[]
   parent_task_id: string | null
   subtask_count: number
@@ -76,6 +77,7 @@ export interface Meeting {
   start_time: string | null
   missing_from_source: boolean
   tasks: Task[]
+  attachments: Attachment[]
 }
 
 export interface CalendarSyncResult {
