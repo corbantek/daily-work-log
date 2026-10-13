@@ -15,6 +15,7 @@ import {
 } from '../api/client'
 import { formatTime, type TimeFormat } from '../api/date'
 import { AttachButton, AttachmentList, useAttachmentUpload } from './Attachments'
+import { hasDraft } from '@/lib/drafts'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -29,7 +30,10 @@ export function MeetingSection({ meetings, date, onChanged, timeFormat = '12h' }
   const [title, setTitle] = useState('')
   const [duration, setDuration] = useState('')
   const [startTime, setStartTime] = useState('')
-  const [expandedId, setExpandedId] = useState<string | null>(null)
+  // Open straight away if a recovered draft is waiting for one of these meetings.
+  const [expandedId, setExpandedId] = useState<string | null>(
+    () => meetings.find(m => hasDraft(`meeting:${m.id}:notes`))?.id ?? null,
+  )
   const [editingMeeting, setEditingMeeting] = useState<string | null>(null)
   const [editTitle, setEditTitle] = useState('')
   const [editDuration, setEditDuration] = useState('')
@@ -291,6 +295,7 @@ function MeetingDetails({ meeting, date, onChanged }: { meeting: Meeting; date: 
         }}
         placeholder="Click to add meeting notes..."
         minHeight={200}
+        draftKey={`meeting:${meeting.id}:notes`}
       />
 
       <div className="mt-3 space-y-1">

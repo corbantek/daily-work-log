@@ -16,6 +16,7 @@ import { AddTaskForm } from './AddTaskForm'
 import { AttachButton, AttachmentList, useAttachmentUpload } from './Attachments'
 import type { Task, LinkType, TaskState, Workstream } from '../api/types'
 import { updateTask, deleteTask, addTaskLink, updateTaskLink, deleteTaskLink, getWorkstreams, unlinkTaskFromMeeting, getTasks } from '../api/client'
+import { hasDraft } from '@/lib/drafts'
 import { cn } from '@/lib/utils'
 import { todayStr } from '../api/date'
 
@@ -28,7 +29,8 @@ interface Props {
 }
 
 export function TaskRow({ task, onChanged, isSubtask }: Props) {
-  const [expanded, setExpanded] = useState(false)
+  // Open straight away if a recovered draft is waiting for this task.
+  const [expanded, setExpanded] = useState(() => hasDraft(`task:${task.id}:notes`))
   const [isEditing, setIsEditing] = useState(false)
   const [addingLink, setAddingLink] = useState(false)
   const [addingSubtask, setAddingSubtask] = useState(false)
@@ -309,6 +311,7 @@ export function TaskRow({ task, onChanged, isSubtask }: Props) {
                 value={task.notes}
                 onSave={saveNotes}
                 placeholder="Click to add notes..."
+                draftKey={`task:${task.id}:notes`}
               />
 
               {task.labels.length > 0 && (
