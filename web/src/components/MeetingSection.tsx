@@ -27,10 +27,12 @@ export function MeetingSection({ meetings, date, onChanged, timeFormat = '12h' }
   const [adding, setAdding] = useState(false)
   const [title, setTitle] = useState('')
   const [duration, setDuration] = useState('')
+  const [startTime, setStartTime] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [editingMeeting, setEditingMeeting] = useState<string | null>(null)
   const [editTitle, setEditTitle] = useState('')
   const [editDuration, setEditDuration] = useState('')
+  const [editStartTime, setEditStartTime] = useState('')
   const [syncing, setSyncing] = useState(false)
   const [syncMsg, setSyncMsg] = useState<{ text: string; error: boolean } | null>(null)
 
@@ -44,6 +46,7 @@ export function MeetingSection({ meetings, date, onChanged, timeFormat = '12h' }
         r.updated && `${r.updated} updated`,
         r.linked && `${r.linked} matched`,
         r.flagged && `${r.flagged} no longer on calendar`,
+        r.skipped && `${r.skipped} skipped (deleted earlier)`,
       ].filter(Boolean)
       setSyncMsg({ text: parts.length ? parts.join(', ') : 'Up to date', error: false })
       onChanged()
@@ -61,9 +64,11 @@ export function MeetingSection({ meetings, date, onChanged, timeFormat = '12h' }
       date,
       title: title.trim(),
       duration_minutes: duration ? parseInt(duration) : null,
+      start_time: startTime || null,
     })
     setTitle('')
     setDuration('')
+    setStartTime('')
     setAdding(false)
     onChanged()
   }
@@ -78,6 +83,7 @@ export function MeetingSection({ meetings, date, onChanged, timeFormat = '12h' }
     setEditingMeeting(meeting.id)
     setEditTitle(meeting.title)
     setEditDuration(meeting.duration_minutes?.toString() ?? '')
+    setEditStartTime(meeting.start_time ?? '')
     setExpandedId(meeting.id)
   }
 
@@ -86,6 +92,7 @@ export function MeetingSection({ meetings, date, onChanged, timeFormat = '12h' }
     await updateMeeting(id, {
       title: editTitle.trim(),
       duration_minutes: editDuration ? parseInt(editDuration) : null,
+      start_time: editStartTime || null,
     })
     setEditingMeeting(null)
     onChanged()
@@ -129,6 +136,13 @@ export function MeetingSection({ meetings, date, onChanged, timeFormat = '12h' }
             placeholder="Meeting title…"
             className="flex-1 min-w-48 h-8 text-sm"
           />
+          <Input
+            type="time"
+            value={startTime}
+            onChange={e => setStartTime((e.target as HTMLInputElement).value)}
+            title="Start time (optional)"
+            className="w-28 h-8 text-xs"
+          />
           <div className="flex items-center gap-1.5">
             <Input
               type="number"
@@ -156,6 +170,13 @@ export function MeetingSection({ meetings, date, onChanged, timeFormat = '12h' }
                   value={editTitle}
                   onChange={e => setEditTitle((e.target as HTMLInputElement).value)}
                   className="flex-1 min-w-40 h-8 text-sm"
+                />
+                <Input
+                  type="time"
+                  value={editStartTime}
+                  onChange={e => setEditStartTime((e.target as HTMLInputElement).value)}
+                  title="Start time (optional)"
+                  className="w-28 h-8 text-xs"
                 />
                 <div className="flex items-center gap-1.5">
                   <Input

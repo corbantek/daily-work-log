@@ -6,6 +6,10 @@ from datetime import date
 from ..database import get_session
 from ..models import Meeting, MeetingCreate, MeetingRead, MeetingUpdate, Task, MeetingTaskLink
 from .tasks import _enrich
+from .calendar import record_dismissal
+
+# Timed meetings first by start time; untimed (manual) ones after, in creation order.
+MEETING_ORDER = (Meeting.start_time.is_(None), Meeting.start_time, Meeting.created_at)
 
 router = APIRouter(prefix="/meetings", tags=["meetings"])
 
@@ -23,7 +27,7 @@ def list_meetings(on_date: Optional[date] = None, session: Session = Depends(get
     q = select(Meeting)
     if on_date:
         q = q.where(Meeting.date == on_date)
-    meetings = session.exec(q.order_by(Meeting.date.desc(), Meeting.created_at)).all()
+    meetings = session.exec(q.order_by(Meeting.date.desc(), *MEETING_ORDER)).all()
     return [_read_meeting(m, session) for m in meetings]
 
 
@@ -79,5 +83,6 @@ def delete_meeting(meeting_id: str, session: Session = Depends(get_session)):
         raise HTTPException(404)
     for link in session.exec(select(MeetingTaskLink).where(MeetingTaskLink.meeting_id == meeting_id)).all():
         session.delete(link)
+    record_dismissal(session, meeting)
     session.delete(meeting)
     session.commit()

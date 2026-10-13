@@ -66,6 +66,15 @@ export interface CalendarSyncResult {
   updated: number
   linked: number
   flagged: number
+  skipped: number
+}
+
+export interface DismissedCalendarEvent {
+  external_id: string
+  title: string
+  date: string
+  start_time: string | null
+  dismissed_at: string
 }
 
 export interface CalendarStatus {

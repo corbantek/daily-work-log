@@ -8,7 +8,7 @@ from datetime import datetime, date
 from ..database import get_session, engine
 from ..models import (
     Workstream, Task, Label, TaskLabelLink, TaskLink,
-    Meeting, MeetingTaskLink, Setting, DayStatus, DayVisibility, OncallPeriod,
+    Meeting, MeetingTaskLink, DismissedCalendarEvent, Setting, DayStatus, DayVisibility, OncallPeriod,
     Person, Interaction, InteractionTag, CompetencyDimension, CompetencyAttribute,
 )
 
@@ -22,6 +22,7 @@ TABLES = [
     ("task_links", TaskLink),
     ("meetings", Meeting),
     ("meeting_tasks", MeetingTaskLink),
+    ("dismissed_calendar_events", DismissedCalendarEvent),
     ("settings", Setting),
     ("day_statuses", DayStatus),
     ("day_visibility", DayVisibility),

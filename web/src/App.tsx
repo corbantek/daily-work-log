@@ -12,6 +12,8 @@ import { ReviewPage } from './pages/ReviewPage'
 import { PeoplePage } from './pages/PeoplePage'
 import { ManageFramework } from './components/ManageFramework'
 import { CalendarAccess } from './components/CalendarAccess'
+import { DeletedCalendarMeetings } from './components/DeletedCalendarMeetings'
+import { DismissedEventsDialog } from './components/DismissedEventsDialog'
 import { CommandPalette } from './components/CommandPalette'
 import { ItemDetailDialog } from './components/ItemDetailDialog'
 import type { SearchResult } from './api/types'
@@ -128,6 +130,7 @@ export default function App() {
   const [windowSize, setWindowSize] = useState(5)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [frameworkOpen, setFrameworkOpen] = useState(false)
+  const [dismissedOpen, setDismissedOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [peopleTarget, setPeopleTarget] = useState<string | null>(null)
   const [detailResult, setDetailResult] = useState<SearchResult | null>(null)
@@ -425,7 +428,7 @@ export default function App() {
 
       {/* Settings dialog */}
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogContent className="sm:max-w-3xl flex flex-col max-h-[90vh]">
+        <DialogContent className="sm:max-w-5xl flex flex-col max-h-[90vh]">
           <DialogHeader>
             <DialogTitle>Settings</DialogTitle>
           </DialogHeader>
@@ -448,8 +451,8 @@ export default function App() {
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-8">
-              {/* ── Left column: appearance + day statuses ── */}
+            <div className="flex flex-col lg:flex-row gap-8">
+              {/* ── Column 1: appearance, framework, data ── */}
               <div className="flex-1 min-w-0 space-y-6">
                 {/* Theme */}
                 <div>
@@ -549,6 +552,31 @@ export default function App() {
                   </div>
                 </div>
 
+                {/* Competency framework */}
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Competency framework</p>
+                  <p className="text-xs text-muted-foreground/70 mb-2">
+                    Dimensions and attributes used to tag interactions and build peer-review drafts in the People tab.
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs"
+                    onClick={() => { setSettingsOpen(false); setFrameworkOpen(true) }}
+                  >
+                    Edit framework
+                  </Button>
+                </div>
+
+                {/* Data */}
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Data</p>
+                  <BackupRestore onRestored={refresh} />
+                </div>
+              </div>
+
+              {/* ── Column 2: statuses, on-call, backup, deleted meetings ── */}
+              <div className="flex-1 min-w-0 space-y-6">
                 {/* Day statuses */}
                 <div>
                   <p className="text-xs font-medium text-muted-foreground mb-2">Day statuses</p>
@@ -577,10 +605,7 @@ export default function App() {
                     </Button>
                   </div>
                 </div>
-              </div>
 
-              {/* ── Right column: periods, data, framework ── */}
-              <div className="flex-1 min-w-0 space-y-6">
                 {/* On-call periods */}
                 <div>
                   <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
@@ -658,32 +683,19 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Competency framework */}
+                {/* Deleted calendar meetings */}
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-2">Competency framework</p>
-                  <p className="text-xs text-muted-foreground/70 mb-2">
-                    Dimensions and attributes used to tag interactions and build peer-review drafts in the People tab.
-                  </p>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-8 text-xs"
-                    onClick={() => { setSettingsOpen(false); setFrameworkOpen(true) }}
-                  >
-                    Edit framework
-                  </Button>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Deleted calendar meetings</p>
+                  <DeletedCalendarMeetings onView={() => { setSettingsOpen(false); setDismissedOpen(true) }} />
                 </div>
+              </div>
 
+              {/* ── Column 3: Apple Calendar ── */}
+              <div className="flex-1 min-w-0 space-y-6">
                 {/* Apple Calendar */}
                 <div>
                   <p className="text-xs font-medium text-muted-foreground mb-2">Apple Calendar</p>
                   <CalendarAccess />
-                </div>
-
-                {/* Data */}
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-2">Data</p>
-                  <BackupRestore onRestored={refresh} />
                 </div>
               </div>
             </div>
@@ -692,6 +704,7 @@ export default function App() {
       </Dialog>
 
       <ManageFramework open={frameworkOpen} onOpenChange={setFrameworkOpen} />
+      <DismissedEventsDialog open={dismissedOpen} onOpenChange={setDismissedOpen} timeFormat={timeFormat} onChanged={refresh} />
 
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} onNavigate={handleSearchNavigate} />
 

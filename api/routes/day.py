@@ -11,7 +11,7 @@ from ..models import (
     DayStatus, OncallPeriod,
 )
 from .tasks import _enrich
-from .meetings import _read_meeting
+from .meetings import _read_meeting, MEETING_ORDER
 
 router = APIRouter(prefix="/day", tags=["day"])
 
@@ -70,7 +70,7 @@ def get_day(day: date, session: Session = Depends(get_session)):
         ws_sections.append(WorkstreamWithTasks(workstream=None, tasks=unassigned))
 
     meetings_raw = session.exec(
-        select(Meeting).where(Meeting.date == day).order_by(Meeting.created_at)
+        select(Meeting).where(Meeting.date == day).order_by(*MEETING_ORDER)
     ).all()
     meetings = [_read_meeting(m, session) for m in meetings_raw]
 

@@ -1,4 +1,5 @@
 from sqlmodel import SQLModel, Field, Relationship
+from pydantic import field_validator
 from typing import Optional, List
 from datetime import datetime, date
 from enum import Enum
@@ -184,11 +185,30 @@ class TaskUpdate(SQLModel):
 
 # ── Meeting ───────────────────────────────────────────────────────────────────
 
+def _check_hhmm(v: Optional[str]) -> Optional[str]:
+    """Normalize a local "HH:MM" time; empty means no time."""
+    if v is None or v == "":
+        return None
+    try:
+        h, m = v.split(":")
+        if len(h) == 2 and len(m) == 2 and 0 <= int(h) < 24 and 0 <= int(m) < 60:
+            return v
+    except ValueError:
+        pass
+    raise ValueError("start_time must be HH:MM (24-hour)")
+
+
 class MeetingBase(SQLModel):
     date: date
     title: str
     duration_minutes: Optional[int] = None
     notes: Optional[str] = None
+    start_time: Optional[str] = None  # local "HH:MM", 24-hour
+
+    @field_validator("start_time")
+    @classmethod
+    def _validate_start_time(cls, v):
+        return _check_hhmm(v)
 
 
 class Meeting(MeetingBase, table=True):
@@ -197,7 +217,9 @@ class Meeting(MeetingBase, table=True):
     # Set for meetings imported from a calendar; null for manually entered ones.
     source: Optional[str] = None
     external_id: Optional[str] = Field(default=None, index=True)
-    start_time: Optional[str] = None  # local "HH:MM"
+    # Hash of the calendar event's title/time/duration at the last sync; lets a
+    # dismissal tell "unchanged" from "edited since".
+    source_fingerprint: Optional[str] = None
     # Imported meeting that no longer appears on the calendar (kept: it may have notes).
     missing_from_source: bool = False
 
@@ -212,7 +234,6 @@ class MeetingRead(MeetingBase):
     id: str
     created_at: datetime
     source: Optional[str] = None
-    start_time: Optional[str] = None
     missing_from_source: bool = False
     tasks: List[TaskRead] = []
 
@@ -222,7 +243,24 @@ class MeetingUpdate(SQLModel):
     date: Optional[DateType] = None
     duration_minutes: Optional[int] = None
     notes: Optional[str] = None
+    start_time: Optional[str] = None
     task_ids: Optional[List[str]] = None
+
+    @field_validator("start_time")
+    @classmethod
+    def _validate_start_time(cls, v):
+        return _check_hhmm(v)
+
+
+class DismissedCalendarEvent(SQLModel, table=True):
+    """A calendar event the user deleted; sync skips it while it's unchanged."""
+    __tablename__ = "dismissed_calendar_event"
+    external_id: str = Field(primary_key=True)
+    fingerprint: str
+    title: str
+    date: DateType
+    start_time: Optional[str] = None
+    dismissed_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 # ── Settings ─────────────────────────────────────────────────────────────────

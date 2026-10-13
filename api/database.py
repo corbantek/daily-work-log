@@ -39,6 +39,7 @@ def _run_migrations():
             ("source", "VARCHAR"),
             ("external_id", "VARCHAR"),
             ("start_time", "VARCHAR"),
+            ("source_fingerprint", "VARCHAR"),
             ("missing_from_source", "BOOLEAN NOT NULL DEFAULT 0"),
         ]:
             if col not in meeting_columns:

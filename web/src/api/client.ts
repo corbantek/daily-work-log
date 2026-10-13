@@ -3,7 +3,7 @@ import type {
   TaskState, LinkType, OncallPeriod,
   Person, Interaction, InteractionTagInput, Sentiment,
   CompetencyDimension, ReviewDraft, SelfReview, SearchResult,
-  CalendarSyncResult, CalendarStatus,
+  CalendarSyncResult, CalendarStatus, DismissedCalendarEvent,
 } from './types'
 
 const BASE = '/api'
@@ -26,6 +26,15 @@ export const getCalendarStatus = () => req<CalendarStatus>('/calendar/status')
 
 export const requestCalendarAccess = () =>
   req<CalendarStatus>('/calendar/request-access', { method: 'POST' })
+
+export const getDismissedCalendarEvents = () =>
+  req<DismissedCalendarEvent[]>('/calendar/dismissed')
+
+export const clearDismissedCalendarEvents = () =>
+  req<void>('/calendar/dismissed', { method: 'DELETE' })
+
+export const restoreDismissedCalendarEvent = (externalId: string) =>
+  req<void>(`/calendar/dismissed/${encodeURIComponent(externalId)}`, { method: 'DELETE' })
 
 export async function syncCalendarDay(date: string): Promise<CalendarSyncResult> {
   const res = await fetch(`${BASE}/calendar/sync?date=${date}`, { method: 'POST' })
@@ -111,6 +120,7 @@ export const createMeeting = (body: {
   date: string
   title: string
   duration_minutes?: number | null
+  start_time?: string | null
   notes?: string | null
   task_ids?: string[]
 }) => req<Meeting>('/meetings', { method: 'POST', body: JSON.stringify(body) })
@@ -119,6 +129,7 @@ export const updateMeeting = (id: string, body: Partial<{
   title: string
   date: string
   duration_minutes: number | null
+  start_time: string | null
   notes: string | null
   task_ids: string[]
 }>) => req<Meeting>(`/meetings/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
