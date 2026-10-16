@@ -45,7 +45,7 @@ api/.venv/bin/python -m unittest discover -s api/tests -t .
 - **Sub-tasks**: Self-referential FK on `Task.parent_task_id`. One level of nesting only — sub-tasks cannot have children.
 - **Oncall**: Separate `OncallPeriod` table with date ranges. `DayView.is_oncall` computed via overlap query.
 - **Day status**: `DayStatus` table with day PK, status string, optional note. Custom statuses managed in Settings (stored as JSON array in `day_status_options` setting).
-- **TODO highlighting**: `rehype-highlight-todo.ts` rehype plugin walks HAST, splits text nodes on `TODO`, wraps in `<span class="todo-keyword">`. Applied in `ClickToEditMarkdown`, `TaskRow` (collapsed preview), and `ReviewPage`.
+- **Keyword highlighting**: `rehype-highlight-todo.ts` rehype plugin walks HAST, splits text nodes on `TODO` (red, `.todo-keyword`) and the whole word `DONE` (green, `.done-keyword`; whole-word so ABANDONED/UNDONE don't match), wrapping each in a `<span>`; it skips the spans it inserts. Applied in `ClickToEditMarkdown`, `TaskRow` (collapsed preview), `ReviewPage`, the attachment viewer and the detail/review views.
 - **Theme**: Three modes — light (`:root`), dim (`.dim`), dark (`.dark`). Custom variant `@custom-variant dark (&:is(.dark *, .dim *))` for Tailwind.
 - **Content width**: Four options stored as `content_width` setting: `normal` (672px), `wide` (896px), `wider` (1152px), `full` (100%).
 - **Meeting order**: by `start_time`; untimed (manual) meetings after, in creation order (`MEETING_ORDER` in `routes/meetings.py`). Manual meetings can have an optional `start_time` (24-hour "HH:MM", validated); on imported meetings it's overwritten by sync.
@@ -147,7 +147,7 @@ Ideas scoped but not yet built (from a 2026-10-02 planning pass):
 ## Future Improvements
 
 - **Markdown editor (CodeMirror 6):** `ClickToEditMarkdown` currently uses a plain `<textarea>` + `<ReactMarkdown>` preview tab. If syntax highlighting while typing becomes desirable, replace with CodeMirror 6 (`@codemirror/view` + `@codemirror/lang-markdown`). Avoid `@uiw/react-md-editor` — its overlay-textarea architecture conflicts with Tailwind v4 Preflight.
-- **Keyword highlighting in markdown (`web/src/lib/rehype-highlight-todo.ts`):** Currently highlights `TODO` in red. To extend to `FIXME`, `BLOCKED`, etc., update the plugin to split on each keyword and assign distinct class names, then add CSS rules in `index.css`.
+- **More highlight keywords (`web/src/lib/rehype-highlight-todo.ts`):** `TODO` (red) and `DONE` (green) are handled. To add `FIXME`, `BLOCKED`, etc., add the word to `KEYWORDS` and `CLASS_NAMES` in the plugin and a matching CSS rule in `index.css`.
 
 ## Rules
 

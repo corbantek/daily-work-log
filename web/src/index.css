@@ -312,3 +312,8 @@
   font-weight: 600;
 }
 
+.done-keyword {
+  color: oklch(0.68 0.17 150);
+  font-weight: 600;
+}
+
