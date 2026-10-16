@@ -5,12 +5,14 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { rehypeHighlightTodo } from '@/lib/rehype-highlight-todo'
 import { clearDraft, readDraft, writeDraft } from '@/lib/drafts'
+import { useNoteHeight, type NoteKind } from '@/lib/notes-height'
 
 interface Props {
   value: string | null
   onSave: (value: string | null) => Promise<void>
   placeholder?: string
-  minHeight?: number
+  /** Which kind of note this is; its editor height comes from Settings. */
+  kind: NoteKind
   /** Identifies what is being edited (e.g. `task:<id>:notes`); enables recovery of unsaved text after a reload. */
   draftKey?: string
 }
@@ -28,9 +30,10 @@ export function ClickToEditMarkdown({
   value,
   onSave,
   placeholder = 'Click to add notes...',
-  minHeight = 120,
+  kind,
   draftKey,
 }: Props) {
+  const minHeight = useNoteHeight(kind)
   const [isEditing, setIsEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit')

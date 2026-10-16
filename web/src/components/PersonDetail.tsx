@@ -179,7 +179,7 @@ export function PersonDetail({ person, framework, workstreams, theme, onBack, on
           value={person.notes}
           onSave={saveNotes}
           placeholder="Add notes about this person — interests, context, anything useful to remember…"
-          minHeight={80}
+          kind="person"
           draftKey={`person:${person.id}:notes`}
         />
       </div>

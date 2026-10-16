@@ -14,6 +14,10 @@ import { ManageFramework } from './components/ManageFramework'
 import { CalendarAccess } from './components/CalendarAccess'
 import { DeletedCalendarMeetings } from './components/DeletedCalendarMeetings'
 import { AttachmentsBackup } from './components/AttachmentsBackup'
+import {
+  DEFAULT_NOTES_HEIGHTS, NOTE_KINDS, NOTE_SIZES, NotesHeightContext, isNoteSize, noteHeightSettingKey,
+  type NoteKind, type NoteSize, type NotesHeights,
+} from './lib/notes-height'
 import { DismissedEventsDialog } from './components/DismissedEventsDialog'
 import { CommandPalette } from './components/CommandPalette'
 import { ItemDetailDialog } from './components/ItemDetailDialog'
@@ -147,6 +151,7 @@ export default function App() {
   const [serverUp, setServerUp] = useState(true)
   const [contentWidth, setContentWidth] = useState<ContentWidth>('normal')
   const [timeFormat, setTimeFormat] = useState<TimeFormat>('12h')
+  const [notesHeights, setNotesHeights] = useState<NotesHeights>(DEFAULT_NOTES_HEIGHTS)
   const [extendedFrom, setExtendedFrom] = useState<string | null>(() => {
     const p = new URLSearchParams(window.location.search).get('from')
     return p && /^\d{4}-\d{2}-\d{2}$/.test(p) && p < todayStr() ? p : null
@@ -195,6 +200,14 @@ export default function App() {
         if (s.hide_weekends === 'true') setHideWeekends(true)
         if (isContentWidth(s.content_width)) setContentWidth(s.content_width)
         if (isTimeFormat(s.time_format)) setTimeFormat(s.time_format)
+        setNotesHeights(prev => {
+          const next = { ...prev }
+          for (const { kind } of NOTE_KINDS) {
+            const v = s[noteHeightSettingKey(kind)]
+            if (isNoteSize(v)) next[kind] = v
+          }
+          return next
+        })
         if (s.day_status_options) {
           try {
             const parsed = JSON.parse(s.day_status_options)
@@ -256,6 +269,11 @@ export default function App() {
   function changeContentWidth(val: ContentWidth) {
     setContentWidth(val)
     setSetting('content_width', val)
+  }
+
+  function changeNotesHeight(kind: NoteKind, size: NoteSize) {
+    setNotesHeights(prev => ({ ...prev, [kind]: size }))
+    setSetting(noteHeightSettingKey(kind), size)
   }
 
   function changeTimeFormat(val: TimeFormat) {
@@ -374,6 +392,7 @@ export default function App() {
   }
 
   return (
+    <NotesHeightContext.Provider value={notesHeights}>
     <div className="min-h-screen text-foreground">
       <header className="sticky top-0 z-10 bg-background/70 backdrop-blur-md border-b border-border/60 px-6 py-3 flex items-center gap-4">
         <button
@@ -524,6 +543,31 @@ export default function App() {
                       >
                         {label}
                       </Button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Notes editor height */}
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Notes editor height</p>
+                  <div className="space-y-1.5">
+                    {NOTE_KINDS.map(({ kind, label }) => (
+                      <div key={kind} className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground w-24 flex-shrink-0">{label}</span>
+                        <div className="flex gap-1.5 flex-1">
+                          {NOTE_SIZES.map(({ size, label: sizeLabel }) => (
+                            <Button
+                              key={size}
+                              size="sm"
+                              variant={notesHeights[kind] === size ? 'default' : 'secondary'}
+                              className="h-7 text-xs flex-1 px-1"
+                              onClick={() => changeNotesHeight(kind, size)}
+                            >
+                              {sizeLabel}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -791,5 +835,6 @@ export default function App() {
         )}
       </main>
     </div>
+    </NotesHeightContext.Provider>
   )
 }

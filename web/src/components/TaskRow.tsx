@@ -311,6 +311,7 @@ export function TaskRow({ task, onChanged, isSubtask }: Props) {
                 value={task.notes}
                 onSave={saveNotes}
                 placeholder="Click to add notes..."
+                kind="task"
                 draftKey={`task:${task.id}:notes`}
               />
 

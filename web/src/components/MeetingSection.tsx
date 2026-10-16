@@ -294,7 +294,7 @@ function MeetingDetails({ meeting, date, onChanged }: { meeting: Meeting; date: 
           onChanged()
         }}
         placeholder="Click to add meeting notes..."
-        minHeight={200}
+        kind="meeting"
         draftKey={`meeting:${meeting.id}:notes`}
       />
 
