@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { File as FileIcon, FileImage, FileText, Download, Paperclip, Pencil, Trash2, Check, X } from 'lucide-react'
+import { File as FileIcon, FileCode, FileImage, FileText, Download, Paperclip, Pencil, Trash2, Check, X } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import type { Attachment } from '../api/types'
 import {
@@ -15,6 +15,7 @@ export function formatBytes(n: number): string {
 
 function KindIcon({ kind }: { kind: Attachment['kind'] }) {
   if (kind === 'image') return <FileImage size={12} />
+  if (kind === 'html') return <FileCode size={12} />
   if (kind === 'markdown' || kind === 'text') return <FileText size={12} />
   return <FileIcon size={12} />
 }

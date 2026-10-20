@@ -97,7 +97,7 @@ class AttachmentTests(unittest.TestCase):
         self.assertEqual((media, disp), ("application/pdf", "inline"))
         self.assertNotIn("Content-Security-Policy", headers)  # would break Chrome's PDF viewer
 
-        for risky in ("page.html", "pic.svg", "feed.xml", "run.js", "noext", "archive.zip"):
+        for risky in ("feed.xml", "run.js", "noext", "archive.zip", "installer.exe"):
             with self.subTest(risky):
                 media, disp, headers = serve_profile(risky)
                 self.assertEqual((media, disp), ("application/octet-stream", "attachment"))
@@ -105,16 +105,34 @@ class AttachmentTests(unittest.TestCase):
 
     def test_kinds(self):
         self.assertEqual(
-            [attachment_kind(n) for n in ("a.MD", "a.markdown", "a.pdf", "a.PNG", "a.csv", "a.html", "a")],
-            ["markdown", "markdown", "pdf", "image", "text", "other", "other"],
+            [attachment_kind(n) for n in ("a.MD", "a.markdown", "a.pdf", "a.PNG", "a.csv", "a.html", "a.HTM", "a.svg", "a.js", "a")],
+            ["markdown", "markdown", "pdf", "image", "text", "html", "html", "image", "other", "other"],
         )
+
+    def test_html_and_svg_open_inline_without_a_sandbox(self):
+        # Deliberate: the owner trusts what they attach, and scripts in these pages should run.
+        for name, media in (("page.html", "text/html; charset=utf-8"), ("old.HTM", "text/html; charset=utf-8"),
+                            ("pic.svg", "image/svg+xml")):
+            with self.subTest(name):
+                got_media, disposition, headers = serve_profile(name)
+                self.assertEqual((got_media, disposition), (media, "inline"))
+                self.assertNotIn("Content-Security-Policy", headers)
+                self.assertEqual(headers["X-Content-Type-Options"], "nosniff")
+                self.assertEqual(headers["Referrer-Policy"], "no-referrer")
 
     def test_get_file_serves_by_id_ignoring_url_filename(self):
         a = self.add("page.html", b"<script>alert(1)</script>")
         r = get_attachment_file(a.id, "whatever.png", self.session)
-        self.assertEqual(r.media_type, "application/octet-stream")
-        self.assertIn("attachment", r.headers["content-disposition"])
+        self.assertEqual(r.media_type, "text/html; charset=utf-8")
+        self.assertTrue(r.headers["content-disposition"].startswith("inline"))
         self.assertIn("page.html", r.headers["content-disposition"])
+        self.assertNotIn("content-security-policy", r.headers)
+
+    def test_get_file_forces_download_for_unsafe_types(self):
+        a = self.add("run.js", b"alert(1)")
+        r = get_attachment_file(a.id, "x", self.session)
+        self.assertEqual(r.media_type, "application/octet-stream")
+        self.assertTrue(r.headers["content-disposition"].startswith("attachment"))
 
     def test_get_file_missing_on_disk_is_404(self):
         a = self.add()
@@ -262,7 +280,7 @@ class MeetingAttachmentTests(unittest.TestCase):
         self.assertEqual(self.stored(), [])
 
     def test_shared_endpoints_work_for_meeting_attachments(self):
-        a = self.add("page.html", b"<b>x</b>")
+        a = self.add("run.js", b"x")
         r = get_attachment_file(a.id, "x", self.session)
         self.assertEqual(r.media_type, "application/octet-stream")  # same allowlist as task files
         self.assertEqual(rename_attachment(a.id, AttachmentRename(filename="slides.pdf"), self.session).filename, "slides.pdf")

@@ -30,7 +30,7 @@ export interface Attachment {
   content_type: string | null
   size_bytes: number
   created_at: string
-  kind: 'markdown' | 'pdf' | 'image' | 'text' | 'other'
+  kind: 'markdown' | 'pdf' | 'image' | 'html' | 'text' | 'other'
 }
 
 export interface AttachmentStats {

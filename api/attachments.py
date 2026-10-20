@@ -17,8 +17,8 @@ from .models import AttachmentRead, MeetingAttachment, TaskAttachment
 
 STORED_NAME = re.compile(r"^[0-9a-f]{32}$")  # uuid4().hex
 
-# Types that are safe to display in a browser tab. Everything else (notably
-# HTML, SVG and XML, which could run script against this origin) is download-only.
+# Types that are displayed in a browser tab. Everything else (XML, scripts, archives, unknown
+# types) is download-only.
 _INLINE = {
     ".pdf": "application/pdf",
     ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
@@ -26,7 +26,15 @@ _INLINE = {
     ".txt": "text/plain; charset=utf-8", ".md": "text/plain; charset=utf-8",
     ".markdown": "text/plain; charset=utf-8", ".csv": "text/plain; charset=utf-8",
     ".json": "text/plain; charset=utf-8", ".log": "text/plain; charset=utf-8",
+    ".html": "text/html; charset=utf-8", ".htm": "text/html; charset=utf-8",
+    ".svg": "image/svg+xml",
 }
+
+
+# Shown with NO sandbox, by the owner's choice (they only attach files they trust): scripts in
+# these run with the app's own origin, i.e. the same access to the API and data as the app
+# itself. PDFs are also exempt because Chrome's PDF viewer breaks inside a CSP sandbox.
+_UNSANDBOXED = {".pdf", ".html", ".htm", ".svg"}
 
 
 def attachments_dir() -> Path:
@@ -58,14 +66,16 @@ def _ext(filename: str) -> str:
 
 
 def attachment_kind(filename: str) -> str:
-    """How the UI should open it: markdown | pdf | image | text | other."""
+    """How the UI should open it: markdown | pdf | image | html | text | other."""
     ext = _ext(filename)
     if ext in (".md", ".markdown"):
         return "markdown"
     if ext == ".pdf":
         return "pdf"
-    if ext in (".png", ".jpg", ".jpeg", ".gif", ".webp"):
+    if ext in (".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"):
         return "image"
+    if ext in (".html", ".htm"):
+        return "html"
     if ext in _INLINE:
         return "text"
     return "other"
@@ -73,11 +83,13 @@ def attachment_kind(filename: str) -> str:
 
 def serve_profile(filename: str) -> Tuple[str, str, dict]:
     """(media_type, content_disposition_type, extra headers) for serving a file."""
-    headers = {"X-Content-Type-Options": "nosniff"}
+    headers = {
+        "X-Content-Type-Options": "nosniff",
+        "Referrer-Policy": "no-referrer",  # don't leak this app's address to anything a page loads
+    }
     ext = _ext(filename)
     if ext in _INLINE:
-        if ext != ".pdf":
-            # Chrome's PDF viewer doesn't work inside a CSP sandbox; PDFs are not scriptable against us.
+        if ext not in _UNSANDBOXED:
             headers["Content-Security-Policy"] = "sandbox"
         return _INLINE[ext], "inline", headers
     headers["Content-Security-Policy"] = "sandbox"
