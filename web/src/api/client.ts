@@ -44,9 +44,14 @@ export const renameAttachment = (id: string, filename: string) =>
 export const deleteAttachment = (id: string) =>
   req<void>(`/attachments/${id}`, { method: 'DELETE' })
 
-/** The file itself (the filename segment is cosmetic: tab title / download name). */
+/**
+ * The file itself (the filename segment is cosmetic: tab title / download name).
+ * `?v=2` is ignored by the server; it just makes browsers skip responses cached before files
+ * were sent with `Cache-Control: no-store` (an old cached "attachment" response kept HTML
+ * attachments downloading). Not needed for new behavior: bump only to bust caches again.
+ */
 export const attachmentFileUrl = (a: Pick<Attachment, 'id' | 'filename'>) =>
-  `${BASE}/attachments/${a.id}/${encodeURIComponent(a.filename)}`
+  `${BASE}/attachments/${a.id}/${encodeURIComponent(a.filename)}?v=2`
 
 /** Where a click should go: markdown opens in the rendered viewer, everything else is the file. */
 export const attachmentOpenUrl = (a: Pick<Attachment, 'id' | 'filename' | 'kind'>) =>

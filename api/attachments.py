@@ -86,6 +86,9 @@ def serve_profile(filename: str) -> Tuple[str, str, dict]:
     headers = {
         "X-Content-Type-Options": "nosniff",
         "Referrer-Policy": "no-referrer",  # don't leak this app's address to anything a page loads
+        # Without this a browser may heuristically reuse an old response (including an old
+        # Content-Disposition) for hours, so a change in how a type is served wouldn't take effect.
+        "Cache-Control": "no-store",
     }
     ext = _ext(filename)
     if ext in _INLINE:

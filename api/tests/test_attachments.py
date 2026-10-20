@@ -120,6 +120,11 @@ class AttachmentTests(unittest.TestCase):
                 self.assertEqual(headers["X-Content-Type-Options"], "nosniff")
                 self.assertEqual(headers["Referrer-Policy"], "no-referrer")
 
+    def test_every_served_type_is_uncacheable(self):
+        for name in ("a.md", "a.pdf", "a.png", "a.html", "a.svg", "a.js", "a.zip", "noext"):
+            with self.subTest(name):
+                self.assertEqual(serve_profile(name)[2]["Cache-Control"], "no-store")
+
     def test_get_file_serves_by_id_ignoring_url_filename(self):
         a = self.add("page.html", b"<script>alert(1)</script>")
         r = get_attachment_file(a.id, "whatever.png", self.session)
