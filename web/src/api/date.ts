@@ -47,7 +47,7 @@ export function weekStart(dateStr: string): string {
   return addDays(dateStr, -((dt.getDay() + 6) % 7))
 }
 
-export type RangePreset = 'this_week' | 'last_week' | 'this_month' | 'this_quarter' | 'custom'
+export type RangePreset = 'this_week' | 'last_week' | 'this_month' | 'this_quarter' | 'this_year' | 'custom'
 export interface DateRange { from: string; to: string; preset: RangePreset }
 
 export const RANGE_PRESETS: { preset: Exclude<RangePreset, 'custom'>; label: string }[] = [
@@ -55,15 +55,17 @@ export const RANGE_PRESETS: { preset: Exclude<RangePreset, 'custom'>; label: str
   { preset: 'last_week', label: 'Last week' },
   { preset: 'this_month', label: 'This month' },
   { preset: 'this_quarter', label: 'This quarter' },
+  { preset: 'this_year', label: 'This year' },
 ]
 
-/** Weeks run Monday to Sunday; months and quarters are calendar ones. */
+/** Weeks run Monday to Sunday; months, quarters and years are calendar ones. */
 export function rangeForPreset(preset: Exclude<RangePreset, 'custom'>, today = todayStr()): DateRange {
   const t = parseLocalDate(today)
   if (preset === 'this_week' || preset === 'last_week') {
     const mon = addDays(weekStart(today), preset === 'last_week' ? -7 : 0)
     return { from: mon, to: addDays(mon, 6), preset }
   }
+  if (preset === 'this_year') return { from: `${t.getFullYear()}-01-01`, to: `${t.getFullYear()}-12-31`, preset }
   const firstMonth = preset === 'this_month' ? t.getMonth() : t.getMonth() - (t.getMonth() % 3)
   const months = preset === 'this_month' ? 1 : 3
   return {

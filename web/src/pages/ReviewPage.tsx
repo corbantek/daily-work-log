@@ -3,17 +3,18 @@ import { Download, Zap, Bell } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
 import type { Task, Workstream, Label, OncallPeriod } from '../api/types'
-import { todayStr } from '../api/date'
+import { rangeForPreset, type DateRange } from '../api/date'
 import { getLabels, getWorkstreams, getOncallPeriods } from '../api/client'
 import { rehypeHighlightTodo } from '@/lib/rehype-highlight-todo'
 import { SelfReviewDraft } from '../components/SelfReviewDraft'
 import { MeetingInsightsView } from '../components/MeetingInsightsView'
 import { LinksView } from '../components/LinksView'
+import { DateRangePicker } from '../components/DateRangePicker'
+import { ItemDetailDialog, type DetailTarget } from '../components/ItemDetailDialog'
 import type { TimeFormat } from '../api/date'
 
 const STATE_LABELS: Record<string, string> = {
@@ -28,10 +29,6 @@ const STATE_COLORS: Record<string, string> = {
   in_progress: 'text-blue-400 border-blue-500/40',
   complete: 'text-green-400 border-green-500/40',
   abandoned: 'text-gray-400 border-gray-500/40',
-}
-
-function currentYear() {
-  return new Date().getFullYear()
 }
 
 // Display order of the Review views; the first one is shown when the tab opens.
@@ -55,8 +52,9 @@ export function ReviewPage({ containerClass = 'max-w-5xl mx-auto px-4 py-6', the
   const [filterWorkstream, setFilterWorkstream] = useState<string>('all')
   const [filterLabel, setFilterLabel] = useState<string>('all')
   const [filterHighImpact, setFilterHighImpact] = useState(false)
-  const [filterFrom, setFilterFrom] = useState(`${currentYear()}-01-01`)
-  const [filterTo, setFilterTo] = useState(todayStr())
+  const [range, setRange] = useState<DateRange>(() => rangeForPreset('this_week'))
+  const [detail, setDetail] = useState<DetailTarget | null>(null)
+  const { from: filterFrom, to: filterTo } = range
 
   const fetchTasks = useCallback(async () => {
     setLoading(true)
@@ -172,22 +170,10 @@ export function ReviewPage({ containerClass = 'max-w-5xl mx-auto px-4 py-6', the
       <>
       {/* Filter bar */}
       <div className="flex flex-wrap gap-2 mb-5 p-3 rounded-lg border border-border bg-card/50">
-        {/* Date range */}
-        <Input
-          type="date"
-          value={filterFrom}
-          onChange={e => setFilterFrom((e.target as HTMLInputElement).value)}
-          className="h-8 text-xs w-36"
-        />
-        <span className="text-xs text-muted-foreground self-center">→</span>
-        <Input
-          type="date"
-          value={filterTo}
-          onChange={e => setFilterTo((e.target as HTMLInputElement).value)}
-          className="h-8 text-xs w-36"
-        />
-
-        <Separator orientation="vertical" className="h-8" />
+        {/* Date range: its own row, the other filters wrap below it */}
+        <div className="w-full">
+          <DateRangePicker value={range} onChange={setRange} theme={theme} />
+        </div>
 
         {/* State filter */}
         {(['all', 'todo', 'in_progress', 'complete', 'abandoned'] as const).map(s => (
@@ -294,9 +280,13 @@ export function ReviewPage({ containerClass = 'max-w-5xl mx-auto px-4 py-6', the
                   >
                     <div className="flex items-start gap-2">
                       {task.high_impact && <Zap size={13} className="text-yellow-400 flex-shrink-0 mt-0.5" />}
-                      <span className="flex-1 text-sm text-foreground">
+                      <button
+                        onClick={() => setDetail({ type: 'task', id: task.id, title: task.action })}
+                        className="flex-1 text-sm text-foreground hover:underline text-left"
+                        title="Open task"
+                      >
                         {task.action}
-                      </span>
+                      </button>
                       <span className={cn('text-xs border rounded-full px-2.5 h-6 flex items-center font-medium flex-shrink-0', STATE_COLORS[task.state])}>
                         {STATE_LABELS[task.state]}
                       </span>
@@ -340,6 +330,8 @@ export function ReviewPage({ containerClass = 'max-w-5xl mx-auto px-4 py-6', the
       </div>
       </>
       )}
+
+      {mode === 'tasks' && <ItemDetailDialog result={detail} onClose={() => setDetail(null)} />}
     </div>
   )
 }
