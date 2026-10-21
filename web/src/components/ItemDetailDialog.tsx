@@ -18,8 +18,11 @@ const STATE_COLORS: Record<string, string> = {
   abandoned: 'text-gray-400 border-gray-500/40',
 }
 
+/** What to show. Search results and the Review views both supply these; `subtitle` (search only) adds context. */
+export type DetailTarget = Pick<SearchResult, 'type' | 'id' | 'title'> & { subtitle?: string | null }
+
 interface Props {
-  result: SearchResult | null
+  result: DetailTarget | null
   onClose: () => void
 }
 

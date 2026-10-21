@@ -7,8 +7,8 @@ import {
 } from '@/components/ui/select'
 import type { LinkType, TaskLink } from '../api/types'
 
-const LINK_ICONS: Record<LinkType, string> = { pr: '⤴', issue: '#', doc: '📄', slack: '💬', quip: '📝', other: '🔗' }
-const LINK_TYPE_OPTIONS: { value: LinkType; label: string }[] = [
+export const LINK_ICONS: Record<LinkType, string> = { pr: '⤴', issue: '#', doc: '📄', slack: '💬', quip: '📝', other: '🔗' }
+export const LINK_TYPE_OPTIONS: { value: LinkType; label: string }[] = [
   { value: 'pr', label: 'PR' },
   { value: 'issue', label: 'Issue' },
   { value: 'doc', label: 'Doc' },

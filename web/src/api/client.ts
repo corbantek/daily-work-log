@@ -3,7 +3,7 @@ import type {
   TaskState, LinkType, OncallPeriod,
   Person, Interaction, InteractionTagInput, Sentiment,
   CompetencyDimension, ReviewDraft, SelfReview, SearchResult,
-  CalendarSyncResult, CalendarStatus, DismissedCalendarEvent, Attachment, AttachmentStats,
+  CalendarSyncResult, CalendarStatus, LinkInsight, MeetingInsights, DismissedCalendarEvent, Attachment, AttachmentStats,
 } from './types'
 
 const BASE = '/api'
@@ -389,6 +389,16 @@ export const getSelfReview = (dateFrom?: string, dateTo?: string) => {
   const qs = p.toString() ? `?${p}` : ''
   return req<SelfReview>(`/self-review${qs}`)
 }
+
+// ── Review insights ──────────────────────────────────────────────────────────
+const rangeQuery = (dateFrom: string, dateTo: string) =>
+  `?${new URLSearchParams({ date_from: dateFrom, date_to: dateTo })}`
+
+export const getLinkInsights = (dateFrom: string, dateTo: string) =>
+  req<LinkInsight[]>(`/insights/links${rangeQuery(dateFrom, dateTo)}`)
+
+export const getMeetingInsights = (dateFrom: string, dateTo: string) =>
+  req<MeetingInsights>(`/insights/meetings${rangeQuery(dateFrom, dateTo)}`)
 
 export const search = (q: string) =>
   req<SearchResult[]>(`/search?q=${encodeURIComponent(q)}`)

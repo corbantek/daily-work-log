@@ -823,7 +823,7 @@ export default function App() {
           </div>
         )}
         {tab === 'review' && (
-          <ReviewPage containerClass={`${CONTENT_WIDTH_MAP[contentWidth]} mx-auto px-4 py-6`} theme={theme} />
+          <ReviewPage containerClass={`${CONTENT_WIDTH_MAP[contentWidth]} mx-auto px-4 py-6`} theme={theme} timeFormat={timeFormat} />
         )}
         {tab === 'people' && (
           <PeoplePage

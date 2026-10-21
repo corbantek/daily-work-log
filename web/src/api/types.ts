@@ -111,6 +111,74 @@ export interface CalendarStatus {
   calendars: { id: string; title: string; source: string }[]
 }
 
+// ── Review insights ──
+export interface InsightSource {
+  type: 'task' | 'meeting'
+  id: string
+  title: string
+  date: string
+}
+
+export interface LinkInsight {
+  key: string
+  kind: 'link' | 'file'
+  url: string | null
+  label: string | null
+  link_type: LinkType | 'file'
+  attachment: Attachment | null
+  sources: InsightSource[]
+  first_date: string
+  last_date: string
+}
+
+export interface MeetingStats {
+  stats_through: string | null
+  meeting_count: number
+  total_minutes: number
+  with_notes: number
+  capacity_minutes: number
+  work_share: number | null
+  days_off: number
+  busiest_day: { date: string; minutes: number } | null
+  weekly: { week_start: string; minutes: number }[]
+}
+
+export interface MeetingDigestEntry {
+  id: string
+  title: string
+  date: string
+  start_time: string | null
+  duration_minutes: number | null
+  preview: string
+  has_more: boolean
+  notes: string
+  tasks: TaskBrief[]
+  links: MeetingLink[]
+  attachments: Attachment[]
+}
+
+export interface TaskBrief {
+  id: string
+  action: string
+  state: TaskState
+  high_impact: boolean
+}
+
+/** A task linked to meetings in the range, listed once with every meeting it came from. */
+export interface OutcomeTask extends TaskBrief {
+  meetings: { id: string; title: string; date: string; start_time: string | null }[]
+}
+
+export interface MeetingInsights {
+  date_from: string | null
+  date_to: string | null
+  stats: MeetingStats
+  digest: MeetingDigestEntry[]
+  outcomes: OutcomeTask[]
+  open_tasks: number
+  done_tasks: number
+}
+
 export interface WorkstreamWithTasks {
   workstream: Workstream | null
   tasks: Task[]

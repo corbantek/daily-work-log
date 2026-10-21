@@ -12,6 +12,9 @@ import { todayStr } from '../api/date'
 import { getLabels, getWorkstreams, getOncallPeriods } from '../api/client'
 import { rehypeHighlightTodo } from '@/lib/rehype-highlight-todo'
 import { SelfReviewDraft } from '../components/SelfReviewDraft'
+import { MeetingInsightsView } from '../components/MeetingInsightsView'
+import { LinksView } from '../components/LinksView'
+import type { TimeFormat } from '../api/date'
 
 const STATE_LABELS: Record<string, string> = {
   todo: 'TODO',
@@ -31,8 +34,16 @@ function currentYear() {
   return new Date().getFullYear()
 }
 
-export function ReviewPage({ containerClass = 'max-w-5xl mx-auto px-4 py-6', theme }: { containerClass?: string; theme?: 'light' | 'dim' | 'dark' }) {
-  const [mode, setMode] = useState<'tasks' | 'self'>('tasks')
+// Display order of the Review views; the first one is shown when the tab opens.
+const MODE_LABELS = { meetings: 'Meetings', tasks: 'Tasks', links: 'Links', self: 'Self-Review' } as const
+type ReviewMode = keyof typeof MODE_LABELS
+
+export function ReviewPage({ containerClass = 'max-w-5xl mx-auto px-4 py-6', theme, timeFormat = '12h' }: {
+  containerClass?: string
+  theme?: 'light' | 'dim' | 'dark'
+  timeFormat?: TimeFormat
+}) {
+  const [mode, setMode] = useState<ReviewMode>('meetings')
   const [tasks, setTasks] = useState<Task[]>([])
   const [workstreams, setWorkstreams] = useState<Workstream[]>([])
   const [labels, setLabels] = useState<Label[]>([])
@@ -133,7 +144,7 @@ export function ReviewPage({ containerClass = 'max-w-5xl mx-auto px-4 py-6', the
       {/* Header row */}
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-1">
-          {(['tasks', 'self'] as const).map(m => (
+          {(Object.keys(MODE_LABELS) as ReviewMode[]).map(m => (
             <button
               key={m}
               onClick={() => setMode(m)}
@@ -142,7 +153,7 @@ export function ReviewPage({ containerClass = 'max-w-5xl mx-auto px-4 py-6', the
                 mode === m ? 'bg-primary/15 text-primary font-medium' : 'text-muted-foreground hover:text-foreground'
               )}
             >
-              {m === 'tasks' ? 'Tasks' : 'Self-Review'}
+              {MODE_LABELS[m]}
             </button>
           ))}
         </div>
@@ -154,6 +165,8 @@ export function ReviewPage({ containerClass = 'max-w-5xl mx-auto px-4 py-6', the
       </div>
 
       {mode === 'self' && <SelfReviewDraft theme={theme} />}
+      {mode === 'meetings' && <MeetingInsightsView theme={theme} timeFormat={timeFormat} />}
+      {mode === 'links' && <LinksView theme={theme} />}
 
       {mode === 'tasks' && (
       <>

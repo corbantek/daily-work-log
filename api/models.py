@@ -591,6 +591,93 @@ class SelfReview(SQLModel):
     groups: List[SelfReviewGroup] = []
 
 
+# ── Insights (Review → Meetings / Links) ──────────────────────────────────────
+
+class InsightSource(SQLModel):
+    """A task or meeting that a link or file appeared on."""
+    type: str  # task | meeting
+    id: str
+    title: str
+    date: DateType
+
+
+class LinkInsight(SQLModel):
+    key: str  # normalized URL for links, "file:<attachment id>" for files
+    kind: str  # link | file
+    url: Optional[str] = None
+    label: Optional[str] = None
+    link_type: str  # a LinkType value, or "file"
+    attachment: Optional[AttachmentRead] = None
+    sources: List[InsightSource] = []
+    first_date: DateType
+    last_date: DateType
+
+
+class MeetingWeek(SQLModel):
+    week_start: DateType  # Monday
+    minutes: int
+
+
+class BusiestDay(SQLModel):
+    date: DateType
+    minutes: int
+
+
+class MeetingStats(SQLModel):
+    stats_through: Optional[DateType] = None  # stats only count days up to today
+    meeting_count: int = 0
+    total_minutes: int = 0
+    with_notes: int = 0
+    capacity_minutes: int = 0  # working weekdays (minus days marked off) x 8h
+    work_share: Optional[float] = None  # total_minutes / capacity_minutes
+    days_off: int = 0
+    busiest_day: Optional[BusiestDay] = None
+    weekly: List[MeetingWeek] = []
+
+
+class TaskBrief(SQLModel):
+    id: str
+    action: str
+    state: TaskState
+    high_impact: bool = False
+
+
+class MeetingDigestEntry(SQLModel):
+    id: str
+    title: str
+    date: DateType
+    start_time: Optional[str] = None
+    duration_minutes: Optional[int] = None
+    preview: str  # markdown: a "summary" section if the notes have one, else the first lines; "" without notes
+    has_more: bool
+    notes: str
+    tasks: List[TaskBrief] = []
+    links: List[MeetingLinkRead] = []
+    attachments: List[AttachmentRead] = []
+
+
+class OutcomeMeeting(SQLModel):
+    id: str
+    title: str
+    date: DateType
+    start_time: Optional[str] = None
+
+
+class OutcomeTask(TaskBrief):
+    """A task linked to one or more meetings in the range (listed once, with all its meetings)."""
+    meetings: List[OutcomeMeeting] = []
+
+
+class MeetingInsights(SQLModel):
+    date_from: Optional[DateType] = None
+    date_to: Optional[DateType] = None
+    stats: MeetingStats
+    digest: List[MeetingDigestEntry] = []
+    outcomes: List[OutcomeTask] = []
+    open_tasks: int = 0
+    done_tasks: int = 0
+
+
 # ── Global search ──────────────────────────────────────────────────────────────
 
 class SearchResult(SQLModel):
