@@ -32,6 +32,7 @@ class LinkType(str, Enum):
     ISSUE = "issue"
     DOC = "doc"
     SLACK = "slack"
+    QUIP = "quip"
     OTHER = "other"
 
 
@@ -268,6 +269,20 @@ class Meeting(MeetingBase, table=True):
     tasks: List[Task] = Relationship(back_populates="meetings", link_model=MeetingTaskLink)
 
 
+class MeetingLink(TaskLinkBase, table=True):
+    """A URL attached to a meeting (own table: tasklink.task_id is NOT NULL)."""
+    __tablename__ = "meeting_link"
+    id: str = Field(default_factory=new_id, primary_key=True)
+    meeting_id: str = Field(foreign_key="meeting.id", index=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class MeetingLinkRead(TaskLinkBase):
+    id: str
+    meeting_id: str
+    created_at: datetime
+
+
 class MeetingCreate(MeetingBase):
     task_ids: List[str] = []
 
@@ -278,6 +293,7 @@ class MeetingRead(MeetingBase):
     source: Optional[str] = None
     missing_from_source: bool = False
     tasks: List[TaskRead] = []
+    links: List[MeetingLinkRead] = []
     attachments: List[AttachmentRead] = []
 
 

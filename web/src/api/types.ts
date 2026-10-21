@@ -1,5 +1,5 @@
 export type TaskState = 'todo' | 'in_progress' | 'complete' | 'abandoned'
-export type LinkType = 'pr' | 'issue' | 'doc' | 'slack' | 'other'
+export type LinkType = 'pr' | 'issue' | 'doc' | 'slack' | 'quip' | 'other'
 
 export interface Label {
   id: string
@@ -10,6 +10,15 @@ export interface Label {
 export interface TaskLink {
   id: string
   task_id: string
+  url: string
+  label: string | null
+  link_type: LinkType
+  created_at: string
+}
+
+export interface MeetingLink {
+  id: string
+  meeting_id: string
   url: string
   label: string | null
   link_type: LinkType
@@ -77,6 +86,7 @@ export interface Meeting {
   start_time: string | null
   missing_from_source: boolean
   tasks: Task[]
+  links: MeetingLink[]
   attachments: Attachment[]
 }
 

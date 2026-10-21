@@ -9,7 +9,7 @@ from ..attachments import mirror_attachments
 from ..database import get_session, engine
 from ..models import (
     Workstream, Task, Label, TaskLabelLink, TaskLink,
-    Meeting, MeetingTaskLink, DismissedCalendarEvent, TaskAttachment, MeetingAttachment, Setting, DayStatus, DayVisibility, OncallPeriod,
+    Meeting, MeetingTaskLink, DismissedCalendarEvent, TaskAttachment, MeetingAttachment, MeetingLink, Setting, DayStatus, DayVisibility, OncallPeriod,
     Person, Interaction, InteractionTag, CompetencyDimension, CompetencyAttribute,
 )
 
@@ -25,6 +25,7 @@ TABLES = [
     ("meetings", Meeting),
     ("meeting_tasks", MeetingTaskLink),
     ("meeting_attachments", MeetingAttachment),
+    ("meeting_links", MeetingLink),
     ("dismissed_calendar_events", DismissedCalendarEvent),
     ("settings", Setting),
     ("day_statuses", DayStatus),

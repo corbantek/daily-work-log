@@ -5,7 +5,10 @@ from datetime import date
 
 from ..attachments import delete_meeting_attachments, read_attachment, unlink_stored
 from ..database import get_session
-from ..models import Meeting, MeetingAttachment, MeetingCreate, MeetingRead, MeetingUpdate, Task, MeetingTaskLink
+from ..models import (
+    Meeting, MeetingAttachment, MeetingCreate, MeetingLink, MeetingLinkRead, MeetingRead, MeetingUpdate,
+    Task, TaskLinkCreate, MeetingTaskLink,
+)
 from .tasks import _enrich
 from .calendar import record_dismissal
 
@@ -23,7 +26,13 @@ def _read_meeting(meeting: Meeting, session: Session) -> MeetingRead:
     attachments = session.exec(
         select(MeetingAttachment).where(MeetingAttachment.meeting_id == meeting.id).order_by(MeetingAttachment.created_at)
     ).all()
-    return MeetingRead(**meeting.model_dump(), tasks=tasks, attachments=[read_attachment(a) for a in attachments])
+    links = session.exec(
+        select(MeetingLink).where(MeetingLink.meeting_id == meeting.id).order_by(MeetingLink.created_at)
+    ).all()
+    return MeetingRead(
+        **meeting.model_dump(), tasks=tasks, links=links,
+        attachments=[read_attachment(a) for a in attachments],
+    )
 
 
 @router.get("", response_model=List[MeetingRead])
@@ -88,7 +97,44 @@ def delete_meeting(meeting_id: str, session: Session = Depends(get_session)):
     for link in session.exec(select(MeetingTaskLink).where(MeetingTaskLink.meeting_id == meeting_id)).all():
         session.delete(link)
     record_dismissal(session, meeting)
+    for link in session.exec(select(MeetingLink).where(MeetingLink.meeting_id == meeting_id)).all():
+        session.delete(link)
     stored_names = delete_meeting_attachments(session, meeting_id)
     session.delete(meeting)
     session.commit()
     unlink_stored(stored_names)
+
+
+# ── Meeting links ─────────────────────────────────────────────────────────────
+
+@router.post("/{meeting_id}/links", response_model=MeetingLinkRead, status_code=201)
+def add_link(meeting_id: str, body: TaskLinkCreate, session: Session = Depends(get_session)):
+    if not session.get(Meeting, meeting_id):
+        raise HTTPException(404)
+    link = MeetingLink(meeting_id=meeting_id, **body.model_dump())
+    session.add(link)
+    session.commit()
+    session.refresh(link)
+    return link
+
+
+@router.patch("/{meeting_id}/links/{link_id}", response_model=MeetingLinkRead)
+def update_link(meeting_id: str, link_id: str, body: TaskLinkCreate, session: Session = Depends(get_session)):
+    link = session.get(MeetingLink, link_id)
+    if not link or link.meeting_id != meeting_id:
+        raise HTTPException(404)
+    for k, v in body.model_dump().items():
+        setattr(link, k, v)
+    session.add(link)
+    session.commit()
+    session.refresh(link)
+    return link
+
+
+@router.delete("/{meeting_id}/links/{link_id}", status_code=204)
+def remove_link(meeting_id: str, link_id: str, session: Session = Depends(get_session)):
+    link = session.get(MeetingLink, link_id)
+    if not link or link.meeting_id != meeting_id:
+        raise HTTPException(404)
+    session.delete(link)
+    session.commit()

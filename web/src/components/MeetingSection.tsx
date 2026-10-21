@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { ChevronDown, ChevronRight, Clock, Plus, Trash2, Pencil, Check, X, Link2, RefreshCw, CalendarDays, Paperclip } from 'lucide-react'
+import { ChevronDown, ChevronRight, Clock, Plus, Trash2, Pencil, Check, X, Link2, RefreshCw, CalendarDays, Paperclip, Link as LinkIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
@@ -12,9 +12,11 @@ import {
   createMeeting, updateMeeting, deleteMeeting,
   createTask, linkTaskToMeeting, unlinkTaskFromMeeting,
   getDay, getWorkstreams, syncCalendarDay,
+  addMeetingLink, updateMeetingLink, deleteMeetingLink,
 } from '../api/client'
 import { formatTime, type TimeFormat } from '../api/date'
 import { AttachButton, AttachmentList, useAttachmentUpload } from './Attachments'
+import { LinkSection } from './LinkSection'
 import { hasDraft } from '@/lib/drafts'
 import { cn } from '@/lib/utils'
 
@@ -80,7 +82,12 @@ export function MeetingSection({ meetings, date, onChanged, timeFormat = '12h' }
 
   async function handleDelete(meeting: Meeting) {
     const n = meeting.attachments.length
-    const extra = n > 0 ? ` and its ${n} attached file${n === 1 ? '' : 's'}` : ''
+    const l = meeting.links.length
+    const parts = [
+      n > 0 && `${n} attached file${n === 1 ? '' : 's'}`,
+      l > 0 && `${l} link${l === 1 ? '' : 's'}`,
+    ].filter(Boolean)
+    const extra = parts.length ? ` and its ${parts.join(' and ')}` : ''
     if (!confirm(`Delete "${meeting.title}"${extra}?`)) return
     await deleteMeeting(meeting.id)
     onChanged()
@@ -230,6 +237,14 @@ export function MeetingSection({ meetings, date, onChanged, timeFormat = '12h' }
                     <CalendarDays size={12} />
                   </span>
                 )}
+                {meeting.links.length > 0 && (
+                  <span
+                    title={meeting.links.map(l => l.label || l.url).join('\n')}
+                    className="flex items-center gap-0.5 text-xs text-muted-foreground/50 flex-shrink-0"
+                  >
+                    <LinkIcon size={11} />{meeting.links.length}
+                  </span>
+                )}
                 {meeting.attachments.length > 0 && (
                   <span
                     title={meeting.attachments.map(a => a.filename).join('\n')}
@@ -299,8 +314,16 @@ function MeetingDetails({ meeting, date, onChanged }: { meeting: Meeting; date: 
       />
 
       <div className="mt-3 space-y-1">
-        <AttachmentList attachments={meeting.attachments} att={att} onChanged={onChanged} />
-        <AttachButton att={att} />
+        <LinkSection
+          links={meeting.links}
+          defaultType="other"
+          onAdd={body => addMeetingLink(meeting.id, body)}
+          onUpdate={(id, body) => updateMeetingLink(meeting.id, id, body)}
+          onDelete={id => deleteMeetingLink(meeting.id, id)}
+          onChanged={onChanged}
+          beforeActions={<AttachmentList attachments={meeting.attachments} att={att} onChanged={onChanged} />}
+          actions={<AttachButton att={att} />}
+        />
       </div>
 
       <MeetingTasks meeting={meeting} date={date} onChanged={onChanged} />

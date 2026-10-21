@@ -134,6 +134,17 @@ export function ItemDetailDialog({ result, onClose }: Props) {
                 </div>
               )}
 
+              {meeting.links.length > 0 && (
+                <div className="space-y-1">
+                  {meeting.links.map(link => (
+                    <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 text-xs text-primary hover:underline">
+                      <ExternalLink size={12} /> {link.label || link.url}
+                    </a>
+                  ))}
+                </div>
+              )}
+
               {meeting.attachments.length > 0 && (
                 <div className="space-y-1">
                   {meeting.attachments.map(a => (

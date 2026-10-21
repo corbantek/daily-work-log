@@ -1,5 +1,5 @@
 import type {
-  DayView, Task, Workstream, Meeting, Label, TaskLink,
+  DayView, Task, Workstream, Meeting, Label, TaskLink, MeetingLink,
   TaskState, LinkType, OncallPeriod,
   Person, Interaction, InteractionTagInput, Sentiment,
   CompetencyDimension, ReviewDraft, SelfReview, SearchResult,
@@ -145,6 +145,22 @@ export const updateTaskLink = (taskId: string, linkId: string, body: {
 
 export const deleteTaskLink = (taskId: string, linkId: string) =>
   req<void>(`/tasks/${taskId}/links/${linkId}`, { method: 'DELETE' })
+
+// ── Meeting links ─────────────────────────────────────────────────────────────
+export const addMeetingLink = (meetingId: string, body: {
+  url: string
+  label?: string
+  link_type?: LinkType
+}) => req<MeetingLink>(`/meetings/${meetingId}/links`, { method: 'POST', body: JSON.stringify(body) })
+
+export const updateMeetingLink = (meetingId: string, linkId: string, body: {
+  url: string
+  label?: string
+  link_type?: LinkType
+}) => req<MeetingLink>(`/meetings/${meetingId}/links/${linkId}`, { method: 'PATCH', body: JSON.stringify(body) })
+
+export const deleteMeetingLink = (meetingId: string, linkId: string) =>
+  req<void>(`/meetings/${meetingId}/links/${linkId}`, { method: 'DELETE' })
 
 // ── Workstreams ───────────────────────────────────────────────────────────────
 export const getWorkstreams = () => req<Workstream[]>('/workstreams')

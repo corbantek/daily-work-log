@@ -2,25 +2,21 @@ import { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { rehypeHighlightTodo } from '@/lib/rehype-highlight-todo'
 import remarkGfm from 'remark-gfm'
-import { Zap, ChevronRight, ChevronDown, Plus, Trash2, Pencil, X, Check, CalendarDays, GitBranch } from 'lucide-react'
+import { Zap, ChevronRight, ChevronDown, Trash2, Pencil, X, Check, CalendarDays, GitBranch } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select'
 import { StateDropdown } from './StateDropdown'
 import { WorkstreamPicker } from './WorkstreamPicker'
 import { LabelPicker } from './LabelPicker'
 import { ClickToEditMarkdown } from './ClickToEditMarkdown'
 import { AddTaskForm } from './AddTaskForm'
 import { AttachButton, AttachmentList, useAttachmentUpload } from './Attachments'
-import type { Task, LinkType, TaskState, Workstream } from '../api/types'
+import { LinkSection } from './LinkSection'
+import type { Task, TaskState, Workstream } from '../api/types'
 import { updateTask, deleteTask, addTaskLink, updateTaskLink, deleteTaskLink, getWorkstreams, unlinkTaskFromMeeting, getTasks } from '../api/client'
 import { hasDraft } from '@/lib/drafts'
 import { cn } from '@/lib/utils'
 import { todayStr } from '../api/date'
-
-const LINK_ICONS: Record<LinkType, string> = { pr: '⤴', issue: '#', doc: '📄', slack: '💬', other: '🔗' }
 
 interface Props {
   task: Task
@@ -32,12 +28,7 @@ export function TaskRow({ task, onChanged, isSubtask }: Props) {
   // Open straight away if a recovered draft is waiting for this task.
   const [expanded, setExpanded] = useState(() => hasDraft(`task:${task.id}:notes`))
   const [isEditing, setIsEditing] = useState(false)
-  const [addingLink, setAddingLink] = useState(false)
   const [addingSubtask, setAddingSubtask] = useState(false)
-  const [editingLinkId, setEditingLinkId] = useState<string | null>(null)
-  const [linkUrl, setLinkUrl] = useState('')
-  const [linkLabel, setLinkLabel] = useState('')
-  const [linkType, setLinkType] = useState<LinkType>('pr')
   const [stateBlockMsg, setStateBlockMsg] = useState<string | null>(null)
   const att = useAttachmentUpload(`/tasks/${task.id}`, onChanged)
 
@@ -124,59 +115,6 @@ export function TaskRow({ task, onChanged, isSubtask }: Props) {
   async function handleDelete() {
     if (!confirm(`Delete "${task.action}"?`)) return
     await deleteTask(task.id)
-    onChanged()
-  }
-
-  function handleLinkPaste(e: React.ClipboardEvent) {
-    const html = e.clipboardData.getData('text/html')
-    if (!html) return
-    const match = html.match(/<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/i)
-    if (!match) return
-    e.preventDefault()
-    const [, href, text] = match
-    const cleanText = text.replace(/<[^>]+>/g, '').trim()
-    setLinkUrl(href)
-    if (cleanText && cleanText !== href) setLinkLabel(cleanText)
-    if (/github\.com\/.*\/pull\//i.test(href)) setLinkType('pr')
-    else if (/github\.com\/.*\/issues\//i.test(href)) setLinkType('issue')
-    else if (/slack\.com\//i.test(href)) setLinkType('slack')
-    else if (/docs\.|notion\.|confluence\.|wiki\./i.test(href)) setLinkType('doc')
-  }
-
-  async function submitLink(e: React.SyntheticEvent<HTMLFormElement>) {
-    e.preventDefault()
-    if (!linkUrl.trim()) return
-    await addTaskLink(task.id, { url: linkUrl.trim(), label: linkLabel.trim() || undefined, link_type: linkType })
-    setLinkUrl('')
-    setLinkLabel('')
-    setAddingLink(false)
-    onChanged()
-  }
-
-  function startEditLink(link: Task['links'][0]) {
-    setEditingLinkId(link.id)
-    setLinkUrl(link.url)
-    setLinkLabel(link.label || '')
-    setLinkType(link.link_type)
-  }
-
-  function cancelEditLink() {
-    setEditingLinkId(null)
-    setLinkUrl('')
-    setLinkLabel('')
-    setLinkType('pr')
-  }
-
-  async function saveEditLink(linkId: string) {
-    if (!linkUrl.trim()) return
-    await updateTaskLink(task.id, linkId, { url: linkUrl.trim(), label: linkLabel.trim() || undefined, link_type: linkType })
-    cancelEditLink()
-    onChanged()
-  }
-
-  async function handleDeleteLink(linkId: string) {
-    await deleteTaskLink(task.id, linkId)
-    if (editingLinkId === linkId) cancelEditLink()
     onChanged()
   }
 
@@ -353,107 +291,28 @@ export function TaskRow({ task, onChanged, isSubtask }: Props) {
                 </div>
               )}
 
-              {task.links.length > 0 && (
-                <div className="space-y-1">
-                  {task.links.map(link => (
-                    editingLinkId === link.id ? (
-                      <form key={link.id} onSubmit={e => { e.preventDefault(); saveEditLink(link.id) }} className="flex flex-wrap gap-2 items-end">
-                        <Select value={linkType} onValueChange={(v: string | null) => { if (v) setLinkType(v as LinkType) }}>
-                          <SelectTrigger className="h-7 w-24 text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="pr">PR</SelectItem>
-                            <SelectItem value="issue">Issue</SelectItem>
-                            <SelectItem value="doc">Doc</SelectItem>
-                            <SelectItem value="slack">Slack</SelectItem>
-                            <SelectItem value="other">Other</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <Input autoFocus value={linkUrl} onChange={e => setLinkUrl((e.target as HTMLInputElement).value)}
-                          onPaste={handleLinkPaste}
-                          placeholder="URL" className="h-7 text-xs w-52" />
-                        <Input value={linkLabel} onChange={e => setLinkLabel((e.target as HTMLInputElement).value)}
-                          placeholder="Label (optional)" className="h-7 text-xs w-36" />
-                        <Button type="submit" size="sm" className="h-7 text-xs">Save</Button>
-                        <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={cancelEditLink}>
-                          Cancel
-                        </Button>
-                      </form>
-                    ) : (
-                      <div key={link.id} className="flex items-center gap-2 text-xs group/link">
-                        <span className="text-muted-foreground">{LINK_ICONS[link.link_type]}</span>
-                        <a
-                          href={link.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-primary hover:text-primary/80 truncate max-w-xs transition-colors"
-                        >
-                          {link.label || link.url}
-                        </a>
-                        <button
-                          onClick={() => startEditLink(link)}
-                          className="opacity-0 group-hover/link:opacity-100 text-muted-foreground hover:text-foreground transition-all"
-                        >
-                          <Pencil size={11} />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteLink(link.id)}
-                          className="opacity-0 group-hover/link:opacity-100 text-muted-foreground hover:text-destructive ml-auto transition-all"
-                        >
-                          <Trash2 size={12} />
-                        </button>
-                      </div>
-                    )
-                  ))}
-                </div>
-              )}
-
-              <AttachmentList attachments={task.attachments} att={att} onChanged={onChanged} />
-
-              {addingLink ? (
-                <form onSubmit={submitLink} className="flex flex-wrap gap-2 items-end">
-                  <Select value={linkType} onValueChange={(v: string | null) => { if (v) setLinkType(v as LinkType) }}>
-                    <SelectTrigger className="h-7 w-24 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pr">PR</SelectItem>
-                      <SelectItem value="issue">Issue</SelectItem>
-                      <SelectItem value="doc">Doc</SelectItem>
-                      <SelectItem value="slack">Slack</SelectItem>
-                      <SelectItem value="other">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Input autoFocus value={linkUrl} onChange={e => setLinkUrl((e.target as HTMLInputElement).value)}
-                    onPaste={handleLinkPaste}
-                    placeholder="Paste link or URL…" className="h-7 text-xs w-52" />
-                  <Input value={linkLabel} onChange={e => setLinkLabel((e.target as HTMLInputElement).value)}
-                    placeholder="Label (optional)" className="h-7 text-xs w-36" />
-                  <Button type="submit" size="sm" className="h-7 text-xs">Add</Button>
-                  <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setAddingLink(false)}>
-                    Cancel
-                  </Button>
-                </form>
-              ) : (
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => setAddingLink(true)}
-                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
-                  >
-                    <Plus size={12} /> add link
-                  </button>
-                  <AttachButton att={att} />
-                  {!isSubtask && (
-                    <button
-                      onClick={() => { setAddingSubtask(v => !v) }}
-                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
-                    >
-                      <GitBranch size={12} /> add sub-task
-                    </button>
-                  )}
-                </div>
-              )}
+              <LinkSection
+                links={task.links}
+                defaultType="pr"
+                onAdd={body => addTaskLink(task.id, body)}
+                onUpdate={(id, body) => updateTaskLink(task.id, id, body)}
+                onDelete={id => deleteTaskLink(task.id, id)}
+                onChanged={onChanged}
+                beforeActions={<AttachmentList attachments={task.attachments} att={att} onChanged={onChanged} />}
+                actions={
+                  <>
+                    <AttachButton att={att} />
+                    {!isSubtask && (
+                      <button
+                        onClick={() => { setAddingSubtask(v => !v) }}
+                        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+                      >
+                        <GitBranch size={12} /> add sub-task
+                      </button>
+                    )}
+                  </>
+                }
+              />
 
               {addingSubtask && (
                 <div className="mt-1">
