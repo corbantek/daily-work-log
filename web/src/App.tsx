@@ -132,10 +132,20 @@ function applyTheme(theme: Theme) {
   if (theme !== 'light') html.classList.add(theme)
 }
 
+const SETTINGS_TABS = [
+  { key: 'app', label: 'App' },
+  { key: 'status', label: 'Status / Oncall' },
+  { key: 'review', label: 'Review' },
+  { key: 'data', label: 'Data' },
+  { key: 'calendar', label: 'Calendar' },
+] as const
+type SettingsTab = (typeof SETTINGS_TABS)[number]['key']
+
 export default function App() {
   const [tab, setTab] = useState<Tab>('log')
   const [windowSize, setWindowSize] = useState(5)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>('app')
   const [frameworkOpen, setFrameworkOpen] = useState(false)
   const [dismissedOpen, setDismissedOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
@@ -460,32 +470,49 @@ export default function App() {
 
       {/* Settings dialog */}
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogContent className="sm:max-w-5xl flex flex-col max-h-[90vh]">
+        <DialogContent className="sm:max-w-2xl flex flex-col max-h-[90vh]">
           <DialogHeader>
             <DialogTitle>Settings</DialogTitle>
           </DialogHeader>
 
-          <div className="overflow-y-auto thin-scrollbar pr-1 space-y-6">
-            {/* App title (full width) */}
-            <div>
-              <p className="text-xs font-medium text-muted-foreground mb-2">App title</p>
-              <div className="flex gap-2">
-                <Input
-                  value={editTitle}
-                  onChange={e => setEditTitle((e.target as HTMLInputElement).value)}
-                  placeholder="Daily Work Log"
-                  className="h-8 text-sm flex-1"
-                  onKeyDown={e => { if (e.key === 'Enter') saveTitle() }}
-                />
-                <Button size="sm" className="h-8 text-xs" onClick={saveTitle}>
-                  Save
-                </Button>
-              </div>
-            </div>
+          <div className="flex flex-wrap gap-1 border-b border-border pb-2" role="tablist" aria-label="Settings sections">
+            {SETTINGS_TABS.map(t => (
+              <button
+                key={t.key}
+                role="tab"
+                aria-selected={settingsTab === t.key}
+                onClick={() => setSettingsTab(t.key)}
+                className={`text-sm px-3 py-1 rounded-md transition-colors ${
+                  settingsTab === t.key ? 'bg-primary/15 text-primary font-medium' : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
 
-            <div className="flex flex-col lg:flex-row gap-8">
-              {/* ── Column 1: appearance, framework, data ── */}
-              <div className="flex-1 min-w-0 space-y-6">
+          {/* Sized to fit the tallest tab (App), so the centered dialog — and its tab bar — stays put
+              when switching tabs; smaller screens still cap it at 90vh and scroll. */}
+          <div className="overflow-y-auto thin-scrollbar pr-1 space-y-6 min-h-[37.5rem]" role="tabpanel">
+            {settingsTab === 'app' && (
+              <>
+                {/* App title */}
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">App title</p>
+                  <div className="flex gap-2">
+                    <Input
+                      value={editTitle}
+                      onChange={e => setEditTitle((e.target as HTMLInputElement).value)}
+                      placeholder="Daily Work Log"
+                      className="h-8 text-sm flex-1"
+                      onKeyDown={e => { if (e.key === 'Enter') saveTitle() }}
+                    />
+                    <Button size="sm" className="h-8 text-xs" onClick={saveTitle}>
+                      Save
+                    </Button>
+                  </div>
+                </div>
+
                 {/* Theme */}
                 <div>
                   <p className="text-xs font-medium text-muted-foreground mb-2">Theme</p>
@@ -608,76 +635,10 @@ export default function App() {
                     </Button>
                   </div>
                 </div>
-
-                {/* Self-review cycle */}
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-2">Self-review cycle starts</p>
-                  <div className="flex gap-1.5">
-                    {(() => {
-                      const [month, day] = reviewCycleStart.split('-').map(Number)
-                      const selectClass = 'h-8 text-xs px-2 rounded-md border border-border bg-card text-foreground focus:outline-none focus:border-ring'
-                      return (
-                        <>
-                          <select
-                            value={month}
-                            onChange={e => changeReviewCycleStart(Number(e.target.value), day)}
-                            className={`${selectClass} flex-1`}
-                            aria-label="Review cycle start month"
-                          >
-                            {Array.from({ length: 12 }, (_, i) => (
-                              <option key={i + 1} value={i + 1}>
-                                {new Date(2024, i, 1).toLocaleDateString(undefined, { month: 'long' })}
-                              </option>
-                            ))}
-                          </select>
-                          <select
-                            value={day}
-                            onChange={e => changeReviewCycleStart(month, Number(e.target.value))}
-                            className={`${selectClass} w-16`}
-                            aria-label="Review cycle start day"
-                          >
-                            {Array.from({ length: new Date(2024, month, 0).getDate() }, (_, i) => (
-                              <option key={i + 1} value={i + 1}>{i + 1}</option>
-                            ))}
-                          </select>
-                        </>
-                      )
-                    })()}
-                  </div>
-                  <p className="text-xs text-muted-foreground/70 mt-1.5">
-                    Self-Review opens on the latest cycle start through today (last year's if this year's hasn't arrived yet).
-                  </p>
-                </div>
-
-                {/* Competency framework */}
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-2">Competency framework</p>
-                  <p className="text-xs text-muted-foreground/70 mb-2">
-                    Dimensions and attributes used to tag interactions and build peer-review drafts in the People tab.
-                  </p>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-8 text-xs"
-                    onClick={() => { setSettingsOpen(false); setFrameworkOpen(true) }}
-                  >
-                    Edit framework
-                  </Button>
-                </div>
-
-                {/* Data */}
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-2">Data</p>
-                  <BackupRestore onRestored={refresh} />
-                  <div className="mt-3">
-                    <p className="text-xs font-medium text-muted-foreground mb-1">Attachments</p>
-                    <AttachmentsBackup onRestored={refresh} />
-                  </div>
-                </div>
-              </div>
-
-              {/* ── Column 2: statuses, on-call, backup, deleted meetings ── */}
-              <div className="flex-1 min-w-0 space-y-6">
+              </>
+            )}
+            {settingsTab === 'status' && (
+              <>
                 {/* Day statuses */}
                 <div>
                   <p className="text-xs font-medium text-muted-foreground mb-2">Day statuses</p>
@@ -745,7 +706,69 @@ export default function App() {
                     <Plus size={11} /> Add period
                   </Button>
                 </div>
+              </>
+            )}
+            {settingsTab === 'review' && (
+              <>
+                {/* Self-review cycle */}
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Self-review cycle starts</p>
+                  <div className="flex gap-1.5">
+                    {(() => {
+                      const [month, day] = reviewCycleStart.split('-').map(Number)
+                      const selectClass = 'h-8 text-xs px-2 rounded-md border border-border bg-card text-foreground focus:outline-none focus:border-ring'
+                      return (
+                        <>
+                          <select
+                            value={month}
+                            onChange={e => changeReviewCycleStart(Number(e.target.value), day)}
+                            className={`${selectClass} flex-1`}
+                            aria-label="Review cycle start month"
+                          >
+                            {Array.from({ length: 12 }, (_, i) => (
+                              <option key={i + 1} value={i + 1}>
+                                {new Date(2024, i, 1).toLocaleDateString(undefined, { month: 'long' })}
+                              </option>
+                            ))}
+                          </select>
+                          <select
+                            value={day}
+                            onChange={e => changeReviewCycleStart(month, Number(e.target.value))}
+                            className={`${selectClass} w-16`}
+                            aria-label="Review cycle start day"
+                          >
+                            {Array.from({ length: new Date(2024, month, 0).getDate() }, (_, i) => (
+                              <option key={i + 1} value={i + 1}>{i + 1}</option>
+                            ))}
+                          </select>
+                        </>
+                      )
+                    })()}
+                  </div>
+                  <p className="text-xs text-muted-foreground/70 mt-1.5">
+                    Self-Review opens on the latest cycle start through today (last year's if this year's hasn't arrived yet).
+                  </p>
+                </div>
 
+                {/* Competency framework */}
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Competency framework</p>
+                  <p className="text-xs text-muted-foreground/70 mb-2">
+                    Dimensions and attributes used to tag interactions and build peer-review drafts in the People tab.
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs"
+                    onClick={() => { setSettingsOpen(false); setFrameworkOpen(true) }}
+                  >
+                    Edit framework
+                  </Button>
+                </div>
+              </>
+            )}
+            {settingsTab === 'data' && (
+              <>
                 {/* Auto-backup */}
                 <div>
                   <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
@@ -784,22 +807,32 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Deleted calendar meetings */}
+                {/* Data */}
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-2">Deleted calendar meetings</p>
-                  <DeletedCalendarMeetings onView={() => { setSettingsOpen(false); setDismissedOpen(true) }} />
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Backup &amp; restore</p>
+                  <BackupRestore onRestored={refresh} />
+                  <div className="mt-3">
+                    <p className="text-xs font-medium text-muted-foreground mb-1">Attachments</p>
+                    <AttachmentsBackup onRestored={refresh} />
+                  </div>
                 </div>
-              </div>
-
-              {/* ── Column 3: Apple Calendar ── */}
-              <div className="flex-1 min-w-0 space-y-6">
+              </>
+            )}
+            {settingsTab === 'calendar' && (
+              <>
                 {/* Apple Calendar */}
                 <div>
                   <p className="text-xs font-medium text-muted-foreground mb-2">Apple Calendar</p>
                   <CalendarAccess />
                 </div>
-              </div>
-            </div>
+
+                {/* Deleted calendar meetings */}
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Deleted calendar meetings</p>
+                  <DeletedCalendarMeetings onView={() => { setSettingsOpen(false); setDismissedOpen(true) }} />
+                </div>
+              </>
+            )}
           </div>
         </DialogContent>
       </Dialog>

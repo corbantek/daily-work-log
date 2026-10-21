@@ -61,7 +61,7 @@ api/.venv/bin/python -m unittest discover -s api/tests -t .
 
 ## Frontend Component Map
 
-- `App.tsx` — main layout, settings dialog, header, tab switching, extended date loading
+- `App.tsx` — main layout, header, tab switching, extended date loading, and the settings dialog, which is split into tabs (`SETTINGS_TABS`): **App** (title, theme, days, width, meeting times, notes height, weekends) · **Status / Oncall** · **Review** (self-review cycle, competency framework) · **Data** (auto-backup, backup & restore, attachments) · **Calendar** (Apple Calendar access/calendars, deleted calendar meetings). The panel has a fixed min height sized to the App tab so the centered dialog doesn't move between tabs; the last tab is remembered while the app is open
 - `DaySection.tsx` — single day: status picker (two-step with note), oncall pill, meetings, workstream sections
 - `WorkstreamSection.tsx` — task list for one workstream within a day
 - `TaskRow.tsx` — single task: expand/collapse, state/workstream/label/link editing, sub-task add, markdown notes
