@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils'
 import { rehypeHighlightTodo } from '@/lib/rehype-highlight-todo'
 import type { SelfReview, Task } from '../api/types'
 import { getSelfReview } from '../api/client'
-import { todayStr } from '../api/date'
+import { todayStr, reviewCycleStart, DEFAULT_REVIEW_CYCLE_START } from '../api/date'
 
 const STATE_LABELS: Record<string, string> = {
   todo: 'TODO', in_progress: 'IN PROGRESS', complete: 'DONE', abandoned: 'ABANDONED',
@@ -20,18 +20,23 @@ const STATE_COLORS: Record<string, string> = {
   abandoned: 'text-gray-400 border-gray-500/40',
 }
 
-function yearStart() {
-  return `${new Date().getFullYear()}-01-01`
-}
-
 interface Props {
   theme?: 'light' | 'dim' | 'dark'
+  /** "MM-DD" the review cycle starts on (Settings → Self-review cycle starts). */
+  cycleStart?: string
 }
 
-export function SelfReviewDraft({ theme }: Props) {
+export function SelfReviewDraft({ theme, cycleStart = DEFAULT_REVIEW_CYCLE_START }: Props) {
   const [data, setData] = useState<SelfReview | null>(null)
-  const [from, setFrom] = useState(yearStart())
+  // Opens on the current review cycle: its latest start through today. The dates stay editable.
+  const [from, setFrom] = useState(() => reviewCycleStart(cycleStart))
   const [to, setTo] = useState(todayStr())
+
+  // Settings load after mount (and can change): follow them.
+  useEffect(() => {
+    setFrom(reviewCycleStart(cycleStart))
+    setTo(todayStr())
+  }, [cycleStart])
   const [loading, setLoading] = useState(false)
 
   const load = useCallback(() => {

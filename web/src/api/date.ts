@@ -84,3 +84,25 @@ export function formatShortDate(dateStr: string): string {
 export function formatMonthDay(dateStr: string): string {
   return parseLocalDate(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
+
+// ── Self-review cycle ─────────────────────────────────────────────────────────
+/** Month-day ("MM-DD") the self-review cycle starts on; stored in the `review_cycle_start` setting. */
+export const DEFAULT_REVIEW_CYCLE_START = '01-01'
+
+export function isMonthDay(v: string | undefined): v is string {
+  const m = /^(\d{2})-(\d{2})$/.exec(v ?? '')
+  if (!m) return false
+  const [month, day] = [Number(m[1]), Number(m[2])]
+  // Day limits use a leap year so Feb 29 is allowed (it falls back to Feb 28 when needed).
+  return month >= 1 && month <= 12 && day >= 1 && day <= new Date(2024, month, 0).getDate()
+}
+
+/** The most recent cycle start on or before `today`: this year's if it has arrived, else last year's. */
+export function reviewCycleStart(monthDay: string, today = todayStr()): string {
+  const [month, day] = monthDay.split('-').map(Number)
+  const startIn = (year: number) =>
+    toLocalDateStr(new Date(year, month - 1, Math.min(day, new Date(year, month, 0).getDate())))
+  const year = parseLocalDate(today).getFullYear()
+  const thisYear = startIn(year)
+  return thisYear <= today ? thisYear : startIn(year - 1)
+}

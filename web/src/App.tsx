@@ -25,7 +25,9 @@ import type { SearchResult } from './api/types'
 import { getSettings, setSetting, getDayVisibility, setDayVisibility, clearDayVisibility, getOncallPeriods, createOncallPeriod, deleteOncallPeriod, getBackupStatus, runAutoBackup } from './api/client'
 import type { BackupStatus } from './api/client'
 import type { OncallPeriod } from './api/types'
-import { todayStr, toLocalDateStr, isWeekend, isTimeFormat, type TimeFormat } from './api/date'
+import {
+  todayStr, toLocalDateStr, isWeekend, isTimeFormat, type TimeFormat, DEFAULT_REVIEW_CYCLE_START, isMonthDay,
+} from './api/date'
 import { HiddenDaysIndicator } from './components/HiddenDaysIndicator'
 import './index.css'
 
@@ -151,6 +153,7 @@ export default function App() {
   const [serverUp, setServerUp] = useState(true)
   const [contentWidth, setContentWidth] = useState<ContentWidth>('normal')
   const [timeFormat, setTimeFormat] = useState<TimeFormat>('12h')
+  const [reviewCycleStart, setReviewCycleStart] = useState(DEFAULT_REVIEW_CYCLE_START)
   const [notesHeights, setNotesHeights] = useState<NotesHeights>(DEFAULT_NOTES_HEIGHTS)
   const [extendedFrom, setExtendedFrom] = useState<string | null>(() => {
     const p = new URLSearchParams(window.location.search).get('from')
@@ -200,6 +203,7 @@ export default function App() {
         if (s.hide_weekends === 'true') setHideWeekends(true)
         if (isContentWidth(s.content_width)) setContentWidth(s.content_width)
         if (isTimeFormat(s.time_format)) setTimeFormat(s.time_format)
+        if (isMonthDay(s.review_cycle_start)) setReviewCycleStart(s.review_cycle_start)
         setNotesHeights(prev => {
           const next = { ...prev }
           for (const { kind } of NOTE_KINDS) {
@@ -274,6 +278,14 @@ export default function App() {
   function changeNotesHeight(kind: NoteKind, size: NoteSize) {
     setNotesHeights(prev => ({ ...prev, [kind]: size }))
     setSetting(noteHeightSettingKey(kind), size)
+  }
+
+  function changeReviewCycleStart(month: number, day: number) {
+    // Keep the day valid for the month (Feb allows 29; it falls back to the 28th in non-leap years).
+    const d = Math.min(day, new Date(2024, month, 0).getDate())
+    const val = `${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+    setReviewCycleStart(val)
+    setSetting('review_cycle_start', val)
   }
 
   function changeTimeFormat(val: TimeFormat) {
@@ -597,6 +609,46 @@ export default function App() {
                   </div>
                 </div>
 
+                {/* Self-review cycle */}
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Self-review cycle starts</p>
+                  <div className="flex gap-1.5">
+                    {(() => {
+                      const [month, day] = reviewCycleStart.split('-').map(Number)
+                      const selectClass = 'h-8 text-xs px-2 rounded-md border border-border bg-card text-foreground focus:outline-none focus:border-ring'
+                      return (
+                        <>
+                          <select
+                            value={month}
+                            onChange={e => changeReviewCycleStart(Number(e.target.value), day)}
+                            className={`${selectClass} flex-1`}
+                            aria-label="Review cycle start month"
+                          >
+                            {Array.from({ length: 12 }, (_, i) => (
+                              <option key={i + 1} value={i + 1}>
+                                {new Date(2024, i, 1).toLocaleDateString(undefined, { month: 'long' })}
+                              </option>
+                            ))}
+                          </select>
+                          <select
+                            value={day}
+                            onChange={e => changeReviewCycleStart(month, Number(e.target.value))}
+                            className={`${selectClass} w-16`}
+                            aria-label="Review cycle start day"
+                          >
+                            {Array.from({ length: new Date(2024, month, 0).getDate() }, (_, i) => (
+                              <option key={i + 1} value={i + 1}>{i + 1}</option>
+                            ))}
+                          </select>
+                        </>
+                      )
+                    })()}
+                  </div>
+                  <p className="text-xs text-muted-foreground/70 mt-1.5">
+                    Self-Review opens on the latest cycle start through today (last year's if this year's hasn't arrived yet).
+                  </p>
+                </div>
+
                 {/* Competency framework */}
                 <div>
                   <p className="text-xs font-medium text-muted-foreground mb-2">Competency framework</p>
@@ -823,7 +875,7 @@ export default function App() {
           </div>
         )}
         {tab === 'review' && (
-          <ReviewPage containerClass={`${CONTENT_WIDTH_MAP[contentWidth]} mx-auto px-4 py-6`} theme={theme} timeFormat={timeFormat} />
+          <ReviewPage containerClass={`${CONTENT_WIDTH_MAP[contentWidth]} mx-auto px-4 py-6`} theme={theme} timeFormat={timeFormat} reviewCycleStart={reviewCycleStart} />
         )}
         {tab === 'people' && (
           <PeoplePage

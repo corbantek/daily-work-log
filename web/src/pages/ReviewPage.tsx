@@ -35,10 +35,12 @@ const STATE_COLORS: Record<string, string> = {
 const MODE_LABELS = { meetings: 'Meetings', tasks: 'Tasks', links: 'Links', self: 'Self-Review' } as const
 type ReviewMode = keyof typeof MODE_LABELS
 
-export function ReviewPage({ containerClass = 'max-w-5xl mx-auto px-4 py-6', theme, timeFormat = '12h' }: {
+export function ReviewPage({ containerClass = 'max-w-5xl mx-auto px-4 py-6', theme, timeFormat = '12h', reviewCycleStart }: {
   containerClass?: string
   theme?: 'light' | 'dim' | 'dark'
   timeFormat?: TimeFormat
+  /** "MM-DD" the self-review cycle starts on (from Settings). */
+  reviewCycleStart?: string
 }) {
   const [mode, setMode] = useState<ReviewMode>('meetings')
   const [tasks, setTasks] = useState<Task[]>([])
@@ -162,7 +164,7 @@ export function ReviewPage({ containerClass = 'max-w-5xl mx-auto px-4 py-6', the
         )}
       </div>
 
-      {mode === 'self' && <SelfReviewDraft theme={theme} />}
+      {mode === 'self' && <SelfReviewDraft theme={theme} cycleStart={reviewCycleStart} />}
       {mode === 'meetings' && <MeetingInsightsView theme={theme} timeFormat={timeFormat} />}
       {mode === 'links' && <LinksView theme={theme} />}
 
