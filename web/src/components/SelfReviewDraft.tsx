@@ -9,6 +9,7 @@ import { rehypeHighlightTodo } from '@/lib/rehype-highlight-todo'
 import type { SelfReview, Task } from '../api/types'
 import { getSelfReview } from '../api/client'
 import { todayStr, reviewCycleStart, DEFAULT_REVIEW_CYCLE_START } from '../api/date'
+import { useOnActivate } from '@/lib/use-on-activate'
 
 const STATE_LABELS: Record<string, string> = {
   todo: 'TODO', in_progress: 'IN PROGRESS', complete: 'DONE', abandoned: 'ABANDONED',
@@ -24,9 +25,11 @@ interface Props {
   theme?: 'light' | 'dim' | 'dark'
   /** "MM-DD" the review cycle starts on (Settings → Self-review cycle starts). */
   cycleStart?: string
+  /** False while hidden behind another view; the data reloads when it turns true again. */
+  active?: boolean
 }
 
-export function SelfReviewDraft({ theme, cycleStart = DEFAULT_REVIEW_CYCLE_START }: Props) {
+export function SelfReviewDraft({ theme, cycleStart = DEFAULT_REVIEW_CYCLE_START, active = true }: Props) {
   const [data, setData] = useState<SelfReview | null>(null)
   // Opens on the current review cycle: its latest start through today. The dates stay editable.
   const [from, setFrom] = useState(() => reviewCycleStart(cycleStart))
@@ -45,6 +48,7 @@ export function SelfReviewDraft({ theme, cycleStart = DEFAULT_REVIEW_CYCLE_START
   }, [from, to])
 
   useEffect(() => { load() }, [load])
+  useOnActivate(active, load)
 
   function buildMarkdown(d: SelfReview): string {
     const lines: string[] = [`# Self-Review — ${from} to ${to}`, '']

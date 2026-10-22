@@ -14,6 +14,8 @@ import { SelfReviewDraft } from '../components/SelfReviewDraft'
 import { MeetingInsightsView } from '../components/MeetingInsightsView'
 import { LinksView } from '../components/LinksView'
 import { DateRangePicker } from '../components/DateRangePicker'
+import { useOnActivate } from '@/lib/use-on-activate'
+import { REVIEW_VIEWS, type ReviewMode } from './review-views'
 import { ItemDetailDialog, type DetailTarget } from '../components/ItemDetailDialog'
 import type { TimeFormat } from '../api/date'
 
@@ -31,18 +33,29 @@ const STATE_COLORS: Record<string, string> = {
   abandoned: 'text-gray-400 border-gray-500/40',
 }
 
-// Display order of the Review views; the first one is shown when the tab opens.
-const MODE_LABELS = { meetings: 'Meetings', tasks: 'Tasks', links: 'Links', self: 'Self-Review' } as const
-type ReviewMode = keyof typeof MODE_LABELS
 
-export function ReviewPage({ containerClass = 'max-w-5xl mx-auto px-4 py-6', theme, timeFormat = '12h', reviewCycleStart }: {
+export function ReviewPage({
+  containerClass = 'max-w-5xl mx-auto px-4 py-6', theme, timeFormat = '12h', reviewCycleStart,
+  active = true, mode, onModeChange,
+}: {
   containerClass?: string
   theme?: 'light' | 'dim' | 'dark'
   timeFormat?: TimeFormat
   /** "MM-DD" the self-review cycle starts on (from Settings). */
   reviewCycleStart?: string
+  /** False while the Review tab is hidden; the page stays mounted so its state survives. */
+  active?: boolean
+  /** Which view is shown (owned by App so it can live in the URL). */
+  mode: ReviewMode
+  onModeChange: (mode: ReviewMode) => void
 }) {
-  const [mode, setMode] = useState<ReviewMode>('meetings')
+  // Each view is created on first visit and then kept (hidden when not shown), so its range,
+  // filters and expanded items survive switching views and tabs; it reloads data when shown again.
+  const [visited, setVisited] = useState<Set<ReviewMode>>(() => new Set([mode]))
+  useEffect(() => {
+    setVisited(prev => (prev.has(mode) ? prev : new Set(prev).add(mode)))
+  }, [mode])
+  const showing = (m: ReviewMode) => active && mode === m
   const [tasks, setTasks] = useState<Task[]>([])
   const [workstreams, setWorkstreams] = useState<Workstream[]>([])
   const [labels, setLabels] = useState<Label[]>([])
@@ -70,12 +83,15 @@ export function ReviewPage({ containerClass = 'max-w-5xl mx-auto px-4 py-6', the
     setLoading(false)
   }, [filterState, filterWorkstream, filterHighImpact])
 
-  useEffect(() => {
+  const loadTasksView = useCallback(() => {
     fetchTasks()
     getWorkstreams().then(setWorkstreams)
     getLabels().then(setLabels)
     getOncallPeriods().then(setOncallPeriods).catch(() => {})
   }, [fetchTasks])
+
+  useEffect(() => { loadTasksView() }, [loadTasksView])
+  useOnActivate(showing('tasks'), loadTasksView)
 
   function isDateOncall(dateStr: string): boolean {
     return oncallPeriods.some(p => p.start_date <= dateStr && p.end_date >= dateStr)
@@ -141,40 +157,57 @@ export function ReviewPage({ containerClass = 'max-w-5xl mx-auto px-4 py-6', the
 
   return (
     <div className={containerClass}>
-      {/* Header row */}
-      <div className="flex items-center justify-between mb-5">
-        <div className="flex items-center gap-1">
-          {(Object.keys(MODE_LABELS) as ReviewMode[]).map(m => (
+      {/* Sub-navigation: underline tabs (a second level under the header's pill tabs), pinned just
+          below the sticky header via --app-header-h so it stays reachable while scrolling. */}
+      <div
+        className="sticky z-[5] -mx-4 px-4 pt-2 mb-5 flex items-end border-b border-border/60 bg-background/80 backdrop-blur-md"
+        style={{ top: 'var(--app-header-h, 57px)' }}
+      >
+        <nav className="flex items-end gap-5" aria-label="Review views">
+          {(Object.keys(REVIEW_VIEWS) as ReviewMode[]).map(m => (
             <button
               key={m}
-              onClick={() => setMode(m)}
+              onClick={() => onModeChange(m)}
+              aria-current={mode === m ? 'page' : undefined}
               className={cn(
-                'text-sm px-3 py-1 rounded-md transition-colors',
-                mode === m ? 'bg-primary/15 text-primary font-medium' : 'text-muted-foreground hover:text-foreground'
+                'text-sm pb-2 -mb-px border-b-2 transition-colors',
+                mode === m
+                  ? 'border-primary text-foreground font-medium'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
               )}
             >
-              {MODE_LABELS[m]}
+              {REVIEW_VIEWS[m]}
             </button>
           ))}
+        </nav>
+      </div>
+
+      {visited.has('self') && (
+        <div hidden={mode !== 'self'}>
+          <SelfReviewDraft theme={theme} cycleStart={reviewCycleStart} active={showing('self')} />
         </div>
-        {mode === 'tasks' && (
+      )}
+      {visited.has('meetings') && (
+        <div hidden={mode !== 'meetings'}>
+          <MeetingInsightsView theme={theme} timeFormat={timeFormat} active={showing('meetings')} />
+        </div>
+      )}
+      {visited.has('links') && (
+        <div hidden={mode !== 'links'}>
+          <LinksView theme={theme} active={showing('links')} />
+        </div>
+      )}
+
+      <div hidden={mode !== 'tasks'}>
+      {/* Filter bar */}
+      <div className="flex flex-wrap gap-2 mb-5 p-3 rounded-lg border border-border bg-card/50">
+        {/* Date range + export: its own row (export at the right, as in Meetings); the other filters wrap below */}
+        <div className="w-full flex flex-wrap items-center gap-2">
+          <DateRangePicker value={range} onChange={setRange} theme={theme} />
+          <div className="flex-1" />
           <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs" onClick={exportMarkdown}>
             <Download size={13} /> Export Markdown
           </Button>
-        )}
-      </div>
-
-      {mode === 'self' && <SelfReviewDraft theme={theme} cycleStart={reviewCycleStart} />}
-      {mode === 'meetings' && <MeetingInsightsView theme={theme} timeFormat={timeFormat} />}
-      {mode === 'links' && <LinksView theme={theme} />}
-
-      {mode === 'tasks' && (
-      <>
-      {/* Filter bar */}
-      <div className="flex flex-wrap gap-2 mb-5 p-3 rounded-lg border border-border bg-card/50">
-        {/* Date range: its own row, the other filters wrap below it */}
-        <div className="w-full">
-          <DateRangePicker value={range} onChange={setRange} theme={theme} />
         </div>
 
         {/* State filter */}
@@ -330,10 +363,9 @@ export function ReviewPage({ containerClass = 'max-w-5xl mx-auto px-4 py-6', the
           <p className="text-sm text-muted-foreground/50 text-center py-12">No tasks match the current filters.</p>
         )}
       </div>
-      </>
-      )}
+      </div>
 
-      {mode === 'tasks' && <ItemDetailDialog result={detail} onClose={() => setDetail(null)} />}
+      <ItemDetailDialog result={detail} onClose={() => setDetail(null)} />
     </div>
   )
 }

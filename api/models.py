@@ -247,6 +247,9 @@ class MeetingBase(SQLModel):
     duration_minutes: Optional[int] = None
     notes: Optional[str] = None
     start_time: Optional[str] = None  # local "HH:MM", 24-hour
+    # Left out of meeting stats (hours, share of week, count, busiest day, weekly chart, Self-Review's
+    # count), e.g. parties and conferences. Calendar sync never changes it.
+    exclude_from_stats: bool = False
 
     @field_validator("start_time")
     @classmethod
@@ -303,6 +306,7 @@ class MeetingUpdate(SQLModel):
     duration_minutes: Optional[int] = None
     notes: Optional[str] = None
     start_time: Optional[str] = None
+    exclude_from_stats: Optional[bool] = None
     task_ids: Optional[List[str]] = None
 
     @field_validator("start_time")
@@ -633,6 +637,8 @@ class MeetingStats(SQLModel):
     days_off: int = 0
     busiest_day: Optional[BusiestDay] = None
     weekly: List[MeetingWeek] = []
+    excluded_count: int = 0  # meetings marked "Exclude from stats" (left out of everything above)
+    excluded_minutes: int = 0
 
 
 class TaskBrief(SQLModel):
@@ -648,6 +654,7 @@ class MeetingDigestEntry(SQLModel):
     date: DateType
     start_time: Optional[str] = None
     duration_minutes: Optional[int] = None
+    exclude_from_stats: bool = False
     preview: str  # markdown: a "summary" section if the notes have one, else the first lines; "" without notes
     has_more: bool
     notes: str

@@ -14,7 +14,13 @@ from api.models import (
     DayStatus, LinkType, Meeting, MeetingLink, MeetingTaskLink, Task, TaskLink, TaskState,
 )
 from api.routes.attachments import upload_attachment, upload_meeting_attachment
+from api.calendar_source import CalendarEvent
+from api.models import MeetingUpdate
+from api.routes.calendar import apply_events
 from api.routes.insights import build_meeting_insights, link_insights, notes_preview
+from api.routes.meetings import update_meeting
+from api.routes.self_review import self_review
+from sqlmodel import select
 
 MON = date(2026, 10, 19)  # a Monday
 TUE, WED, THU, FRI, SAT, SUN = (date(2026, 10, d) for d in range(20, 26))
@@ -165,6 +171,65 @@ class MeetingStatsTests(Base):
         self.meeting("w3", date(2026, 11, 3), 30)
         st = build_meeting_insights(self.s, MON, date(2026, 11, 8), today=date(2026, 12, 1)).stats
         self.assertEqual([w.minutes for w in st.weekly], [60, 0, 30])
+
+
+class ExcludeFromStatsTests(Base):
+    def test_excluded_meetings_are_left_out_of_every_utilization_number(self):
+        self.meeting("Standup", MON, 30, notes="n")
+        self.meeting("Design review", TUE, 60)
+        party = self.meeting("Team party", WED, 240, notes="fun")
+        party.exclude_from_stats = True
+        conf = self.meeting("Conference", THU, 480)
+        conf.exclude_from_stats = True
+        self.s.commit()
+        st = build_meeting_insights(self.s, MON, SUN, today=SUN).stats
+        self.assertEqual((st.meeting_count, st.total_minutes, st.with_notes), (2, 90, 1))
+        self.assertAlmostEqual(st.work_share, 90 / (5 * 8 * 60))  # capacity is unaffected
+        self.assertEqual((st.busiest_day.date, st.busiest_day.minutes), (TUE, 60))  # not the 8 h conference
+        self.assertEqual([w.minutes for w in st.weekly], [90])
+        self.assertEqual((st.excluded_count, st.excluded_minutes), (2, 720))
+
+    def test_excluded_meetings_still_appear_in_digest_and_outcomes(self):
+        party = self.meeting("Team party", WED, 240, notes="fun")
+        party.exclude_from_stats = True
+        self.s.commit()
+        t = self.task("Book next venue")
+        self.add(MeetingTaskLink(meeting_id=party.id, task_id=t.id))
+        r = build_meeting_insights(self.s, MON, SUN, today=SUN)
+        self.assertEqual([(d.title, d.exclude_from_stats) for d in r.digest], [("Team party", True)])
+        self.assertEqual([o.action for o in r.outcomes], ["Book next venue"])
+
+    def test_excluded_in_the_future_is_not_counted_as_excluded_yet(self):
+        future = self.meeting("Offsite", FRI, 480)
+        future.exclude_from_stats = True
+        self.s.commit()
+        st = build_meeting_insights(self.s, MON, SUN, today=TUE).stats
+        self.assertEqual((st.excluded_count, st.excluded_minutes), (0, 0))  # stats stop at today
+
+    def test_self_review_meeting_count_leaves_them_out(self):
+        self.meeting("Standup", MON)
+        party = self.meeting("Team party", WED)
+        party.exclude_from_stats = True
+        self.s.commit()
+        self.assertEqual(self_review(MON, SUN, self.s).stats.meetings, 1)
+
+    def test_flag_is_set_and_cleared_through_the_meeting_api(self):
+        m = self.meeting("Team party", WED)
+        self.assertFalse(update_meeting(m.id, MeetingUpdate(title="Team party"), self.s).exclude_from_stats)  # default
+        self.assertTrue(update_meeting(m.id, MeetingUpdate(exclude_from_stats=True), self.s).exclude_from_stats)
+        self.assertTrue(update_meeting(m.id, MeetingUpdate(notes="still excluded"), self.s).exclude_from_stats)
+        self.assertFalse(update_meeting(m.id, MeetingUpdate(exclude_from_stats=False), self.s).exclude_from_stats)
+
+    def test_calendar_sync_never_changes_the_flag(self):
+        ev = CalendarEvent(external_id="p", title="Team party", start=datetime(2026, 10, 21, 17), duration_minutes=120,
+                           all_day=False, declined=False, cancelled=False, calendar_id="c")
+        apply_events(self.s, WED, [ev])
+        m = self.s.exec(select(Meeting).where(Meeting.title == "Team party")).one()
+        update_meeting(m.id, MeetingUpdate(exclude_from_stats=True), self.s)
+        ev.duration_minutes = 180  # edited on the calendar
+        apply_events(self.s, WED, [ev])
+        self.s.refresh(m)
+        self.assertEqual((m.duration_minutes, m.exclude_from_stats), (180, True))
 
 
 class DigestAndOutcomeTests(Base):

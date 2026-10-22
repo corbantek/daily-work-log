@@ -85,6 +85,7 @@ export interface Meeting {
   source: string | null
   start_time: string | null
   missing_from_source: boolean
+  exclude_from_stats: boolean
   tasks: Task[]
   links: MeetingLink[]
   attachments: Attachment[]
@@ -141,6 +142,8 @@ export interface MeetingStats {
   days_off: number
   busiest_day: { date: string; minutes: number } | null
   weekly: { week_start: string; minutes: number }[]
+  excluded_count: number
+  excluded_minutes: number
 }
 
 export interface MeetingDigestEntry {
@@ -149,6 +152,7 @@ export interface MeetingDigestEntry {
   date: string
   start_time: string | null
   duration_minutes: number | null
+  exclude_from_stats: boolean
   preview: string
   has_more: boolean
   notes: string

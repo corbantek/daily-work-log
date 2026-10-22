@@ -73,7 +73,7 @@ def self_review(
         reverse=True,
     )
 
-    meetings_q = select(Meeting)
+    meetings_q = select(Meeting).where(Meeting.exclude_from_stats == False)  # noqa: E712 (SQL comparison)
     if date_from:
         meetings_q = meetings_q.where(Meeting.date >= date_from)
     if date_to:

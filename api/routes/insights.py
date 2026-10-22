@@ -197,8 +197,10 @@ def build_meeting_insights(
 
     # ── stats: only days up to today, so a week in progress isn't diluted by days not yet lived
     through = min(date_to, today) if date_to else today
-    counted = [m for m in meetings if m.date <= through]
-    start = date_from or (min((m.date for m in counted), default=through))
+    lived = [m for m in meetings if m.date <= through]
+    counted = [m for m in lived if not m.exclude_from_stats]  # "Exclude from stats" meetings are left out
+    excluded = [m for m in lived if m.exclude_from_stats]
+    start = date_from or (min((m.date for m in lived), default=through))
     off_days = {
         ds.day for ds in session.exec(select(DayStatus)).all()
         if start <= ds.day <= through and is_day_off(ds.status)
@@ -235,6 +237,8 @@ def build_meeting_insights(
         days_off=len([d for d in off_days if d.weekday() < 5]),
         busiest_day=BusiestDay(date=busiest[0], minutes=busiest[1]) if busiest and busiest[1] > 0 else None,
         weekly=weekly,
+        excluded_count=len(excluded),
+        excluded_minutes=sum(m.duration_minutes or 0 for m in excluded),
     )
 
     # ── digest: every meeting in the range, in time order (the UI shows ones with nothing attached compactly)
@@ -244,7 +248,7 @@ def build_meeting_insights(
         preview, has_more = notes_preview(notes) if notes else ("", False)
         digest.append(MeetingDigestEntry(
             id=m.id, title=m.title, date=m.date, start_time=m.start_time, duration_minutes=m.duration_minutes,
-            preview=preview, has_more=has_more, notes=notes,
+            exclude_from_stats=m.exclude_from_stats, preview=preview, has_more=has_more, notes=notes,
             tasks=[_brief(t) for t in tasks_by_meeting.get(m.id, [])],
             links=links_by_meeting.get(m.id, []),
             attachments=files_by_meeting.get(m.id, []),

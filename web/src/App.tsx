@@ -9,6 +9,7 @@ import { ManageWorkstreams } from './components/ManageWorkstreams'
 import { ManageLabels } from './components/ManageLabels'
 import { BackupRestore } from './components/BackupRestore'
 import { ReviewPage } from './pages/ReviewPage'
+import { isReviewMode, REVIEW_VIEWS, type ReviewMode } from './pages/review-views'
 import { PeoplePage } from './pages/PeoplePage'
 import { ManageFramework } from './components/ManageFramework'
 import { CalendarAccess } from './components/CalendarAccess'
@@ -32,6 +33,19 @@ import { HiddenDaysIndicator } from './components/HiddenDaysIndicator'
 import './index.css'
 
 type Tab = 'log' | 'review' | 'people'
+
+// ── Location in the URL hash: "" (Log) | #review/<view> | #people ───────────────
+// A hash (not a path or query) so the Log's ?from= and the /?attachment= viewer keep working.
+interface Route { tab: Tab; view: ReviewMode }
+const DEFAULT_REVIEW_VIEW = Object.keys(REVIEW_VIEWS)[0] as ReviewMode
+
+function parseRoute(hash: string): Route {
+  const [tab, view] = hash.replace(/^#\/?/, '').split('/')
+  if (tab === 'review') return { tab: 'review', view: isReviewMode(view) ? view : DEFAULT_REVIEW_VIEW }
+  return { tab: tab === 'people' ? 'people' : 'log', view: DEFAULT_REVIEW_VIEW }
+}
+
+const routeHash = (r: Route) => (r.tab === 'review' ? `#review/${r.view}` : r.tab === 'people' ? '#people' : '')
 type Theme = 'dark' | 'dim' | 'light'
 type ContentWidth = 'normal' | 'wide' | 'wider' | 'full'
 
@@ -142,7 +156,11 @@ const SETTINGS_TABS = [
 type SettingsTab = (typeof SETTINGS_TABS)[number]['key']
 
 export default function App() {
-  const [tab, setTab] = useState<Tab>('log')
+  const [initialRoute] = useState(() => parseRoute(window.location.hash))
+  const [tab, setTab] = useState<Tab>(initialRoute.tab)
+  const [reviewView, setReviewView] = useState<ReviewMode>(initialRoute.view)
+  // The Review page is created on first visit and then kept (hidden on other tabs) so it remembers its state.
+  const [reviewVisited, setReviewVisited] = useState(initialRoute.tab === 'review')
   const [windowSize, setWindowSize] = useState(5)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsTab, setSettingsTab] = useState<SettingsTab>('app')
@@ -319,7 +337,7 @@ export default function App() {
 
   function applyExtendedFrom(newFrom: string) {
     setExtendedFrom(newFrom)
-    history.replaceState(null, '', `?from=${newFrom}`)
+    history.replaceState(null, '', `?from=${newFrom}${window.location.hash}`)
     loadVisibilityOverrides(newFrom)
   }
 
@@ -351,13 +369,47 @@ export default function App() {
     if (r.type === 'person' || r.type === 'interaction') {
       if (r.person_id) {
         setPeopleTarget(r.person_id)
-        setTab('people')
+        navigate('people')
       }
     } else {
       // Tasks/meetings live inside collapsed days; show a focused recall view instead.
       setDetailResult(r)
     }
   }
+
+  /** Go to a tab (and Review view); adds a browser history entry so back/forward step between views. */
+  function navigate(nextTab: Tab, nextView: ReviewMode = reviewView) {
+    setTab(nextTab)
+    setReviewView(nextView)
+    if (nextTab === 'review') setReviewVisited(true)
+    const hash = routeHash({ tab: nextTab, view: nextView })
+    if (hash !== window.location.hash) {
+      history.pushState(null, '', window.location.pathname + window.location.search + hash)
+    }
+  }
+
+  useEffect(() => {
+    function onPop() {
+      const r = parseRoute(window.location.hash)
+      setTab(r.tab)
+      setReviewView(r.view)
+      if (r.tab === 'review') setReviewVisited(true)
+    }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
+
+  // Publish the sticky header's height so pinned sub-navigation (Review) can sit right below it.
+  const headerRef = useRef<HTMLElement>(null)
+  useEffect(() => {
+    const el = headerRef.current
+    if (!el) return
+    const update = () => document.documentElement.style.setProperty('--app-header-h', `${el.offsetHeight}px`)
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   const datePickerRef = useRef<HTMLInputElement>(null)
 
@@ -369,7 +421,7 @@ export default function App() {
   function resetExtendedFrom() {
     setExtendedFrom(null)
     setReloadKey(k => k + 1)
-    history.replaceState(null, '', window.location.pathname)
+    history.replaceState(null, '', window.location.pathname + window.location.hash)
   }
 
   async function addOncallPeriod() {
@@ -416,7 +468,7 @@ export default function App() {
   return (
     <NotesHeightContext.Provider value={notesHeights}>
     <div className="min-h-screen text-foreground">
-      <header className="sticky top-0 z-10 bg-background/70 backdrop-blur-md border-b border-border/60 px-6 py-3 flex items-center gap-4">
+      <header ref={headerRef} className="sticky top-0 z-10 bg-background/70 backdrop-blur-md border-b border-border/60 px-6 py-3 flex items-center gap-4">
         <button
           onClick={resetExtendedFrom}
           className="text-base font-semibold text-primary tracking-tight flex-shrink-0 hover:opacity-75 transition-opacity"
@@ -430,7 +482,7 @@ export default function App() {
           {(['log', 'review', 'people'] as Tab[]).map(t => (
             <button
               key={t}
-              onClick={() => setTab(t)}
+              onClick={() => navigate(t)}
               className={`px-3 py-1 rounded-md text-sm transition-colors capitalize ${
                 tab === t
                   ? 'bg-primary/15 text-primary font-medium'
@@ -907,8 +959,18 @@ export default function App() {
             </div>
           </div>
         )}
-        {tab === 'review' && (
-          <ReviewPage containerClass={`${CONTENT_WIDTH_MAP[contentWidth]} mx-auto px-4 py-6`} theme={theme} timeFormat={timeFormat} reviewCycleStart={reviewCycleStart} />
+        {reviewVisited && (
+          <div hidden={tab !== 'review'}>
+            <ReviewPage
+              containerClass={`${CONTENT_WIDTH_MAP[contentWidth]} mx-auto px-4 py-6`}
+              theme={theme}
+              timeFormat={timeFormat}
+              reviewCycleStart={reviewCycleStart}
+              active={tab === 'review'}
+              mode={reviewView}
+              onModeChange={v => navigate('review', v)}
+            />
+          </div>
         )}
         {tab === 'people' && (
           <PeoplePage

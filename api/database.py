@@ -41,6 +41,7 @@ def _run_migrations():
             ("start_time", "VARCHAR"),
             ("source_fingerprint", "VARCHAR"),
             ("missing_from_source", "BOOLEAN NOT NULL DEFAULT 0"),
+            ("exclude_from_stats", "BOOLEAN NOT NULL DEFAULT 0"),
         ]:
             if col not in meeting_columns:
                 cursor.execute(f"ALTER TABLE meeting ADD COLUMN {col} {ddl}")

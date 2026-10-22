@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Download, Eye, EyeOff, Zap } from 'lucide-react'
@@ -6,13 +6,15 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { rehypeHighlightTodo } from '@/lib/rehype-highlight-todo'
 import type { MeetingDigestEntry, MeetingInsights, TaskBrief } from '../api/types'
-import { attachmentOpenUrl, getMeetingInsights } from '../api/client'
+import { attachmentOpenUrl, getMeetingInsights, updateMeeting } from '../api/client'
 import {
   formatMonthDay, formatShortDate, formatTime, rangeForPreset, type DateRange, type TimeFormat,
 } from '../api/date'
 import { DateRangePicker } from './DateRangePicker'
 import { ItemDetailDialog, type DetailTarget } from './ItemDetailDialog'
 import { LINK_ICONS } from './LinkSection'
+import { useOnActivate } from '@/lib/use-on-activate'
+import { ExcludeToggle } from './ExcludeFromStats'
 
 const STATE_LABELS: Record<string, string> = {
   todo: 'TODO', in_progress: 'IN PROGRESS', complete: 'DONE', abandoned: 'ABANDONED',
@@ -41,10 +43,12 @@ const markdownLinks = {
 interface Props {
   theme?: 'light' | 'dim' | 'dark'
   timeFormat: TimeFormat
+  /** False while hidden behind another view; the data reloads when it turns true again. */
+  active?: boolean
 }
 
 /** Review → Meetings: meeting load, a digest of meeting notes, and the tasks that came out of them. */
-export function MeetingInsightsView({ theme, timeFormat }: Props) {
+export function MeetingInsightsView({ theme, timeFormat, active = true }: Props) {
   const [range, setRange] = useState<DateRange>(() => rangeForPreset('this_week'))
   const [data, setData] = useState<MeetingInsights | null>(null)
   const [loading, setLoading] = useState(false)
@@ -52,10 +56,13 @@ export function MeetingInsightsView({ theme, timeFormat }: Props) {
   const [showEmpty, setShowEmpty] = useState(true)
   const [detail, setDetail] = useState<DetailTarget | null>(null)
 
-  useEffect(() => {
+  const load = useCallback(() => {
     setLoading(true)
     getMeetingInsights(range.from, range.to).then(setData).finally(() => setLoading(false))
   }, [range.from, range.to])
+
+  useEffect(() => { load() }, [load])
+  useOnActivate(active, load)
 
   const when = (m: { date: string; start_time: string | null }) =>
     [formatShortDate(m.date), m.start_time && formatTime(m.start_time, timeFormat)].filter(Boolean).join(' · ')
@@ -69,11 +76,18 @@ export function MeetingInsightsView({ theme, timeFormat }: Props) {
     })
   }
 
+  // Mark/unmark "Exclude from stats" straight from the digest; the tiles recompute on reload.
+  async function setExcluded(m: MeetingDigestEntry, exclude: boolean) {
+    await updateMeeting(m.id, { exclude_from_stats: exclude })
+    load()
+  }
+
   function buildMarkdown(d: MeetingInsights): string {
     const s = d.stats
     const lines = [`# Meetings — ${range.from} to ${range.to}`, '']
     const share = s.work_share != null ? ` · **${Math.round(s.work_share * 100)}%** of the work week` : ''
-    lines.push(`**${hours(s.total_minutes)}** in **${s.meeting_count}** meetings${share} · **${s.with_notes}** with notes`, '')
+    const excl = s.excluded_count ? ` · ${s.excluded_count} excluded (${hours(s.excluded_minutes)})` : ''
+    lines.push(`**${hours(s.total_minutes)}** in **${s.meeting_count}** meetings${share} · **${s.with_notes}** with notes${excl}`, '')
     if (d.outcomes.length) {
       lines.push('## Outcomes', '')
       for (const t of d.outcomes) {
@@ -87,7 +101,7 @@ export function MeetingInsightsView({ theme, timeFormat }: Props) {
       lines.push('## Digest', '')
       for (const m of digest) {
         const dur = m.duration_minutes ? ` (${m.duration_minutes}m)` : ''
-        lines.push(`### ${when(m)} · ${m.title}${dur}`, '')
+        lines.push(`### ${when(m)} · ${m.title}${dur}${m.exclude_from_stats ? ' — excluded from stats' : ''}`, '')
         if (m.preview) lines.push(m.preview, '')
         for (const t of m.tasks) lines.push(`- [${STATE_LABELS[t.state]}]${t.high_impact ? ' ⚡' : ''} ${t.action}`)
         for (const l of m.links) lines.push(`- [${l.label || l.url}](${l.url})`)
@@ -157,6 +171,7 @@ export function MeetingInsightsView({ theme, timeFormat }: Props) {
           <p className="text-xs text-muted-foreground/60 mb-5">
             {statsCutShort && <>Stats count days through {formatShortDate(s.stats_through!)}. </>}
             Work week = weekdays × 8 h{s.days_off ? `, minus ${s.days_off} day${s.days_off === 1 ? '' : 's'} marked off` : ''}.
+            {s.excluded_count > 0 && <> {s.excluded_count} excluded ({hours(s.excluded_minutes)}).</>}
           </p>
           {s.weekly.length > 1 && <WeeklyHoursChart weeks={s.weekly} rangeFrom={range.from} />}
         </>
@@ -232,7 +247,7 @@ export function MeetingInsightsView({ theme, timeFormat }: Props) {
             ) : (
               <div className="space-y-2">
                 {shownDigest.map(m => isEmpty(m) ? (
-                  <div key={m.id} className="flex flex-wrap items-baseline gap-x-2 px-3 py-0.5">
+                  <div key={m.id} className="group flex flex-wrap items-center gap-x-2 px-3 py-0.5">
                     <span className="text-xs text-muted-foreground tabular-nums">{when(m)}</span>
                     <button
                       onClick={() => setDetail({ type: 'meeting', id: m.id, title: m.title })}
@@ -240,7 +255,14 @@ export function MeetingInsightsView({ theme, timeFormat }: Props) {
                     >
                       {m.title}
                     </button>
-                    {m.duration_minutes ? <span className="text-xs text-muted-foreground/60">{m.duration_minutes}m</span> : null}
+                    {m.duration_minutes ? (
+                      <span className={cn('text-xs text-muted-foreground/60', m.exclude_from_stats && 'line-through')}>{m.duration_minutes}m</span>
+                    ) : null}
+                    <ExcludeToggle
+                      value={m.exclude_from_stats}
+                      onChange={v => setExcluded(m, v)}
+                      className={cn('ml-auto h-6', !m.exclude_from_stats && 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100')}
+                    />
                   </div>
                 ) : (
                   <DigestCard
@@ -251,6 +273,7 @@ export function MeetingInsightsView({ theme, timeFormat }: Props) {
                     onToggle={() => toggle(m.id)}
                     onOpen={() => setDetail({ type: 'meeting', id: m.id, title: m.title })}
                     onOpenTask={t => setDetail({ type: 'task', id: t.id, title: t.action })}
+                    onExclude={v => setExcluded(m, v)}
                   />
                 ))}
               </div>
@@ -277,19 +300,28 @@ function TaskLine({ t, onOpen }: { t: TaskBrief; onOpen: () => void }) {
   )
 }
 
-function DigestCard({ m, when, open, onToggle, onOpen, onOpenTask }: {
+function DigestCard({ m, when, open, onToggle, onOpen, onOpenTask, onExclude }: {
   m: MeetingDigestEntry; when: string; open: boolean; onToggle: () => void; onOpen: () => void
   onOpenTask: (t: TaskBrief) => void
+  onExclude: (exclude: boolean) => void
 }) {
   const hasItems = m.tasks.length > 0 || m.links.length > 0 || m.attachments.length > 0
   return (
-    <div className="rounded-lg border border-border bg-card px-3 py-2">
+    <div className="group rounded-lg border border-border bg-card px-3 py-2">
       <div className="flex flex-wrap items-baseline gap-x-2">
         <span className="text-xs text-muted-foreground tabular-nums">{when}</span>
         <button onClick={onOpen} className="text-sm font-medium text-foreground hover:underline text-left">
           {m.title}
         </button>
-        {m.duration_minutes ? <span className="text-xs text-muted-foreground">{m.duration_minutes}m</span> : null}
+        {m.duration_minutes ? (
+          <span className={cn('text-xs text-muted-foreground', m.exclude_from_stats && 'line-through opacity-60')}>{m.duration_minutes}m</span>
+        ) : null}
+        {/* visible when set; otherwise appears on hover so the cards stay calm */}
+        <ExcludeToggle
+          value={m.exclude_from_stats}
+          onChange={onExclude}
+          className={cn('ml-auto h-6 self-center', !m.exclude_from_stats && 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100')}
+        />
       </div>
       {m.notes ? (
         <div className="prose-worklog max-w-none mt-1.5 text-sm">

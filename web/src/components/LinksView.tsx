@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Input } from '@/components/ui/input'
 import type { LinkInsight, LinkType } from '../api/types'
 import { attachmentOpenUrl, getLinkInsights } from '../api/client'
@@ -6,6 +6,7 @@ import { formatMonthDay, rangeForPreset, type DateRange } from '../api/date'
 import { DateRangePicker } from './DateRangePicker'
 import { ItemDetailDialog, type DetailTarget } from './ItemDetailDialog'
 import { LINK_ICONS, LINK_TYPE_OPTIONS } from './LinkSection'
+import { useOnActivate } from '@/lib/use-on-activate'
 
 type TypeFilter = 'all' | LinkType | 'file'
 
@@ -14,7 +15,11 @@ const typeLabel = (t: LinkInsight['link_type']) =>
 const typeIcon = (t: LinkInsight['link_type']) => (t === 'file' ? '📎' : LINK_ICONS[t] ?? '🔗')
 
 /** Review → Links: every link and file on tasks and meetings dated in the range. */
-export function LinksView({ theme }: { theme?: 'light' | 'dim' | 'dark' }) {
+export function LinksView({ theme, active = true }: {
+  theme?: 'light' | 'dim' | 'dark'
+  /** False while hidden behind another view; the data reloads when it turns true again. */
+  active?: boolean
+}) {
   const [range, setRange] = useState<DateRange>(() => rangeForPreset('this_week'))
   const [links, setLinks] = useState<LinkInsight[]>([])
   const [loading, setLoading] = useState(false)
@@ -22,10 +27,13 @@ export function LinksView({ theme }: { theme?: 'light' | 'dim' | 'dark' }) {
   const [type, setType] = useState<TypeFilter>('all')
   const [detail, setDetail] = useState<DetailTarget | null>(null)
 
-  useEffect(() => {
+  const load = useCallback(() => {
     setLoading(true)
     getLinkInsights(range.from, range.to).then(setLinks).finally(() => setLoading(false))
   }, [range.from, range.to])
+
+  useEffect(() => { load() }, [load])
+  useOnActivate(active, load)
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase()

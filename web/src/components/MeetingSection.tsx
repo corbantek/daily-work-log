@@ -17,6 +17,7 @@ import {
 import { formatTime, type TimeFormat } from '../api/date'
 import { AttachButton, AttachmentList, useAttachmentUpload } from './Attachments'
 import { LinkSection } from './LinkSection'
+import { ExcludedBadge, ExcludeToggle } from './ExcludeFromStats'
 import { hasDraft } from '@/lib/drafts'
 import { cn } from '@/lib/utils'
 
@@ -40,6 +41,7 @@ export function MeetingSection({ meetings, date, onChanged, timeFormat = '12h' }
   const [editTitle, setEditTitle] = useState('')
   const [editDuration, setEditDuration] = useState('')
   const [editStartTime, setEditStartTime] = useState('')
+  const [editExclude, setEditExclude] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [syncMsg, setSyncMsg] = useState<{ text: string; error: boolean } | null>(null)
 
@@ -98,6 +100,7 @@ export function MeetingSection({ meetings, date, onChanged, timeFormat = '12h' }
     setEditTitle(meeting.title)
     setEditDuration(meeting.duration_minutes?.toString() ?? '')
     setEditStartTime(meeting.start_time ?? '')
+    setEditExclude(meeting.exclude_from_stats)
     setExpandedId(meeting.id)
   }
 
@@ -107,6 +110,7 @@ export function MeetingSection({ meetings, date, onChanged, timeFormat = '12h' }
       title: editTitle.trim(),
       duration_minutes: editDuration ? parseInt(editDuration) : null,
       start_time: editStartTime || null,
+      exclude_from_stats: editExclude,
     })
     setEditingMeeting(null)
     onChanged()
@@ -155,7 +159,7 @@ export function MeetingSection({ meetings, date, onChanged, timeFormat = '12h' }
             value={startTime}
             onChange={e => setStartTime((e.target as HTMLInputElement).value)}
             title="Start time (optional)"
-            className="w-28 h-8 text-xs"
+            className="w-32 h-8 text-xs"
           />
           <div className="flex items-center gap-1.5">
             <Input
@@ -190,7 +194,7 @@ export function MeetingSection({ meetings, date, onChanged, timeFormat = '12h' }
                   value={editStartTime}
                   onChange={e => setEditStartTime((e.target as HTMLInputElement).value)}
                   title="Start time (optional)"
-                  className="w-28 h-8 text-xs"
+                  className="w-32 h-8 text-xs"
                 />
                 <div className="flex items-center gap-1.5">
                   <Input
@@ -202,6 +206,7 @@ export function MeetingSection({ meetings, date, onChanged, timeFormat = '12h' }
                   />
                   <span className="text-xs text-muted-foreground">min</span>
                 </div>
+                <ExcludeToggle value={editExclude} onChange={setEditExclude} compact />
                 <Button size="sm" className="h-7 text-xs gap-1" onClick={() => saveEditMeeting(meeting.id)}>
                   <Check size={12} /> Save
                 </Button>
@@ -258,8 +263,9 @@ export function MeetingSection({ meetings, date, onChanged, timeFormat = '12h' }
                     {meeting.tasks.length} task{meeting.tasks.length !== 1 ? 's' : ''}
                   </span>
                 )}
+                {meeting.exclude_from_stats && <ExcludedBadge />}
                 {meeting.duration_minutes && (
-                  <span className="flex items-center gap-1 text-xs text-muted-foreground flex-shrink-0">
+                  <span className={cn('flex items-center gap-1 text-xs text-muted-foreground flex-shrink-0', meeting.exclude_from_stats && 'line-through opacity-60')}>
                     <Clock size={12} />
                     {meeting.duration_minutes}m
                   </span>
