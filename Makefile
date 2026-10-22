@@ -1,10 +1,15 @@
-.PHONY: install dev api web sample screenshot demo install-agent uninstall-agent restart-agent logs open
+.PHONY: install dev api web sample screenshot demo install-agent uninstall-agent restart-agent logs open install-skill uninstall-skill agent-smoke
 
 # Ports are deliberately off the common defaults (3000/5173/8000/8080) so this
 # app doesn't collide with other dev servers. Override: make dev API_PORT=... WEB_PORT=...
 API_PORT ?= 4747
 WEB_PORT ?= 4748
 export API_PORT WEB_PORT
+
+# Claude Code skill for the /agent API (agent-skill/daily-work-log). Installed as a symlink so edits
+# to the repo copy take effect without reinstalling.
+SKILL_SRC   = $(CURDIR)/agent-skill/daily-work-log
+SKILL_DEST  = $(HOME)/.claude/skills/daily-work-log
 
 PLIST_NAME  = local.daily-work-log
 PLIST_DEST  = $(HOME)/Library/LaunchAgents/$(PLIST_NAME).plist
@@ -94,3 +99,21 @@ logs:
 
 open:
 	open http://localhost:$(WEB_PORT)
+
+install-skill:
+	@mkdir -p $(HOME)/.claude/skills
+	@if [ -e "$(SKILL_DEST)" ] && [ ! -L "$(SKILL_DEST)" ]; then \
+		echo "✗ $(SKILL_DEST) exists and is not a link to this repo; move it away first."; exit 1; fi
+	ln -sfn "$(SKILL_SRC)" "$(SKILL_DEST)"
+	@echo "✅ Skill linked: $(SKILL_DEST) -> $(SKILL_SRC)"
+	@if [ "$(API_PORT)" != "4747" ]; then \
+		echo "   API_PORT is $(API_PORT): set WORKLOG_API=http://localhost:$(API_PORT) in your shell for the skill."; fi
+	@echo "   Start a new Claude Code session (or restart it) to pick the skill up."
+
+uninstall-skill:
+	@if [ -L "$(SKILL_DEST)" ]; then rm "$(SKILL_DEST)" && echo "✅ Skill link removed."; \
+	elif [ -e "$(SKILL_DEST)" ]; then echo "✗ $(SKILL_DEST) is not a link; not removing it."; exit 1; \
+	else echo "Skill not installed."; fi
+
+agent-smoke:
+	./scripts/agent_smoke.sh

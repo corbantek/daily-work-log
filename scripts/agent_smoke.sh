@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# Smoke test for the /agent API, using the same curl recipes as agent-skill/daily-work-log/SKILL.md.
+# Starts a throwaway API on its own port with an empty temporary database (never your worklog.db).
+# Usage: make agent-smoke    (needs jq)
+set -u
+cd "$(dirname "$0")/.."
+
+PORT="${SMOKE_PORT:-4796}"
+TMP="$(mktemp -d)"
+export WORKLOG_DB="$TMP/smoke.db" WORKLOG_FILES="$TMP/files"
+api/.venv/bin/uvicorn api.main:app --port "$PORT" --log-level warning > "$TMP/api.log" 2>&1 < /dev/null &
+SERVER=$!
+trap 'kill $SERVER 2>/dev/null; wait $SERVER 2>/dev/null; rm -rf "$TMP"' EXIT
+
+API="http://localhost:$PORT"
+for _ in $(seq 1 50); do curl -sf "$API/health" > /dev/null && break; sleep 0.2; done
+
+pass=0; fail=0
+ok() { if [ "$1" = "true" ]; then echo "PASS  $2"; pass=$((pass+1)); else echo "FAIL  $2  -> ${3:-}"; fail=$((fail+1)); fi; }
+TODAY=$(date +%Y-%m-%d)
+
+curl -sf "$API/health" > /dev/null; ok "$([ $? -eq 0 ] && echo true || echo false)" "health check"
+curl -s -X POST "$API/workstreams" -H 'Content-Type: application/json' -d '{"name": "DevOps Improvements"}' > /dev/null
+
+H=$(curl -s "$API/agent/help"); ok "$(echo "$H" | jq 'has("read") and has("write")')" "help lists read + write"
+
+# ── writes (the SKILL.md examples) ──
+C=$(curl -s -X POST "$API/agent/tasks" -H 'Content-Type: application/json' --data-binary @- <<'JSON'
+{"action": "Review the team's CI changes", "workstream": "DevOps", "state": "in_progress", "labels": [], "high_impact": false}
+JSON
+); TASK_ID=$(echo "$C" | jq -r .id)
+ok "$(echo "$C" | jq '.action == "Review the team'"'"'s CI changes" and .workstream == "DevOps Improvements" and .state == "in_progress"')" "create task (partial workstream name, apostrophe kept)" "$C"
+T=$(curl -s "$API/agent/tasks?state=in_progress&workstream=devops"); ok "$(echo "$T" | jq '.count == 1 and (.tasks|all(.state=="in_progress"))')" "tasks by state + workstream name" "$T"
+P=$(curl -s -X PATCH "$API/agent/tasks/$TASK_ID" -H 'Content-Type: application/json' -d '{"state": "complete"}'); ok "$(echo "$P" | jq '.state == "complete"')" "update task state" "$P"
+N=$(curl -s -X POST "$API/agent/tasks/$TASK_ID/notes" -H 'Content-Type: application/json' --data-binary @- <<'JSON'
+{"text": "- Found the root cause: the retry loop didn't back off."}
+JSON
+); ok "$(echo "$N" | jq '.notes | contains("didn'"'"'t back off")')" "append task notes" "$N"
+L=$(curl -s -X POST "$API/agent/tasks/$TASK_ID/links" -H 'Content-Type: application/json' \
+  -d '{"url": "https://github.com/org/repo/pull/123", "label": "Retry fix PR"}'); ok "$(echo "$L" | jq '.links[0].type == "pr"')" "add link (type guessed from the URL)" "$L"
+G=$(curl -s "$API/agent/tasks/$TASK_ID"); ok "$(echo "$G" | jq '(.links|length) == 1 and (.notes|length) > 0')" "task detail"
+
+CM=$(curl -s -X POST "$API/agent/meetings" -H 'Content-Type: application/json' \
+  -d '{"title": "Platform sync", "start_time": "14:00", "duration_minutes": 30}'); MEETING_ID=$(echo "$CM" | jq -r .id)
+ok "$(echo "$CM" | jq --arg t "$TODAY" '.date == $t and .start_time == "14:00"')" "create meeting (defaults to today)" "$CM"
+PM=$(curl -s -X PATCH "$API/agent/meetings/$MEETING_ID" -H 'Content-Type: application/json' -d '{"exclude_from_stats": true}')
+ok "$(echo "$PM" | jq '.excluded_from_stats == true')" "exclude meeting from stats" "$PM"
+MN=$(curl -s -X POST "$API/agent/meetings/$MEETING_ID/notes" -H 'Content-Type: application/json' --data-binary @- <<'JSON'
+{"text": "## Summary\nWe agreed on the rollout."}
+JSON
+); ok "$(echo "$MN" | jq '.notes | startswith("## Summary\nWe agreed")')" "append meeting notes (newline kept)" "$MN"
+MT=$(curl -s -X POST "$API/agent/meetings/$MEETING_ID/tasks" -H 'Content-Type: application/json' \
+  -d '{"action": "Share bottleneck numbers", "workstream": "DevOps"}')
+ok "$(echo "$MT" | jq '.tasks|map(.action)|index("Share bottleneck numbers") != null')" "create task from meeting" "$MT"
+ML=$(curl -s -X POST "$API/agent/meetings/$MEETING_ID/tasks" -H 'Content-Type: application/json' -d "{\"task_id\": \"$TASK_ID\"}")
+ok "$(echo "$ML" | jq '.tasks|length == 2')" "link existing task to meeting" "$ML"
+
+# ── reads ──
+D=$(curl -s "$API/agent/day"); ok "$(echo "$D" | jq --arg t "$TODAY" '.date == $t and (.meetings|length) == 1')" "day (today)" "$D"
+D2=$(curl -s "$API/agent/day?date=$TODAY"); ok "$(echo "$D2" | jq --arg t "$TODAY" '.date == $t')" "day?date= (query date parsed)" "$D2"
+O=$(curl -s "$API/agent/open"); ok "$(echo "$O" | jq '.count == 1')" "open (only the new todo task)" "$O"
+T2=$(curl -s "$API/agent/tasks?q=retry&date_from=$TODAY&date_to=$TODAY"); ok "$(echo "$T2" | jq '.count == 1')" "tasks by text + date range" "$T2"
+M=$(curl -s "$API/agent/meetings"); ok "$(echo "$M" | jq '.count == 1')" "today's meetings" "$M"
+M2=$(curl -s "$API/agent/meetings?date_from=$TODAY&date_to=$TODAY&q=sync"); ok "$(echo "$M2" | jq '.count == 1')" "meetings by range + text" "$M2"
+GM=$(curl -s "$API/agent/meetings/$MEETING_ID"); ok "$(echo "$GM" | jq '(.tasks|length) == 2 and (.notes|length) > 0')" "meeting detail"
+S=$(curl -s "$API/agent/search?q=bottleneck"); ok "$(echo "$S" | jq 'length >= 1')" "search" "$S"
+SU=$(curl -s "$API/agent/summary"); ok "$(echo "$SU" | jq '.tasks.completed == 1 and .meetings.excluded_from_stats == 1')" "summary (this week so far)" "$SU"
+
+# ── the guard rails the skill relies on ──
+E=$(curl -s -w '\n%{http_code}' -X POST "$API/agent/tasks" -H 'Content-Type: application/json' -d '{"action": "x", "workstream": "Nope"}')
+ok "$( [ "$(echo "$E" | tail -1)" = "400" ] && echo "$E" | head -1 | jq '.detail.valid == ["DevOps Improvements"]' || echo false )" "unknown workstream -> 400 with the valid names" "$E"
+E2=$(curl -s -o /dev/null -w '%{http_code}' -X DELETE "$API/agent/tasks/$TASK_ID"); ok "$( [ "$E2" = "405" ] && echo true || echo false )" "no deletes (DELETE -> 405)" "$E2"
+A=$(curl -s "$API/agent/activity"); ok "$(echo "$A" | jq 'length == 9 and .[0].action == "meeting_task"')" "activity log records every change" "$(echo "$A" | jq -c '[.[]|.action]')"
+
+echo; echo "$pass passed, $fail failed"
+[ "$fail" -eq 0 ]

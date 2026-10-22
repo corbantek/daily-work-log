@@ -56,6 +56,16 @@ make demo
 
 The database (`api/worklog.db`) is created automatically on first run. Demo mode uses a separate sample database.
 
+## AI agent access (Claude Code skill)
+
+```bash
+make install-skill    # link agent-skill/daily-work-log into ~/.claude/skills (then start a new Claude session)
+make uninstall-skill  # remove the link
+make agent-smoke      # check the skill's curl recipes against a throwaway API
+```
+
+Then ask Claude things like "what's on my plate today?", "log a task to review the CI changes under DevOps", or "summarize my week from the work log". The skill talks only to the local `/agent` API, which has no delete endpoints and records every change it makes (`/agent/activity`). If you run the API on another port, set `WORKLOG_API=http://localhost:<port>`.
+
 ## macOS Background Service
 
 ```bash

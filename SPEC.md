@@ -211,6 +211,21 @@ The JSON export covers attachment **metadata only**. File contents are exported 
 5. Group tasks by workstream, compute subtask counts
 6. Return aggregated response
 
+### Agent API (`/agent`) and the Claude Code skill
+
+`api/routes/agent.py` is a compact facade over the app for a local AI agent. It reuses the app's own create/update functions, so the same rules apply (e.g. a task can't be completed while it has open sub-tasks; a sub-task shares its parent's workstream).
+
+- **Names, not ids** for workstreams and labels (case-insensitive; a unique partial match works). Unknown or ambiguous names return `400` with `valid` / `matches` lists, so the agent can correct itself instead of creating a duplicate. Archived workstreams are not offered.
+- **Defaults**: dates default to today; task states accept aliases (`done`, `in progress`, …).
+- **Compact responses**: lists carry a 280-character `notes_preview`; single-item endpoints return full notes, links, files, meetings and sub-tasks.
+- **Notes append** by default (`mode: "replace"` must be explicit).
+- **No delete endpoints.** Every write is recorded in `AgentActivity` (`GET /agent/activity`) and included in backups.
+- **`GET /agent/help`** describes every endpoint, so the skill file stays short; a test checks it lists every route.
+
+Endpoints — read: `day`, `tasks`, `tasks/{id}`, `open`, `meetings`, `meetings/{id}`, `search`, `summary`, `activity`, `help`; write: `POST tasks`, `PATCH tasks/{id}`, `POST tasks/{id}/notes`, `POST tasks/{id}/links`, `POST meetings`, `PATCH meetings/{id}`, `POST meetings/{id}/notes`, `POST meetings/{id}/tasks` (create or link).
+
+The skill lives in `agent-skill/daily-work-log/SKILL.md` (frontmatter `name`, `description` with trigger phrases, `allowed-tools: Bash(curl *)`). It calls `${WORKLOG_API:-http://localhost:4747}` with curl. `make install-skill` symlinks it to `~/.claude/skills/daily-work-log` (refuses to replace a real folder; `make uninstall-skill` removes only the link). `make agent-smoke` runs the skill's curl recipes against a throwaway API with an empty temporary database.
+
 ## macOS Deployment
 
 The Makefile generates a launchd plist at install time:
@@ -249,3 +264,18 @@ The Makefile generates a launchd plist at install time:
 - **Oncall separate from day status**: On-call is a date range (often spanning many days) while day status is a per-day tag. Separate models avoid coupling.
 - **Peer feedback modeling**: One person per interaction (keeps sentiment/tags unambiguous and the review rollup clean); multiple competency tags per interaction (one story shows several dimensions); sentiment per interaction (positive/constructive/neutral as a whole). The competency framework is seeded but DB-backed and editable so review language can be customized per company without a code change.
 - **Framework edits preserve tag references**: tags reference attributes by stable `id`. Deleting an attribute downgrades its tags to whole-dimension tags (sets `attribute_id` null) rather than dropping the signal; deleting a dimension removes its tags.
+
+## Future Enhancements
+
+### Agent API (`/agent`) and the Claude Code skill
+The first version covers viewing and editing tasks and meetings (see Backend Architecture → Agent API). Deferred:
+
+- **People / peer feedback for the agent** — read (and maybe log) interactions about people through `/agent`. Deliberately left out of the first version: it is the most sensitive data in the app, so it should be an explicit opt-in (e.g. a setting) when added.
+- **Reference lists** — `GET /agent/workstreams` and `GET /agent/labels` returning the valid names. (For now an unknown name is rejected with an error that lists the valid ones.)
+- **Links and files for a period** — an agent view of Review → Links (`GET /agent/links?from&to`).
+- **Self-review draft** — the Self-Review aggregation for the current review cycle, so the agent can help draft a year-end summary.
+- **Day status** — set or clear a day's status (sick, vacation, …) and note.
+- **Calendar sync** — sync a day's meetings from Apple Calendar on request.
+- **On-call** — add an on-call period.
+- **File upload** — attach a file to a task or meeting.
+- **Agent activity in the UI** — the agent's changes are already recorded (`AgentActivity`, `GET /agent/activity`); add a "Changes made by the agent" list in Settings.

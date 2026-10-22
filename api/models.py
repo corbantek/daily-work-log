@@ -685,6 +685,19 @@ class MeetingInsights(SQLModel):
     done_tasks: int = 0
 
 
+# ── Agent activity (changes made through /agent) ───────────────────────────────
+
+class AgentActivity(SQLModel, table=True):
+    """One change an AI agent made through the /agent API (an audit trail; never edited)."""
+    __tablename__ = "agent_activity"
+    id: str = Field(default_factory=new_id, primary_key=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+    action: str          # e.g. create_task, update_task, append_task_notes
+    entity_type: str     # task | meeting
+    entity_id: str
+    summary: str         # human-readable, e.g. 'state todo → complete on "Fix retries"'
+
+
 # ── Global search ──────────────────────────────────────────────────────────────
 
 class SearchResult(SQLModel):
