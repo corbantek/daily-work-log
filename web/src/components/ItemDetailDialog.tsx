@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 import { rehypeHighlightTodo } from '@/lib/rehype-highlight-todo'
 import type { SearchResult, Task, Meeting } from '../api/types'
 import { getTask, getMeeting, attachmentOpenUrl } from '../api/client'
+import { RefBadge } from './RefBadge'
 
 const STATE_LABELS: Record<string, string> = {
   todo: 'TODO', in_progress: 'IN PROGRESS', complete: 'DONE', abandoned: 'ABANDONED',
@@ -55,6 +56,8 @@ export function ItemDetailDialog({ result, onClose }: Props) {
             {result?.type === 'meeting' && <Calendar size={15} className="text-muted-foreground shrink-0" />}
             {task?.high_impact && <Zap size={15} className="text-yellow-400 shrink-0" />}
             <span className="text-base">{result?.title}</span>
+            {result?.type === 'task' && <RefBadge kind="task" number={task?.number} className="text-xs" />}
+            {result?.type === 'meeting' && <RefBadge kind="meeting" number={meeting?.number} className="text-xs" />}
           </DialogTitle>
         </DialogHeader>
 

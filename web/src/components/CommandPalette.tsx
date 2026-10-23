@@ -3,6 +3,7 @@ import { Search, CheckSquare, Calendar, User, MessageSquare } from 'lucide-react
 import { cn } from '@/lib/utils'
 import type { SearchResult, SearchResultType } from '../api/types'
 import { search as searchApi } from '../api/client'
+import { RefLabel } from './RefBadge'
 
 const TYPE_META: Record<SearchResultType, { icon: typeof User; label: string }> = {
   task: { icon: CheckSquare, label: 'Tasks' },
@@ -111,6 +112,7 @@ export function CommandPalette({ open, onClose, onNavigate }: Props) {
                     >
                       <Icon size={14} className="text-muted-foreground shrink-0" />
                       <span className="flex-1 text-sm text-foreground truncate">{r.title}</span>
+                      {(r.type === 'task' || r.type === 'meeting') && <RefLabel kind={r.type} number={r.number} />}
                       {r.subtitle && <span className="text-xs text-muted-foreground/60 shrink-0 max-w-40 truncate">{r.subtitle}</span>}
                       {r.date && <span className="text-xs text-muted-foreground/40 font-mono shrink-0">{r.date}</span>}
                     </button>

@@ -3,6 +3,7 @@ from sqlmodel import Session, select
 from typing import List
 
 from ..database import get_session
+from ..refs import parse_ref
 from ..models import (
     Task, TaskAttachment, MeetingAttachment, Meeting, Person, Interaction, Workstream, SearchResult,
 )
@@ -22,23 +23,42 @@ def search(q: str = "", session: Session = Depends(get_session)):
 
     ws_names = {w.id: w.name for w in session.exec(select(Workstream)).all()}
 
+    # "T42" / "M17" (or "T-42") jumps straight to that task or meeting (a bare number matches both kinds).
+    ref = parse_ref(term)
+    if ref:
+        kind, n = ref
+        if kind in (None, "T"):
+            t = session.exec(select(Task).where(Task.number == n)).first()
+            if t:
+                results.append(SearchResult(type="task", id=t.id, title=t.action, number=t.number,
+                                            subtitle=ws_names.get(t.workstream_id) if t.workstream_id else None,
+                                            date=t.end_date or t.start_date or t.created_at.date()))
+        if kind in (None, "M"):
+            m = session.exec(select(Meeting).where(Meeting.number == n)).first()
+            if m:
+                results.append(SearchResult(type="meeting", id=m.id, title=m.title, number=m.number,
+                                            subtitle="Meeting", date=m.date))
+    seen = {r.id for r in results}
+
     tasks = session.exec(
         select(Task).where(Task.action.ilike(like) | Task.notes.ilike(like)).limit(PER_TYPE)
     ).all()
     for t in tasks:
+        if t.id in seen:
+            continue
+        seen.add(t.id)
         results.append(SearchResult(
-            type="task", id=t.id, title=t.action,
+            type="task", id=t.id, title=t.action, number=t.number,
             subtitle=ws_names.get(t.workstream_id) if t.workstream_id else None,
             date=t.end_date or t.start_date or t.created_at.date(),
         ))
 
-    seen = {t.id for t in tasks}
     for att in session.exec(select(TaskAttachment).where(TaskAttachment.filename.ilike(like)).limit(PER_TYPE)).all():
         t = session.get(Task, att.task_id)
         if t and t.id not in seen:
             seen.add(t.id)
             results.append(SearchResult(
-                type="task", id=t.id, title=t.action, subtitle=f"Attachment: {att.filename}",
+                type="task", id=t.id, title=t.action, number=t.number, subtitle=f"Attachment: {att.filename}",
                 date=t.end_date or t.start_date or t.created_at.date(),
             ))
 
@@ -46,14 +66,17 @@ def search(q: str = "", session: Session = Depends(get_session)):
         select(Meeting).where(Meeting.title.ilike(like) | Meeting.notes.ilike(like)).limit(PER_TYPE)
     ).all()
     for m in meetings:
-        results.append(SearchResult(type="meeting", id=m.id, title=m.title, subtitle="Meeting", date=m.date))
+        if m.id in seen:
+            continue
+        seen.add(m.id)
+        results.append(SearchResult(type="meeting", id=m.id, title=m.title, number=m.number, subtitle="Meeting", date=m.date))
 
-    seen_meetings = {m.id for m in meetings}
     for att in session.exec(select(MeetingAttachment).where(MeetingAttachment.filename.ilike(like)).limit(PER_TYPE)).all():
         m = session.get(Meeting, att.meeting_id)
-        if m and m.id not in seen_meetings:
-            seen_meetings.add(m.id)
-            results.append(SearchResult(type="meeting", id=m.id, title=m.title, subtitle=f"Attachment: {att.filename}", date=m.date))
+        if m and m.id not in seen:
+            seen.add(m.id)
+            results.append(SearchResult(type="meeting", id=m.id, title=m.title, number=m.number,
+                                        subtitle=f"Attachment: {att.filename}", date=m.date))
 
     people = session.exec(
         select(Person).where(

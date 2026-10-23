@@ -7,6 +7,7 @@ import { DateRangePicker } from './DateRangePicker'
 import { ItemDetailDialog, type DetailTarget } from './ItemDetailDialog'
 import { LINK_ICONS, LINK_TYPE_OPTIONS } from './LinkSection'
 import { useOnActivate } from '@/lib/use-on-activate'
+import { RefLabel } from './RefBadge'
 
 type TypeFilter = 'all' | LinkType | 'file'
 
@@ -117,6 +118,7 @@ export function LinksView({ theme, active = true }: {
                           title={`Open ${s.type}`}
                         >
                           {s.type === 'meeting' ? '📅' : '✓'} {s.title}
+                          <RefLabel kind={s.type} number={s.number} className="ml-1" />
                         </button>
                       ))}
                     </div>

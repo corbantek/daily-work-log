@@ -25,6 +25,8 @@ A local-first personal productivity app for tracking daily tasks, meetings, and 
 - `id`, `name`, `color` (hex string)
 - Relations: has many Tasks (M2M via `task_label`)
 
+**Reference numbers** — every Task and Meeting has a `number`, shown as `T<n>` / `M<n>` (click to copy). Numbered once on migration (oldest first) and on insert afterwards via a session `before_flush` hook; a stored high-water mark means a number is never reused. Used to address items when talking to the AI agent, in search, and in notes.
+
 **TaskLink** — a URL attached to a task.
 
 **TaskAttachment** / **MeetingAttachment** — a file attached to a task or to a meeting (two tables with the same columns; `task_attachment.task_id` is NOT NULL, so meetings get their own). The bytes live on disk (`api/<db-name>-attachments/`, UUID-hex names); the row stores the original `filename`, `stored_name`, `content_type`, `size_bytes`. Served from the app's origin, so serving is allowlisted: safe types inline; HTML and SVG also open in the tab, deliberately unsandboxed (the owner trusts what they attach, so their scripts run with the app's origin and API access); other scriptable or unknown types (XML, JS, archives) are download-only and sandboxed.

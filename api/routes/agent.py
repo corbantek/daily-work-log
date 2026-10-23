@@ -28,6 +28,7 @@ from . import search as search_routes
 from . import tasks as task_routes
 from .insights import build_meeting_insights, task_date
 from .self_review import self_review
+from ..refs import meeting_ref, parse_ref, task_ref
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
@@ -123,7 +124,7 @@ def task_brief(t: Task, ws: Dict[str, str], session: Session, notes_preview: boo
         select(Label).join(TaskLabelLink, TaskLabelLink.label_id == Label.id).where(TaskLabelLink.task_id == t.id)
     ).all()
     out = {
-        "id": t.id, "action": t.action, "state": t.state.value, "high_impact": t.high_impact,
+        "ref": task_ref(t.number), "id": t.id, "action": t.action, "state": t.state.value, "high_impact": t.high_impact,
         "workstream": ws.get(t.workstream_id) if t.workstream_id else None,
         "labels": [l.name for l in labels],
         "start_date": t.start_date.isoformat() if t.start_date else None,
@@ -144,9 +145,9 @@ def task_detail(t: Task, session: Session) -> dict:
                     for l in session.exec(select(TaskLink).where(TaskLink.task_id == t.id)).all()]
     out["files"] = [a.filename for a in session.exec(select(TaskAttachment).where(TaskAttachment.task_id == t.id)).all()]
     meeting_ids = [ml.meeting_id for ml in session.exec(select(MeetingTaskLink).where(MeetingTaskLink.task_id == t.id)).all()]
-    out["meetings"] = [{"id": m.id, "title": m.title, "date": m.date.isoformat(), "start_time": m.start_time}
+    out["meetings"] = [{"ref": meeting_ref(m.number), "id": m.id, "title": m.title, "date": m.date.isoformat(), "start_time": m.start_time}
                        for m in (session.get(Meeting, i) for i in meeting_ids) if m]
-    out["subtasks"] = [{"id": c.id, "action": c.action, "state": c.state.value}
+    out["subtasks"] = [{"ref": task_ref(c.number), "id": c.id, "action": c.action, "state": c.state.value}
                        for c in session.exec(select(Task).where(Task.parent_task_id == t.id)).all()]
     return out
 
@@ -154,10 +155,10 @@ def task_detail(t: Task, session: Session) -> dict:
 def meeting_brief(m: Meeting, session: Session) -> dict:
     task_ids = [ml.task_id for ml in session.exec(select(MeetingTaskLink).where(MeetingTaskLink.meeting_id == m.id)).all()]
     return {
-        "id": m.id, "date": m.date.isoformat(), "start_time": m.start_time, "title": m.title,
+        "ref": meeting_ref(m.number), "id": m.id, "date": m.date.isoformat(), "start_time": m.start_time, "title": m.title,
         "duration_minutes": m.duration_minutes, "excluded_from_stats": m.exclude_from_stats,
         "from_calendar": m.source is not None, "notes_preview": _preview(m.notes),
-        "tasks": [{"id": t.id, "action": t.action, "state": t.state.value}
+        "tasks": [{"ref": task_ref(t.number), "id": t.id, "action": t.action, "state": t.state.value}
                   for t in (session.get(Task, i) for i in task_ids) if t],
     }
 
@@ -173,16 +174,30 @@ def meeting_detail(m: Meeting, session: Session) -> dict:
 
 
 def _get_task(session: Session, task_id: str) -> Task:
-    t = session.get(Task, task_id)
+    """By id, or by reference: "T42" (also "T-42", "t42", "#42", "42")."""
+    ref = parse_ref(task_id)
+    if ref and ref[0] in (None, "T"):
+        t = session.exec(select(Task).where(Task.number == ref[1])).first()
+    elif ref:
+        raise _bad(f"{task_id!r} is a meeting reference; tasks are T<number>")
+    else:
+        t = session.get(Task, task_id)
     if not t:
-        raise HTTPException(404, detail={"error": f"No task with id {task_id!r}"})
+        raise HTTPException(404, detail={"error": f"No task {task_id!r}"})
     return t
 
 
 def _get_meeting(session: Session, meeting_id: str) -> Meeting:
-    m = session.get(Meeting, meeting_id)
+    """By id, or by reference: "M17" (also "M-17", "m17", "#17", "17")."""
+    ref = parse_ref(meeting_id)
+    if ref and ref[0] in (None, "M"):
+        m = session.exec(select(Meeting).where(Meeting.number == ref[1])).first()
+    elif ref:
+        raise _bad(f"{meeting_id!r} is a task reference; meetings are M<number>")
+    else:
+        m = session.get(Meeting, meeting_id)
     if not m:
-        raise HTTPException(404, detail={"error": f"No meeting with id {meeting_id!r}"})
+        raise HTTPException(404, detail={"error": f"No meeting {meeting_id!r}"})
     return m
 
 
@@ -404,8 +419,10 @@ def _join_notes(current: Optional[str], text: str, mode: str) -> Optional[str]:
 
 def _create_task(session: Session, body: NewTask) -> Task:
     ws_id = resolve_workstream(session, body.workstream)
+    parent_id = None
     if body.parent_id:
         parent = _get_task(session, body.parent_id)
+        parent_id = parent.id
         if body.workstream is None:
             ws_id = parent.workstream_id  # a sub-task lives in its parent's workstream
     created = task_routes.create_task(TaskCreate(
@@ -413,7 +430,7 @@ def _create_task(session: Session, body: NewTask) -> Task:
         state=parse_state(body.state) if body.state else TaskState.TODO,
         notes=(body.notes or "").strip() or None, high_impact=body.high_impact,
         start_date=body.start_date or Date.today(), end_date=body.end_date,
-        parent_task_id=body.parent_id, label_ids=resolve_labels(session, body.labels),
+        parent_task_id=parent_id, label_ids=resolve_labels(session, body.labels),
     ), session)
     return session.get(Task, created.id)
 
@@ -423,13 +440,14 @@ def agent_create_task(body: NewTask, session: Session = Depends(get_session)):
     if not body.action.strip():
         raise _bad("action (the task title) is required")
     t = _create_task(session, body)
-    _record(session, "create_task", "task", t.id, f'created "{t.action}"')
+    _record(session, "create_task", "task", t.id, f'created {task_ref(t.number)} "{t.action}"')
     return task_detail(t, session)
 
 
 @router.patch("/tasks/{task_id}")
 def agent_update_task(task_id: str, body: TaskChanges, session: Session = Depends(get_session)):
     t = _get_task(session, task_id)
+    task_id = t.id
     before = task_brief(t, _ws_names(session), session, notes_preview=False)
     changes = body.model_dump(exclude_unset=True)
     update = {}
@@ -472,6 +490,7 @@ def agent_task_notes(task_id: str, body: NotesText, session: Session = Depends(g
 @router.post("/tasks/{task_id}/links", status_code=201)
 def agent_task_link(task_id: str, body: NewLink, session: Session = Depends(get_session)):
     t = _get_task(session, task_id)
+    task_id = t.id
     link_type = _link_type(body)
     task_routes.add_link(task_id, TaskLinkCreate(url=body.url.strip(), label=body.label, link_type=link_type), session)
     _record(session, "add_task_link", "task", t.id, f'added {link_type.value} link to "{t.action}": {body.url.strip()}')
@@ -499,13 +518,14 @@ def agent_create_meeting(body: NewMeeting, session: Session = Depends(get_sessio
         exclude_from_stats=body.exclude_from_stats,
     ), session)
     m = session.get(Meeting, created.id)
-    _record(session, "create_meeting", "meeting", m.id, f'created meeting "{m.title}" on {m.date.isoformat()}')
+    _record(session, "create_meeting", "meeting", m.id, f'created {meeting_ref(m.number)} "{m.title}" on {m.date.isoformat()}')
     return meeting_detail(m, session)
 
 
 @router.patch("/meetings/{meeting_id}")
 def agent_update_meeting(meeting_id: str, body: MeetingChanges, session: Session = Depends(get_session)):
     m = _get_meeting(session, meeting_id)
+    meeting_id = m.id
     changes = body.model_dump(exclude_unset=True)
     if not changes:
         raise _bad("Nothing to change", fields=list(MeetingChanges.model_fields))
@@ -557,6 +577,8 @@ def agent_help():
             "Workstreams and labels are given by name (case-insensitive; a unique partial match works). "
             "An unknown or ambiguous name returns 400 with the valid options.",
             "Task states: todo, in_progress, complete, abandoned (aliases like 'done' work).",
+            "Tasks and meetings have short references, T42 and M17 (the 'ref' field, shown in the app). "
+            "Use a reference or the id wherever an {id}, task_id or parent_id is expected.",
             "Notes endpoints append by default; send mode='replace' only when the user asked to replace.",
             "There are no delete endpoints. Every change is recorded in GET /agent/activity.",
         ],

@@ -15,6 +15,7 @@ import { ItemDetailDialog, type DetailTarget } from './ItemDetailDialog'
 import { LINK_ICONS } from './LinkSection'
 import { useOnActivate } from '@/lib/use-on-activate'
 import { ExcludeToggle } from './ExcludeFromStats'
+import { RefBadge } from './RefBadge'
 
 const STATE_LABELS: Record<string, string> = {
   todo: 'TODO', in_progress: 'IN PROGRESS', complete: 'DONE', abandoned: 'ABANDONED',
@@ -255,6 +256,7 @@ export function MeetingInsightsView({ theme, timeFormat, active = true }: Props)
                     >
                       {m.title}
                     </button>
+                    <RefBadge kind="meeting" number={m.number} />
                     {m.duration_minutes ? (
                       <span className={cn('text-xs text-muted-foreground/60', m.exclude_from_stats && 'line-through')}>{m.duration_minutes}m</span>
                     ) : null}
@@ -296,6 +298,7 @@ function TaskLine({ t, onOpen }: { t: TaskBrief; onOpen: () => void }) {
       </span>
       {t.high_impact && <Zap size={13} className="text-yellow-400 shrink-0" />}
       <button onClick={onOpen} className="text-foreground hover:underline text-left">{t.action}</button>
+      <RefBadge kind="task" number={t.number} />
     </div>
   )
 }
@@ -313,6 +316,7 @@ function DigestCard({ m, when, open, onToggle, onOpen, onOpenTask, onExclude }: 
         <button onClick={onOpen} className="text-sm font-medium text-foreground hover:underline text-left">
           {m.title}
         </button>
+        <RefBadge kind="meeting" number={m.number} />
         {m.duration_minutes ? (
           <span className={cn('text-xs text-muted-foreground', m.exclude_from_stats && 'line-through opacity-60')}>{m.duration_minutes}m</span>
         ) : null}

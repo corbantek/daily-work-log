@@ -15,6 +15,7 @@ import { MeetingInsightsView } from '../components/MeetingInsightsView'
 import { LinksView } from '../components/LinksView'
 import { DateRangePicker } from '../components/DateRangePicker'
 import { useOnActivate } from '@/lib/use-on-activate'
+import { RefBadge } from '../components/RefBadge'
 import { REVIEW_VIEWS, type ReviewMode } from './review-views'
 import { ItemDetailDialog, type DetailTarget } from '../components/ItemDetailDialog'
 import type { TimeFormat } from '../api/date'
@@ -317,11 +318,13 @@ export function ReviewPage({
                       {task.high_impact && <Zap size={13} className="text-yellow-400 flex-shrink-0 mt-0.5" />}
                       <button
                         onClick={() => setDetail({ type: 'task', id: task.id, title: task.action })}
-                        className="flex-1 text-sm text-foreground hover:underline text-left"
+                        className="text-sm text-foreground hover:underline text-left"
                         title="Open task"
                       >
                         {task.action}
                       </button>
+                      <RefBadge kind="task" number={task.number} className="mt-0.5" />
+                      <span className="flex-1" />
                       <span className={cn('text-xs border rounded-full px-2.5 h-6 flex items-center font-medium flex-shrink-0', STATE_COLORS[task.state])}>
                         {STATE_LABELS[task.state]}
                       </span>

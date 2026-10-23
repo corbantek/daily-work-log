@@ -28,8 +28,8 @@ H=$(curl -s "$API/agent/help"); ok "$(echo "$H" | jq 'has("read") and has("write
 C=$(curl -s -X POST "$API/agent/tasks" -H 'Content-Type: application/json' --data-binary @- <<'JSON'
 {"action": "Review the team's CI changes", "workstream": "DevOps", "state": "in_progress", "labels": [], "high_impact": false}
 JSON
-); TASK_ID=$(echo "$C" | jq -r .id)
-ok "$(echo "$C" | jq '.action == "Review the team'"'"'s CI changes" and .workstream == "DevOps Improvements" and .state == "in_progress"')" "create task (partial workstream name, apostrophe kept)" "$C"
+); TASK_ID=$(echo "$C" | jq -r .ref)
+ok "$(echo "$C" | jq '.action == "Review the team'"'"'s CI changes" and .workstream == "DevOps Improvements" and .state == "in_progress" and .ref == "T1"')" "create task (partial workstream name, apostrophe kept, ref T1)" "$C"
 T=$(curl -s "$API/agent/tasks?state=in_progress&workstream=devops"); ok "$(echo "$T" | jq '.count == 1 and (.tasks|all(.state=="in_progress"))')" "tasks by state + workstream name" "$T"
 P=$(curl -s -X PATCH "$API/agent/tasks/$TASK_ID" -H 'Content-Type: application/json' -d '{"state": "complete"}'); ok "$(echo "$P" | jq '.state == "complete"')" "update task state" "$P"
 N=$(curl -s -X POST "$API/agent/tasks/$TASK_ID/notes" -H 'Content-Type: application/json' --data-binary @- <<'JSON'
@@ -41,8 +41,8 @@ L=$(curl -s -X POST "$API/agent/tasks/$TASK_ID/links" -H 'Content-Type: applicat
 G=$(curl -s "$API/agent/tasks/$TASK_ID"); ok "$(echo "$G" | jq '(.links|length) == 1 and (.notes|length) > 0')" "task detail"
 
 CM=$(curl -s -X POST "$API/agent/meetings" -H 'Content-Type: application/json' \
-  -d '{"title": "Platform sync", "start_time": "14:00", "duration_minutes": 30}'); MEETING_ID=$(echo "$CM" | jq -r .id)
-ok "$(echo "$CM" | jq --arg t "$TODAY" '.date == $t and .start_time == "14:00"')" "create meeting (defaults to today)" "$CM"
+  -d '{"title": "Platform sync", "start_time": "14:00", "duration_minutes": 30}'); MEETING_ID=$(echo "$CM" | jq -r .ref)
+ok "$(echo "$CM" | jq --arg t "$TODAY" '.date == $t and .start_time == "14:00" and .ref == "M1"')" "create meeting (defaults to today, ref M1)" "$CM"
 PM=$(curl -s -X PATCH "$API/agent/meetings/$MEETING_ID" -H 'Content-Type: application/json' -d '{"exclude_from_stats": true}')
 ok "$(echo "$PM" | jq '.excluded_from_stats == true')" "exclude meeting from stats" "$PM"
 MN=$(curl -s -X POST "$API/agent/meetings/$MEETING_ID/notes" -H 'Content-Type: application/json' --data-binary @- <<'JSON'
@@ -64,6 +64,7 @@ M=$(curl -s "$API/agent/meetings"); ok "$(echo "$M" | jq '.count == 1')" "today'
 M2=$(curl -s "$API/agent/meetings?date_from=$TODAY&date_to=$TODAY&q=sync"); ok "$(echo "$M2" | jq '.count == 1')" "meetings by range + text" "$M2"
 GM=$(curl -s "$API/agent/meetings/$MEETING_ID"); ok "$(echo "$GM" | jq '(.tasks|length) == 2 and (.notes|length) > 0')" "meeting detail"
 S=$(curl -s "$API/agent/search?q=bottleneck"); ok "$(echo "$S" | jq 'length >= 1')" "search" "$S"
+SR=$(curl -s "$API/agent/search?q=T1"); ok "$(echo "$SR" | jq '.[0].type == "task" and .[0].number == 1')" "search by reference (T1)" "$SR"
 SU=$(curl -s "$API/agent/summary"); ok "$(echo "$SU" | jq '.tasks.completed == 1 and .meetings.excluded_from_stats == 1')" "summary (this week so far)" "$SU"
 
 # ── the guard rails the skill relies on ──

@@ -37,8 +37,12 @@ curl -s "$API/agent/help"
 - **Task states:** `todo`, `in_progress`, `complete`, `abandoned` ("done" also works).
 - **Notes are appended by default.** Only send `"mode": "replace"` when the user explicitly asked to
   replace or rewrite the notes.
-- **Find before you change.** Look up the task or meeting (day view, search or list) to get its
-  `id`; if several match, ask which one. Confirm with the user before making more than three changes
+- **References.** Every task and meeting has a short reference, `T42` or `M17` (the `ref` field;
+  the app shows it next to each title). When the user gives one ("mark T42 done", "add this to
+  M17"; "T42" works too), use it directly wherever an id goes: `/agent/tasks/T42`, `"task_id": "T42"`,
+  `"parent_id": "T42"`. Mention the reference when you report what you changed.
+- **Find before you change.** Without a reference, look the task or meeting up (day view, search or
+  list) to get its `ref`; if several match, ask which one. Confirm with the user before making more than three changes
   at once.
 - **There are no deletes.** If the user wants something removed, tell them to do it in the app.
 - **After a change,** tell the user briefly what changed, in their words, not ids.
@@ -54,11 +58,11 @@ curl -s "$API/agent/day?date=2026-10-21"          # another day
 curl -s "$API/agent/open"                         # everything still todo / in progress
 curl -s "$API/agent/tasks?state=in_progress&workstream=devops"
 curl -s "$API/agent/tasks?q=retries&date_from=2026-10-01&date_to=2026-10-31"
-curl -s "$API/agent/tasks/TASK_ID"                # full task: notes, links, files, meetings, sub-tasks
+curl -s "$API/agent/tasks/T42"                   # full task: notes, links, files, meetings, sub-tasks
 curl -s "$API/agent/meetings"                     # today's meetings
 curl -s "$API/agent/meetings?date_from=2026-10-19&date_to=2026-10-25&q=sync"
-curl -s "$API/agent/meetings/MEETING_ID"          # full meeting: notes, tasks, links, files
-curl -s "$API/agent/search?q=dynamodb"            # tasks, meetings, people, interactions
+curl -s "$API/agent/meetings/M17"                # full meeting: notes, tasks, links, files
+curl -s "$API/agent/search?q=dynamodb"            # tasks, meetings, people, interactions (also finds T42 / M17)
 curl -s "$API/agent/summary"                      # this week so far; or ?date_from=&date_to=
 ```
 
@@ -74,12 +78,12 @@ curl -s -X POST "$API/agent/tasks" -H 'Content-Type: application/json' --data-bi
 JSON
 ```
 
-Add `"parent_id": "TASK_ID"` to make it a sub-task (it takes the parent's workstream).
+Add `"parent_id": "T42"` to make it a sub-task (it takes the parent's workstream).
 
 Update a task (send only what changes):
 
 ```bash
-curl -s -X PATCH "$API/agent/tasks/TASK_ID" -H 'Content-Type: application/json' -d '{"state": "complete"}'
+curl -s -X PATCH "$API/agent/tasks/T42" -H 'Content-Type: application/json' -d '{"state": "complete"}'
 ```
 
 Fields: `action`, `state`, `high_impact`, `workstream` (`""` for none), `labels`, `start_date`,
@@ -88,17 +92,17 @@ Fields: `action`, `state`, `high_impact`, `workstream` (`""` for none), `labels`
 Append notes (markdown) to a task or a meeting:
 
 ```bash
-curl -s -X POST "$API/agent/tasks/TASK_ID/notes" -H 'Content-Type: application/json' --data-binary @- <<'JSON'
+curl -s -X POST "$API/agent/tasks/T42/notes" -H 'Content-Type: application/json' --data-binary @- <<'JSON'
 {"text": "- Found the root cause: the retry loop didn't back off."}
 JSON
 ```
 
-Use `/agent/meetings/MEETING_ID/notes` for a meeting, e.g. when the user pastes AI meeting notes.
+Use `/agent/meetings/M17/notes` for a meeting, e.g. when the user pastes AI meeting notes.
 
 Add a link (the type — pr, issue, doc, slack, quip, other — is guessed from the URL):
 
 ```bash
-curl -s -X POST "$API/agent/tasks/TASK_ID/links" -H 'Content-Type: application/json' \
+curl -s -X POST "$API/agent/tasks/T42/links" -H 'Content-Type: application/json' \
   -d '{"url": "https://github.com/org/repo/pull/123", "label": "Retry fix PR"}'
 ```
 
@@ -108,15 +112,15 @@ the meeting-time stats):
 ```bash
 curl -s -X POST "$API/agent/meetings" -H 'Content-Type: application/json' \
   -d '{"title": "Platform sync", "start_time": "14:00", "duration_minutes": 30}'
-curl -s -X PATCH "$API/agent/meetings/MEETING_ID" -H 'Content-Type: application/json' -d '{"exclude_from_stats": true}'
+curl -s -X PATCH "$API/agent/meetings/M17" -H 'Content-Type: application/json' -d '{"exclude_from_stats": true}'
 ```
 
 Create a task that came out of a meeting, or link an existing one:
 
 ```bash
-curl -s -X POST "$API/agent/meetings/MEETING_ID/tasks" -H 'Content-Type: application/json' \
+curl -s -X POST "$API/agent/meetings/M17/tasks" -H 'Content-Type: application/json' \
   -d '{"action": "Share bottleneck numbers", "workstream": "DevOps"}'
-curl -s -X POST "$API/agent/meetings/MEETING_ID/tasks" -H 'Content-Type: application/json' -d '{"task_id": "TASK_ID"}'
+curl -s -X POST "$API/agent/meetings/M17/tasks" -H 'Content-Type: application/json' -d '{"task_id": "T42"}'
 ```
 
 ## Writing summaries

@@ -18,6 +18,7 @@ import { formatTime, type TimeFormat } from '../api/date'
 import { AttachButton, AttachmentList, useAttachmentUpload } from './Attachments'
 import { LinkSection } from './LinkSection'
 import { ExcludedBadge, ExcludeToggle } from './ExcludeFromStats'
+import { RefBadge } from './RefBadge'
 import { hasDraft } from '@/lib/drafts'
 import { cn } from '@/lib/utils'
 
@@ -228,7 +229,9 @@ export function MeetingSection({ meetings, date, onChanged, timeFormat = '12h' }
                 {meeting.start_time && (
                   <span className="text-xs tabular-nums text-muted-foreground flex-shrink-0">{formatTime(meeting.start_time, timeFormat)}</span>
                 )}
-                <span className="flex-1 text-sm text-foreground">{meeting.title}</span>
+                <span className="text-sm text-foreground">{meeting.title}</span>
+                <RefBadge kind="meeting" number={meeting.number} />
+                <span className="flex-1" />
                 {meeting.missing_from_source && (
                   <span
                     title="This imported meeting is no longer on your calendar. It was kept in case it has notes."

@@ -50,6 +50,7 @@ export interface AttachmentStats {
 
 export interface Task {
   id: string
+  number: number | null
   action: string
   notes: string | null
   state: TaskState
@@ -77,6 +78,7 @@ export interface Workstream {
 
 export interface Meeting {
   id: string
+  number: number | null
   date: string
   title: string
   duration_minutes: number | null
@@ -116,6 +118,7 @@ export interface CalendarStatus {
 export interface InsightSource {
   type: 'task' | 'meeting'
   id: string
+  number: number | null
   title: string
   date: string
 }
@@ -148,6 +151,7 @@ export interface MeetingStats {
 
 export interface MeetingDigestEntry {
   id: string
+  number: number | null
   title: string
   date: string
   start_time: string | null
@@ -163,6 +167,7 @@ export interface MeetingDigestEntry {
 
 export interface TaskBrief {
   id: string
+  number: number | null
   action: string
   state: TaskState
   high_impact: boolean
@@ -170,7 +175,7 @@ export interface TaskBrief {
 
 /** A task linked to meetings in the range, listed once with every meeting it came from. */
 export interface OutcomeTask extends TaskBrief {
-  meetings: { id: string; title: string; date: string; start_time: string | null }[]
+  meetings: { id: string; number: number | null; title: string; date: string; start_time: string | null }[]
 }
 
 export interface MeetingInsights {
@@ -323,4 +328,5 @@ export interface SearchResult {
   subtitle: string | null
   date: string | null
   person_id: string | null
+  number?: number | null
 }

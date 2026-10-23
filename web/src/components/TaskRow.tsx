@@ -12,6 +12,7 @@ import { ClickToEditMarkdown } from './ClickToEditMarkdown'
 import { AddTaskForm } from './AddTaskForm'
 import { AttachButton, AttachmentList, useAttachmentUpload } from './Attachments'
 import { LinkSection } from './LinkSection'
+import { RefBadge } from './RefBadge'
 import type { Task, TaskState, Workstream } from '../api/types'
 import { updateTask, deleteTask, addTaskLink, updateTaskLink, deleteTaskLink, getWorkstreams, unlinkTaskFromMeeting, getTasks } from '../api/client'
 import { hasDraft } from '@/lib/drafts'
@@ -137,6 +138,7 @@ export function TaskRow({ task, onChanged, isSubtask }: Props) {
         <span className={cn('text-sm flex-shrink-0 mt-0.5', isDone ? 'line-through text-muted-foreground' : 'text-foreground')}>
           {task.action}
         </span>
+        <RefBadge kind="task" number={task.number} className="mt-1" />
 
         {/* Notes preview when collapsed — fills the space between title and state */}
         {!expanded && task.notes ? (() => {

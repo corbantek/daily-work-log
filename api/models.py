@@ -186,6 +186,8 @@ class TaskBase(SQLModel):
 class Task(TaskBase, table=True):
     id: str = Field(default_factory=new_id, primary_key=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    # Short human reference shown as T<number>; assigned on insert (see database.py), never reused.
+    number: Optional[int] = Field(default=None, index=True, unique=True)
 
     workstream: Optional[Workstream] = Relationship(back_populates="tasks")
     labels: List[Label] = Relationship(back_populates="tasks", link_model=TaskLabelLink)
@@ -206,6 +208,7 @@ class MeetingBrief(SQLModel):
 class TaskRead(TaskBase):
     id: str
     created_at: datetime
+    number: Optional[int] = None
     labels: List[LabelRead] = []
     links: List[TaskLinkRead] = []
     attachments: List[AttachmentRead] = []
@@ -260,6 +263,8 @@ class MeetingBase(SQLModel):
 class Meeting(MeetingBase, table=True):
     id: str = Field(default_factory=new_id, primary_key=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    # Short human reference shown as M<number>; assigned on insert (see database.py), never reused.
+    number: Optional[int] = Field(default=None, index=True, unique=True)
     # Set for meetings imported from a calendar; null for manually entered ones.
     source: Optional[str] = None
     external_id: Optional[str] = Field(default=None, index=True)
@@ -293,6 +298,7 @@ class MeetingCreate(MeetingBase):
 class MeetingRead(MeetingBase):
     id: str
     created_at: datetime
+    number: Optional[int] = None
     source: Optional[str] = None
     missing_from_source: bool = False
     tasks: List[TaskRead] = []
@@ -603,6 +609,7 @@ class InsightSource(SQLModel):
     id: str
     title: str
     date: DateType
+    number: Optional[int] = None  # T/M reference number
 
 
 class LinkInsight(SQLModel):
@@ -643,6 +650,7 @@ class MeetingStats(SQLModel):
 
 class TaskBrief(SQLModel):
     id: str
+    number: Optional[int] = None  # shown as T<number>
     action: str
     state: TaskState
     high_impact: bool = False
@@ -650,6 +658,7 @@ class TaskBrief(SQLModel):
 
 class MeetingDigestEntry(SQLModel):
     id: str
+    number: Optional[int] = None  # shown as M<number>
     title: str
     date: DateType
     start_time: Optional[str] = None
@@ -665,6 +674,7 @@ class MeetingDigestEntry(SQLModel):
 
 class OutcomeMeeting(SQLModel):
     id: str
+    number: Optional[int] = None
     title: str
     date: DateType
     start_time: Optional[str] = None
@@ -707,6 +717,7 @@ class SearchResult(SQLModel):
     subtitle: Optional[str] = None
     date: Optional[DateType] = None
     person_id: Optional[str] = None
+    number: Optional[int] = None  # tasks: T<number>, meetings: M<number>
 
 
 # Default framework seeded on first run (editable later via the framework editor).

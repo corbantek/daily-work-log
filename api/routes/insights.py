@@ -55,11 +55,11 @@ def link_insights(
 
     def task_source(task_id: str) -> Optional[InsightSource]:
         t = tasks.get(task_id)
-        return InsightSource(type="task", id=t.id, title=t.action, date=task_date(t)) if t else None
+        return InsightSource(type="task", id=t.id, title=t.action, date=task_date(t), number=t.number) if t else None
 
     def meeting_source(meeting_id: str) -> Optional[InsightSource]:
         m = meetings.get(meeting_id)
-        return InsightSource(type="meeting", id=m.id, title=m.title, date=m.date) if m else None
+        return InsightSource(type="meeting", id=m.id, title=m.title, date=m.date, number=m.number) if m else None
 
     # (source, created_at, url, label, link_type) for every link occurrence
     occurrences = [
@@ -143,7 +143,7 @@ def _outcome_sort_key(t: Task):
 
 
 def _brief(t: Task) -> TaskBrief:
-    return TaskBrief(id=t.id, action=t.action, state=t.state, high_impact=t.high_impact)
+    return TaskBrief(id=t.id, number=t.number, action=t.action, state=t.state, high_impact=t.high_impact)
 
 
 def _week_start(d: date) -> date:
@@ -247,7 +247,7 @@ def build_meeting_insights(
         notes = (m.notes or "").strip()
         preview, has_more = notes_preview(notes) if notes else ("", False)
         digest.append(MeetingDigestEntry(
-            id=m.id, title=m.title, date=m.date, start_time=m.start_time, duration_minutes=m.duration_minutes,
+            id=m.id, number=m.number, title=m.title, date=m.date, start_time=m.start_time, duration_minutes=m.duration_minutes,
             exclude_from_stats=m.exclude_from_stats, preview=preview, has_more=has_more, notes=notes,
             tasks=[_brief(t) for t in tasks_by_meeting.get(m.id, [])],
             links=links_by_meeting.get(m.id, []),
@@ -259,7 +259,7 @@ def build_meeting_insights(
     for m in meetings:  # already in date/time order, so each task's meetings are too
         for t in tasks_by_meeting.get(m.id, []):
             meetings_by_task.setdefault(t.id, []).append(
-                OutcomeMeeting(id=m.id, title=m.title, date=m.date, start_time=m.start_time))
+                OutcomeMeeting(id=m.id, number=m.number, title=m.title, date=m.date, start_time=m.start_time))
     first_seen = {tid: i for i, tid in enumerate(meetings_by_task)}  # order of first meeting
     outcome_tasks = sorted((tasks[tid] for tid in meetings_by_task),
                            key=lambda t: (OUTCOME_ORDER.get(t.state, 9), first_seen[t.id]))
