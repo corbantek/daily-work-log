@@ -116,6 +116,7 @@ class TaskWriteTests(Base):
         with self.assertRaises(ValueError):
             A.NotesText(text="x", mode="overwrite")
         self.assertEqual(self.activity()[:2], ["replace_task_notes", "append_task_notes"])
+        self.assertEqual([a["summary"].split(" notes")[0] for a in A.agent_activity(2, self.s)], ["replaced", "appended"])
 
     def test_add_link_guesses_type(self):
         t = self.new_task(action="x")

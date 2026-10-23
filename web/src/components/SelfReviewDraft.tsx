@@ -10,6 +10,7 @@ import type { SelfReview, Task } from '../api/types'
 import { getSelfReview } from '../api/client'
 import { todayStr, reviewCycleStart, DEFAULT_REVIEW_CYCLE_START } from '../api/date'
 import { useOnActivate } from '@/lib/use-on-activate'
+import { useOnDataChange } from '@/lib/live-updates'
 
 const STATE_LABELS: Record<string, string> = {
   todo: 'TODO', in_progress: 'IN PROGRESS', complete: 'DONE', abandoned: 'ABANDONED',
@@ -49,6 +50,7 @@ export function SelfReviewDraft({ theme, cycleStart = DEFAULT_REVIEW_CYCLE_START
 
   useEffect(() => { load() }, [load])
   useOnActivate(active, load)
+  useOnDataChange(load, active)
 
   function buildMarkdown(d: SelfReview): string {
     const lines: string[] = [`# Self-Review — ${from} to ${to}`, '']

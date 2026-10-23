@@ -41,6 +41,9 @@ export function ClickToEditMarkdown({
   const [error, setError] = useState(false)
   const [recovered, setRecovered] = useState(false)
   const [undo, setUndo] = useState<{ previous: string | null } | null>(null)
+  // The saved note changed underneath an open editor (e.g. the AI agent appended to it). Until the
+  // user picks "Load latest" or "Keep mine", nothing auto-saves over the other change.
+  const [conflict, setConflict] = useState<string | null>(null)
 
   const containerRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -53,6 +56,7 @@ export function ClickToEditMarkdown({
   const savingRef = useRef(false)
   const switchingTabRef = useRef(false)
   const typedRef = useRef(false) // the user has typed in this editing session
+  const conflictRef = useRef<string | null>(null)
   const onSaveRef = useRef(onSave)
   onSaveRef.current = onSave
 
@@ -67,11 +71,15 @@ export function ClickToEditMarkdown({
     setActiveTab('edit')
     setError(false)
     setUndo(null)
+    conflictRef.current = null
+    setConflict(null)
     setIsEditing(true)
   }
 
   function closeEditor() {
     editingRef.current = false
+    conflictRef.current = null
+    setConflict(null)
     setIsEditing(false)
     setRecovered(false)
     setError(false)
@@ -96,9 +104,36 @@ export function ClickToEditMarkdown({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // The note changed elsewhere while open? Ask before anything overwrites it. (Our own saves don't
+  // count: once saved, the refreshed value equals the baseline.)
+  useEffect(() => {
+    if (!editingRef.current || savingRef.current) return
+    if (normalize(value) === baselineRef.current) return
+    conflictRef.current = value ?? ''
+    setConflict(value ?? '')
+  }, [value])
+
+  function loadLatest() {
+    const latest = conflictRef.current ?? ''
+    draftRef.current = latest
+    setDraft(latest)
+    baselineRef.current = normalize(latest)
+    typedRef.current = false
+    conflictRef.current = null
+    setConflict(null)
+    if (storageKey) clearDraft(storageKey)
+  }
+
+  function keepMine() {
+    baselineRef.current = normalize(conflictRef.current)  // the next save replaces the other change, on purpose
+    conflictRef.current = null
+    setConflict(null)
+  }
+
   // Save (if changed) and close. Idempotent: blur, outside-click and ⌘Enter can all race.
   async function commit() {
     if (!editingRef.current || savingRef.current) return
+    if (conflictRef.current !== null) return  // stay open until the user resolves the notice
     const next = normalize(draftRef.current)
     const previous = baselineRef.current
     if (next === previous) {
@@ -190,6 +225,11 @@ export function ClickToEditMarkdown({
   useEffect(() => {
     return () => {
       if (!editingRef.current || savingRef.current || !typedRef.current) return
+      if (conflictRef.current !== null) {
+        // Unresolved change from elsewhere: keep the user's text as a recoverable draft, don't overwrite.
+        if (storageKey) writeDraft(storageKey, draftRef.current)
+        return
+      }
       const next = normalize(draftRef.current)
       if (next === baselineRef.current) return
       if (storageKey) writeDraft(storageKey, draftRef.current) // fallback if the save below fails
@@ -241,6 +281,14 @@ export function ClickToEditMarkdown({
   if (isEditing) {
     return (
       <div ref={containerRef} className="space-y-2" onKeyDown={handleKeyDown} onBlur={handleBlur}>
+        {conflict !== null && (
+          <p className="text-xs text-amber-600 dark:text-amber-400" role="status">
+            This note was updated elsewhere while you were editing ·{' '}
+            <button type="button" onMouseDown={keepFocus} onClick={loadLatest} className="underline">Load latest</button>
+            {' '}(drops your edits) ·{' '}
+            <button type="button" onMouseDown={keepFocus} onClick={keepMine} className="underline">Keep mine</button>
+          </p>
+        )}
         {recovered && (
           <p className="text-xs text-amber-600 dark:text-amber-400">
             Recovered unsaved changes ·{' '}

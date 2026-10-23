@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, field_validator
 from sqlmodel import Session, select
 
-from ..database import get_session
+from ..database import get_session, note_agent_activity
 from ..models import (
     AgentActivity, Label, LinkType, Meeting, MeetingAttachment, MeetingCreate, MeetingLink, MeetingTaskLink,
     MeetingUpdate, Task, TaskAttachment, TaskCreate, TaskLabelLink, TaskLink, TaskLinkCreate, TaskState,
@@ -97,8 +97,10 @@ def detect_link_type(url: str) -> LinkType:
 
 
 def _record(session: Session, action: str, entity_type: str, entity_id: str, summary: str) -> None:
-    session.add(AgentActivity(action=action, entity_type=entity_type, entity_id=entity_id, summary=summary))
+    row = AgentActivity(action=action, entity_type=entity_type, entity_id=entity_id, summary=summary)
+    session.add(row)
     session.commit()
+    note_agent_activity(row.id)  # lets the open app show "Agent: …" (see GET /changes)
 
 
 def _preview(text: Optional[str]) -> Optional[str]:
@@ -327,7 +329,7 @@ def agent_summary(date_from: Optional[date] = None, date_to: Optional[date] = No
 def agent_activity(limit: int = 50, session: Session = Depends(get_session)):
     """Changes the agent has made, newest first."""
     rows = session.exec(select(AgentActivity).order_by(AgentActivity.created_at.desc()).limit(max(1, min(limit, 500)))).all()
-    return [{"at": r.created_at.isoformat(timespec="seconds") + "Z", "action": r.action, "entity_type": r.entity_type,
+    return [{"id": r.id, "at": r.created_at.isoformat(timespec="seconds") + "Z", "action": r.action, "entity_type": r.entity_type,
              "entity_id": r.entity_id, "summary": r.summary} for r in rows]
 
 
@@ -410,6 +412,9 @@ class MeetingTask(BaseModel):
     high_impact: bool = False
 
 
+NOTES_VERB = {"append": "appended", "replace": "replaced"}
+
+
 def _join_notes(current: Optional[str], text: str, mode: str) -> Optional[str]:
     text = text.strip()
     if mode == "replace":
@@ -473,7 +478,7 @@ def agent_update_task(task_id: str, body: TaskChanges, session: Session = Depend
     t = session.get(Task, task_id)
     after = task_brief(t, _ws_names(session), session, notes_preview=False)
     diff = ", ".join(f"{k} {before[k]!r} → {after[k]!r}" for k in after if before.get(k) != after[k])
-    _record(session, "update_task", "task", t.id, f'"{t.action}": {diff or "no change"}')
+    _record(session, "update_task", "task", t.id, f'updated {task_ref(t.number)} "{t.action}": {diff or "no change"}')
     return task_detail(t, session)
 
 
@@ -483,7 +488,7 @@ def agent_task_notes(task_id: str, body: NotesText, session: Session = Depends(g
     t.notes = _join_notes(t.notes, body.text, body.mode)
     session.add(t)
     session.commit()
-    _record(session, f"{body.mode}_task_notes", "task", t.id, f'{body.mode}ed notes on "{t.action}"')
+    _record(session, f"{body.mode}_task_notes", "task", t.id, f'{NOTES_VERB[body.mode]} notes on {task_ref(t.number)} "{t.action}"')
     return task_detail(t, session)
 
 
@@ -533,7 +538,7 @@ def agent_update_meeting(meeting_id: str, body: MeetingChanges, session: Session
     meeting_routes.update_meeting(meeting_id, MeetingUpdate(**changes), session)
     m = session.get(Meeting, meeting_id)
     diff = ", ".join(f"{k} {before[k]!r} → {getattr(m, k)!r}" for k in changes if before[k] != getattr(m, k))
-    _record(session, "update_meeting", "meeting", m.id, f'"{m.title}": {diff or "no change"}')
+    _record(session, "update_meeting", "meeting", m.id, f'updated {meeting_ref(m.number)} "{m.title}": {diff or "no change"}')
     return meeting_detail(m, session)
 
 
@@ -543,7 +548,7 @@ def agent_meeting_notes(meeting_id: str, body: NotesText, session: Session = Dep
     m.notes = _join_notes(m.notes, body.text, body.mode)
     session.add(m)
     session.commit()
-    _record(session, f"{body.mode}_meeting_notes", "meeting", m.id, f'{body.mode}ed notes on meeting "{m.title}"')
+    _record(session, f"{body.mode}_meeting_notes", "meeting", m.id, f'{NOTES_VERB[body.mode]} notes on {meeting_ref(m.number)} "{m.title}"')
     return meeting_detail(m, session)
 
 

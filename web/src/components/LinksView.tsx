@@ -7,6 +7,7 @@ import { DateRangePicker } from './DateRangePicker'
 import { ItemDetailDialog, type DetailTarget } from './ItemDetailDialog'
 import { LINK_ICONS, LINK_TYPE_OPTIONS } from './LinkSection'
 import { useOnActivate } from '@/lib/use-on-activate'
+import { useOnDataChange } from '@/lib/live-updates'
 import { RefLabel } from './RefBadge'
 
 type TypeFilter = 'all' | LinkType | 'file'
@@ -35,6 +36,7 @@ export function LinksView({ theme, active = true }: {
 
   useEffect(() => { load() }, [load])
   useOnActivate(active, load)
+  useOnDataChange(load, active)
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase()

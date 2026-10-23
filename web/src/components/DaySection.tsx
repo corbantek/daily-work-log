@@ -3,6 +3,7 @@ import { ChevronDown, ChevronRight, X, Plus, Eye, EyeOff, ArrowLeft, Bell } from
 import type { DayView } from '../api/types'
 import { getDay, setDayStatus, clearDayStatus, getSettings } from '../api/client'
 import { MeetingSection } from './MeetingSection'
+import { useOnDataChange } from '@/lib/live-updates'
 import type { TimeFormat } from '../api/date'
 import { WorkstreamSection } from './WorkstreamSection'
 import { AddTaskGlobal } from './AddTaskGlobal'
@@ -30,12 +31,15 @@ export function DaySection({ date, isToday, defaultCollapsed = false, isHiddenBy
   const pickerRef = useRef<HTMLDivElement>(null)
   const noteInputRef = useRef<HTMLInputElement>(null)
 
-  function load() {
-    setLoading(true)
+  function load({ quiet = false } = {}) {
+    if (!quiet) setLoading(true)
     getDay(date)
       .then(setData)
-      .finally(() => setLoading(false))
+      .finally(() => { if (!quiet) setLoading(false) })
   }
+
+  // Changed elsewhere (e.g. by the AI agent): refresh this day in place.
+  useOnDataChange(() => load({ quiet: true }))
 
   useEffect(() => {
     load()

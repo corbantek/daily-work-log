@@ -15,6 +15,7 @@ import { MeetingInsightsView } from '../components/MeetingInsightsView'
 import { LinksView } from '../components/LinksView'
 import { DateRangePicker } from '../components/DateRangePicker'
 import { useOnActivate } from '@/lib/use-on-activate'
+import { useOnDataChange } from '@/lib/live-updates'
 import { RefBadge } from '../components/RefBadge'
 import { REVIEW_VIEWS, type ReviewMode } from './review-views'
 import { ItemDetailDialog, type DetailTarget } from '../components/ItemDetailDialog'
@@ -93,6 +94,7 @@ export function ReviewPage({
 
   useEffect(() => { loadTasksView() }, [loadTasksView])
   useOnActivate(showing('tasks'), loadTasksView)
+  useOnDataChange(fetchTasks, showing('tasks'))
 
   function isDateOncall(dateStr: string): boolean {
     return oncallPeriods.some(p => p.start_date <= dateStr && p.end_date >= dateStr)

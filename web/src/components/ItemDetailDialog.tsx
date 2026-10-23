@@ -8,6 +8,7 @@ import { rehypeHighlightTodo } from '@/lib/rehype-highlight-todo'
 import type { SearchResult, Task, Meeting } from '../api/types'
 import { getTask, getMeeting, attachmentOpenUrl } from '../api/client'
 import { RefBadge } from './RefBadge'
+import { useOnDataChange } from '@/lib/live-updates'
 
 const STATE_LABELS: Record<string, string> = {
   todo: 'TODO', in_progress: 'IN PROGRESS', complete: 'DONE', abandoned: 'ABANDONED',
@@ -46,6 +47,12 @@ export function ItemDetailDialog({ result, onClose }: Props) {
     }
   }, [result])
 
+  // Changed elsewhere while open: re-fetch quietly.
+  useOnDataChange(() => {
+    if (result?.type === 'task') getTask(result.id).then(setTask).catch(() => {})
+    else if (result?.type === 'meeting') getMeeting(result.id).then(setMeeting).catch(() => {})
+  }, !!result)
+
   const open = !!result && (result.type === 'task' || result.type === 'meeting')
 
   return (
@@ -55,7 +62,7 @@ export function ItemDetailDialog({ result, onClose }: Props) {
           <DialogTitle className="flex items-center gap-2 pr-6">
             {result?.type === 'meeting' && <Calendar size={15} className="text-muted-foreground shrink-0" />}
             {task?.high_impact && <Zap size={15} className="text-yellow-400 shrink-0" />}
-            <span className="text-base">{result?.title}</span>
+            <span className="text-base">{result?.title || task?.action || meeting?.title}</span>
             {result?.type === 'task' && <RefBadge kind="task" number={task?.number} className="text-xs" />}
             {result?.type === 'meeting' && <RefBadge kind="meeting" number={meeting?.number} className="text-xs" />}
           </DialogTitle>

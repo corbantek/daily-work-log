@@ -20,6 +20,8 @@ import {
   type NoteKind, type NoteSize, type NotesHeights,
 } from './lib/notes-height'
 import { DismissedEventsDialog } from './components/DismissedEventsDialog'
+import { DataVersionContext, usePollForChanges } from './lib/live-updates'
+import { AgentToasts } from './components/AgentToasts'
 import { CommandPalette } from './components/CommandPalette'
 import { ItemDetailDialog } from './components/ItemDetailDialog'
 import type { SearchResult } from './api/types'
@@ -156,6 +158,8 @@ const SETTINGS_TABS = [
 type SettingsTab = (typeof SETTINGS_TABS)[number]['key']
 
 export default function App() {
+  // `dataVersion` bumps when anything (e.g. the AI agent) changes the data; `agentActivity` drives the agent toasts.
+  const { version: dataVersion, agentActivity } = usePollForChanges()
   const [initialRoute] = useState(() => parseRoute(window.location.hash))
   const [tab, setTab] = useState<Tab>(initialRoute.tab)
   const [reviewView, setReviewView] = useState<ReviewMode>(initialRoute.view)
@@ -466,6 +470,7 @@ export default function App() {
   }
 
   return (
+    <DataVersionContext.Provider value={dataVersion}>
     <NotesHeightContext.Provider value={notesHeights}>
     <div className="min-h-screen text-foreground">
       <header ref={headerRef} className="sticky top-0 z-10 bg-background/70 backdrop-blur-md border-b border-border/60 px-6 py-3 flex items-center gap-4">
@@ -895,6 +900,7 @@ export default function App() {
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} onNavigate={handleSearchNavigate} />
 
       <ItemDetailDialog result={detailResult} onClose={() => setDetailResult(null)} />
+      <AgentToasts latest={agentActivity} onOpen={t => setDetailResult({ ...t, subtitle: null, date: null, person_id: null })} />
 
       {!serverUp && (
         <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center">
@@ -983,5 +989,6 @@ export default function App() {
       </main>
     </div>
     </NotesHeightContext.Provider>
+    </DataVersionContext.Provider>
   )
 }

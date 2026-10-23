@@ -14,6 +14,7 @@ import { DateRangePicker } from './DateRangePicker'
 import { ItemDetailDialog, type DetailTarget } from './ItemDetailDialog'
 import { LINK_ICONS } from './LinkSection'
 import { useOnActivate } from '@/lib/use-on-activate'
+import { useOnDataChange } from '@/lib/live-updates'
 import { ExcludeToggle } from './ExcludeFromStats'
 import { RefBadge } from './RefBadge'
 
@@ -64,6 +65,7 @@ export function MeetingInsightsView({ theme, timeFormat, active = true }: Props)
 
   useEffect(() => { load() }, [load])
   useOnActivate(active, load)
+  useOnDataChange(load, active)
 
   const when = (m: { date: string; start_time: string | null }) =>
     [formatShortDate(m.date), m.start_time && formatTime(m.start_time, timeFormat)].filter(Boolean).join(' · ')

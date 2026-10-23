@@ -1,4 +1,5 @@
 import os
+import uuid
 import shutil
 import sqlite3
 from datetime import datetime
@@ -62,6 +63,49 @@ def _run_migrations():
             conn.commit()
 
     conn.close()
+
+
+# ── Change counter (in memory only: never stored, never in backups) ─────────────
+# Bumped after every commit that wrote something, from any source (the app, the agent, calendar
+# sync). The frontend polls GET /changes and refreshes in place when it moves; `boot` changes on
+# every restart so a restarted API is never mistaken for "no change".
+BOOT_ID = uuid.uuid4().hex[:12]
+_data_version = 0
+
+
+def data_version() -> int:
+    return _data_version
+
+
+# Newest AgentActivity id since this API started (also memory only), so the page can show a short
+# "Agent: …" notice for changes the agent just made — and never replays older history after a restart.
+_latest_agent_activity = None
+
+
+def note_agent_activity(activity_id: str) -> None:
+    global _latest_agent_activity
+    _latest_agent_activity = activity_id
+
+
+def latest_agent_activity():
+    return _latest_agent_activity
+
+
+@event.listens_for(OrmSession, "after_flush")
+def _note_write(session, flush_context):
+    session.info["wrote"] = True
+
+
+@event.listens_for(OrmSession, "after_commit")
+def _bump_version(session):
+    global _data_version
+    if session.info.pop("wrote", False):
+        _data_version += 1
+
+
+@event.listens_for(OrmSession, "after_rollback")
+def _forget_write(session):
+    session.info.pop("wrote", None)
 
 
 @event.listens_for(OrmSession, "before_flush")

@@ -228,6 +228,10 @@ Endpoints — read: `day`, `tasks`, `tasks/{id}`, `open`, `meetings`, `meetings/
 
 The skill lives in `agent-skill/daily-work-log/SKILL.md` (frontmatter `name`, `description` with trigger phrases, `allowed-tools: Bash(curl *)`). It calls `${WORKLOG_API:-http://localhost:4747}` with curl. `make install-skill` symlinks it to `~/.claude/skills/daily-work-log` (refuses to replace a real folder; `make uninstall-skill` removes only the link). `make agent-smoke` runs the skill's curl recipes against a throwaway API with an empty temporary database.
 
+### Live updates
+
+Changes made outside the open page (above all by the AI agent through `/agent`) appear without a reload. The API keeps an in-memory change counter — bumped after every committed write from any source, never persisted, not part of backups; a restart changes the `boot` id so it is never mistaken for "no change" — and `GET /changes` reports it with the newest agent activity id. The page polls it every 3 s while visible (and immediately when you come back to the tab) and re-fetches what's on screen in place, keeping expanded items, filters and open dialogs. A note open in the editor that changes underneath is not overwritten silently: the editor asks "Load latest" or "Keep mine". Agent changes made while the page is open also show a brief toast.
+
 ## macOS Deployment
 
 The Makefile generates a launchd plist at install time:
