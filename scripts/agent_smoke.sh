@@ -63,6 +63,20 @@ ok "$(echo "$MT" | jq '.tasks|map(.action)|index("Share bottleneck numbers") != 
 ML=$(curl -s -X POST "$API/agent/meetings/$MEETING_ID/tasks" -H 'Content-Type: application/json' -d "{\"task_id\": \"$TASK_ID\"}")
 ok "$(echo "$ML" | jq '.tasks|length == 2')" "link existing task to meeting" "$ML"
 
+# ── files ──
+printf '# Runbook\n- step one\n' > "$TMP/runbook.md"
+printf '%%PDF-1.4 fake\n' > "$TMP/deck.pdf"
+F=$(curl -s -X POST "$API/agent/tasks/$TASK_ID/files" -F "file=@$TMP/runbook.md")
+ok "$(echo "$F" | jq '(.files|map(.filename)|index("runbook.md")) != null')" "attach a file to a task (curl -F)" "$F"
+FM=$(curl -s -X POST "$API/agent/meetings/$MEETING_ID/files" -F "file=@$TMP/deck.pdf")
+ok "$(echo "$FM" | jq '(.files|map(.filename)|index("deck.pdf")) != null')" "attach a file to a meeting" "$FM"
+FL=$(curl -s "$API/agent/tasks/$TASK_ID/files"); FILE_ID=$(echo "$FL" | jq -r '.files[0].id')
+ok "$(echo "$FL" | jq '.files[0].kind == "markdown"')" "list a task's files" "$FL"
+FC=$(curl -s "$API/agent/files/$FILE_ID"); ok "$(echo "$FC" | jq '.content == "# Runbook\n- step one\n" and .attached_to.ref == "T1"')" "read a text file's contents" "$FC"
+PDF_ID=$(curl -s "$API/agent/meetings/$MEETING_ID/files" | jq -r '.files[0].id')
+FP=$(curl -s "$API/agent/files/$PDF_ID"); FPATH=$(echo "$FP" | jq -r .path)
+ok "$( [ "$(echo "$FP" | jq -r .content)" = "null" ] && [ -f "$FPATH" ] && echo true || echo false )" "a PDF gives a readable local path instead of contents" "$FP"
+
 # ── reads ──
 D=$(curl -s "$API/agent/day"); ok "$(echo "$D" | jq --arg t "$TODAY" '.date == $t and (.meetings|length) == 1')" "day (today)" "$D"
 D2=$(curl -s "$API/agent/day?date=$TODAY"); ok "$(echo "$D2" | jq --arg t "$TODAY" '.date == $t')" "day?date= (query date parsed)" "$D2"
@@ -79,7 +93,7 @@ SU=$(curl -s "$API/agent/summary"); ok "$(echo "$SU" | jq '.tasks.completed == 1
 E=$(curl -s -w '\n%{http_code}' -X POST "$API/agent/tasks" -H 'Content-Type: application/json' -d '{"action": "x", "workstream": "Nope"}')
 ok "$( [ "$(echo "$E" | tail -1)" = "400" ] && echo "$E" | head -1 | jq '.detail.valid == ["DevOps Improvements"]' || echo false )" "unknown workstream -> 400 with the valid names" "$E"
 E2=$(curl -s -o /dev/null -w '%{http_code}' -X DELETE "$API/agent/tasks/$TASK_ID"); ok "$( [ "$E2" = "405" ] && echo true || echo false )" "no deletes (DELETE -> 405)" "$E2"
-A=$(curl -s "$API/agent/activity"); ok "$(echo "$A" | jq 'length == 10 and .[0].action == "meeting_task"')" "activity log records every change" "$(echo "$A" | jq -c '[.[]|.action]')"
+A=$(curl -s "$API/agent/activity"); ok "$(echo "$A" | jq 'length == 12 and (map(.action) | index("attach_task_file")) != null')" "activity log records every change" "$(echo "$A" | jq -c '[.[]|.action]')"
 
 echo; echo "$pass passed, $fail failed"
 [ "$fail" -eq 0 ]

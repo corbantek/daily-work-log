@@ -30,6 +30,27 @@ def _attach_labels(task: Task, label_ids: List[str], session: Session):
             session.add(TaskLabelLink(task_id=task.id, label_id=lid))
 
 
+def _state_dates(old_state: Optional[TaskState], new_state: TaskState, start_date: Optional[date],
+                 data: dict) -> None:
+    """Fill in the dates a state change implies, unless the caller set them itself. One rule for every
+    caller (the app, the agent API, …):
+      → in progress: start date = today if it has none
+      → complete:    end date = today (and start date = today if it has none)
+      → abandoned:   end date = today
+      reopened (complete/abandoned → todo/in progress): end date cleared
+    """
+    if old_state == new_state:
+        return
+    today = date.today()
+    if new_state in (TaskState.IN_PROGRESS, TaskState.COMPLETE) and "start_date" not in data and not start_date:
+        data["start_date"] = today
+    if new_state in (TaskState.COMPLETE, TaskState.ABANDONED) and "end_date" not in data:
+        data["end_date"] = today
+    elif (new_state in (TaskState.TODO, TaskState.IN_PROGRESS)
+          and old_state in (TaskState.COMPLETE, TaskState.ABANDONED) and "end_date" not in data):
+        data["end_date"] = None
+
+
 def _validate_parent(task: Task, parent_id: str, session: Session):
     if parent_id == task.id:
         raise HTTPException(400, detail="A task cannot be its own parent")
@@ -77,6 +98,10 @@ def list_tasks(
 @router.post("", response_model=TaskRead, status_code=201)
 def create_task(body: TaskCreate, session: Session = Depends(get_session)):
     data = body.model_dump(exclude={"label_ids"})
+    # A task created already in progress / complete / abandoned gets the dates that state implies.
+    given = {k: v for k, v in data.items() if not (k in ("start_date", "end_date") and v is None)}
+    _state_dates(TaskState.TODO, body.state, body.start_date, given)  # as if it moved from todo
+    data.update({k: given[k] for k in ("start_date", "end_date") if k in given})
     task = Task(**data)
     session.add(task)
     session.flush()
@@ -103,6 +128,8 @@ def update_task(task_id: str, body: TaskUpdate, session: Session = Depends(get_s
         raise HTTPException(404)
     data = body.model_dump(exclude_unset=True, exclude={"label_ids"})
     new_state = data.get("state", task.state)
+    if "state" in data:
+        _state_dates(task.state, new_state, task.start_date, data)
     if new_state in (TaskState.COMPLETE, TaskState.ABANDONED):
         open_children = session.exec(
             select(Task).where(

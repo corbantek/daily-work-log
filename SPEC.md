@@ -224,7 +224,7 @@ The JSON export covers attachment **metadata only**. File contents are exported 
 - **No delete endpoints.** Every write is recorded in `AgentActivity` (`GET /agent/activity`) and included in backups.
 - **`GET /agent/help`** describes every endpoint, so the skill file stays short; a test checks it lists every route.
 
-Endpoints — read: `day`, `tasks`, `tasks/{id}`, `open`, `meetings`, `meetings/{id}`, `search`, `summary`, `activity`, `help`; write: `POST tasks`, `PATCH tasks/{id}`, `POST tasks/{id}/notes`, `POST tasks/{id}/links`, `POST meetings`, `PATCH meetings/{id}`, `POST meetings/{id}/notes`, `POST meetings/{id}/tasks` (create or link).
+Endpoints — read: `day`, `tasks`, `tasks/{id}`, `tasks/{id}/files`, `open`, `meetings`, `meetings/{id}`, `meetings/{id}/files`, `files/{file_id}`, `search`, `summary`, `activity`, `notes-backups/{ref}`, `help`; write: `POST tasks/{id}/files` and `POST meetings/{id}/files` (multipart `file`, same 25 MB limit and serving rules as the app), `POST tasks`, `PATCH tasks/{id}`, `POST tasks/{id}/notes`, `POST tasks/{id}/links`, `POST meetings`, `PATCH meetings/{id}`, `POST meetings/{id}/notes`, `POST meetings/{id}/tasks` (create or link).
 
 The skill lives in `agent-skill/daily-work-log/SKILL.md` (frontmatter `name`, `description` with trigger phrases, `allowed-tools: Bash(curl *)`). It calls `${WORKLOG_API:-http://localhost:4747}` with curl. `make install-skill` symlinks it to `~/.claude/skills/daily-work-log` (refuses to replace a real folder; `make uninstall-skill` removes only the link). `make agent-smoke` runs the skill's curl recipes against a throwaway API with an empty temporary database.
 
@@ -283,5 +283,4 @@ The first version covers viewing and editing tasks and meetings (see Backend Arc
 - **Day status** — set or clear a day's status (sick, vacation, …) and note.
 - **Calendar sync** — sync a day's meetings from Apple Calendar on request.
 - **On-call** — add an on-call period.
-- **File upload** — attach a file to a task or meeting.
 - **Agent activity in the UI** — the agent's changes are already recorded (`AgentActivity`, `GET /agent/activity`); add a "Changes made by the agent" list in Settings.

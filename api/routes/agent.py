@@ -12,7 +12,7 @@ from datetime import date, timedelta
 from datetime import date as Date  # `date` is also a query-parameter name below
 from typing import Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel, field_validator
 from sqlmodel import Session, select
 
@@ -30,6 +30,8 @@ from .insights import build_meeting_insights, task_date
 from .self_review import self_review
 from ..refs import meeting_ref, parse_ref, task_ref
 from .. import note_snapshots
+from ..attachments import STORED_NAME, attachment_kind, attachments_dir, find_attachment
+from . import attachments as attachment_routes
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
@@ -118,6 +120,15 @@ def _week_bounds(today: date):
 
 # ── compact shapes ────────────────────────────────────────────────────────────
 
+TEXT_KINDS = {"markdown", "text", "html"}  # file kinds whose contents are returned as text
+MAX_CONTENT_CHARS = 200_000
+
+
+def file_brief(a) -> dict:
+    return {"id": a.id, "filename": a.filename, "kind": attachment_kind(a.filename), "size_bytes": a.size_bytes,
+            "added": a.created_at.date().isoformat()}
+
+
 def _ws_names(session: Session) -> Dict[str, str]:
     return {w.id: w.name for w in session.exec(select(Workstream)).all()}
 
@@ -146,7 +157,7 @@ def task_detail(t: Task, session: Session) -> dict:
     out["notes"] = t.notes
     out["links"] = [{"url": l.url, "label": l.label, "type": l.link_type.value}
                     for l in session.exec(select(TaskLink).where(TaskLink.task_id == t.id)).all()]
-    out["files"] = [a.filename for a in session.exec(select(TaskAttachment).where(TaskAttachment.task_id == t.id)).all()]
+    out["files"] = [file_brief(a) for a in session.exec(select(TaskAttachment).where(TaskAttachment.task_id == t.id)).all()]
     meeting_ids = [ml.meeting_id for ml in session.exec(select(MeetingTaskLink).where(MeetingTaskLink.task_id == t.id)).all()]
     out["meetings"] = [{"ref": meeting_ref(m.number), "id": m.id, "title": m.title, "date": m.date.isoformat(), "start_time": m.start_time}
                        for m in (session.get(Meeting, i) for i in meeting_ids) if m]
@@ -172,7 +183,7 @@ def meeting_detail(m: Meeting, session: Session) -> dict:
     out["notes"] = m.notes
     out["links"] = [{"url": l.url, "label": l.label, "type": l.link_type.value}
                     for l in session.exec(select(MeetingLink).where(MeetingLink.meeting_id == m.id)).all()]
-    out["files"] = [a.filename for a in session.exec(select(MeetingAttachment).where(MeetingAttachment.meeting_id == m.id)).all()]
+    out["files"] = [file_brief(a) for a in session.exec(select(MeetingAttachment).where(MeetingAttachment.meeting_id == m.id)).all()]
     return out
 
 
@@ -574,6 +585,64 @@ def agent_meeting_task(meeting_id: str, body: MeetingTask, session: Session = De
     return meeting_detail(m, session)
 
 
+# ── files: attach, list, read ─────────────────────────────────────────────────
+
+@router.post("/tasks/{task_id}/files", status_code=201)
+def agent_task_file(task_id: str, file: UploadFile = File(...), session: Session = Depends(get_session)):
+    """Attach a file (multipart field "file"); same 25 MB limit and serving rules as the app."""
+    t = _get_task(session, task_id)
+    a = attachment_routes.upload_attachment(t.id, file, session)
+    _record(session, "attach_task_file", "task", t.id, f'attached "{a.filename}" to {task_ref(t.number)} "{t.action}"')
+    return task_detail(t, session)
+
+
+@router.post("/meetings/{meeting_id}/files", status_code=201)
+def agent_meeting_file(meeting_id: str, file: UploadFile = File(...), session: Session = Depends(get_session)):
+    m = _get_meeting(session, meeting_id)
+    a = attachment_routes.upload_meeting_attachment(m.id, file, session)
+    _record(session, "attach_meeting_file", "meeting", m.id, f'attached "{a.filename}" to {meeting_ref(m.number)} "{m.title}"')
+    return meeting_detail(m, session)
+
+
+@router.get("/tasks/{task_id}/files")
+def agent_task_files(task_id: str, session: Session = Depends(get_session)):
+    t = _get_task(session, task_id)
+    return {"ref": task_ref(t.number), "files": task_detail(t, session)["files"]}
+
+
+@router.get("/meetings/{meeting_id}/files")
+def agent_meeting_files(meeting_id: str, session: Session = Depends(get_session)):
+    m = _get_meeting(session, meeting_id)
+    return {"ref": meeting_ref(m.number), "files": meeting_detail(m, session)["files"]}
+
+
+@router.get("/files/{file_id}")
+def agent_file(file_id: str, session: Session = Depends(get_session)):
+    """A file's details. Text-like files (markdown, text, CSV, JSON, HTML) include their contents;
+    for others (PDF, images, …) use `path` with a local file-reading tool."""
+    a = find_attachment(session, file_id)
+    if not a:
+        raise HTTPException(404, detail={"error": f"No file with id {file_id!r}"})
+    if getattr(a, "task_id", None):
+        owner_row = session.get(Task, a.task_id)
+        owner = {"type": "task", "ref": task_ref(owner_row.number), "title": owner_row.action} if owner_row else None
+    else:
+        owner_row = session.get(Meeting, a.meeting_id)
+        owner = {"type": "meeting", "ref": meeting_ref(owner_row.number), "title": owner_row.title} if owner_row else None
+    path = attachments_dir() / a.stored_name
+    if not STORED_NAME.match(a.stored_name) or not path.is_file():
+        raise HTTPException(404, detail={"error": f"{a.filename!r} is missing from the attachments folder"})
+    out = {**file_brief(a), "attached_to": owner, "path": str(path.resolve())}
+    if out["kind"] in TEXT_KINDS:
+        text = path.read_text(encoding="utf-8", errors="replace")
+        out["content"] = text[:MAX_CONTENT_CHARS]
+        out["truncated"] = len(text) > MAX_CONTENT_CHARS
+    else:
+        out["content"] = None
+        out["read_with"] = "Not text: open `path` with a file-reading tool (PDFs and images can be read directly)."
+    return out
+
+
 # ── note backups (taken automatically before every notes change) ─────────────
 
 def _backup_ref(ref: str) -> str:
@@ -627,6 +696,9 @@ def agent_help():
             "GET /agent/search?q=": "Search tasks, meetings, people, interactions.",
             "GET /agent/summary?date_from=&date_to=": "What I did in a period (default this week so far).",
             "GET /agent/activity?limit=": "Changes made through /agent, newest first.",
+            "GET /agent/tasks/{id}/files": "A task's files (id, name, kind, size).",
+            "GET /agent/meetings/{id}/files": "A meeting's files (id, name, kind, size).",
+            "GET /agent/files/{file_id}": "One file: text contents for markdown/text/CSV/JSON/HTML; otherwise a local `path` to read.",
             "GET /agent/notes-backups/{ref}": "Saved earlier versions of a task/meeting's notes (newest first, kept 30 days).",
             "GET /agent/notes-backups/{ref}/{name}": "One saved version's text (restore it with POST …/notes mode=replace).",
         },
@@ -638,6 +710,8 @@ def agent_help():
             "POST /agent/meetings": "{title, date?, start_time?, duration_minutes?, notes?, exclude_from_stats?}",
             "PATCH /agent/meetings/{id}": "{title?, date?, start_time?, duration_minutes?, exclude_from_stats?}",
             "POST /agent/meetings/{id}/notes": "{text, mode?: append|replace}",
+            "POST /agent/tasks/{id}/files": "multipart form field 'file' (curl -F 'file=@/path/to/file'); 25 MB max",
+            "POST /agent/meetings/{id}/files": "multipart form field 'file'; 25 MB max",
             "POST /agent/meetings/{id}/tasks": "{task_id} to link, or {action, workstream?, state?, notes?, high_impact?} to create",
         },
     }

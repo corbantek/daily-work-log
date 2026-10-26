@@ -129,6 +129,24 @@ curl -s -X POST "$API/agent/meetings/M17/tasks" -H 'Content-Type: application/js
 curl -s -X POST "$API/agent/meetings/M17/tasks" -H 'Content-Type: application/json' -d '{"task_id": "T42"}'
 ```
 
+## Files
+
+Tasks and meetings can have files attached (documents, decks, screenshots, exports).
+
+```bash
+curl -s "$API/agent/tasks/T42/files"                          # or /agent/meetings/M17/files
+curl -s "$API/agent/files/FILE_ID"                            # one file's details and, for text, its contents
+curl -s -X POST "$API/agent/tasks/T42/files" -F "file=@/Users/me/Downloads/runbook.md"
+curl -s -X POST "$API/agent/meetings/M17/files" -F "file=@/Users/me/Desktop/q3-deck.pdf"
+```
+
+- **Attach only what the user asked for.** If the path is unclear ("that PDF I downloaded"), find
+  candidates and confirm the exact file with the user before uploading. 25 MB at most per file.
+- **Reading files for context:** markdown, text, CSV, JSON and HTML come back in `content`
+  (`truncated` is true for very long files). For PDFs, images and other files `content` is null —
+  open the returned `path` with your file-reading tool instead.
+- Single tasks and meetings (`GET /agent/tasks/T42`) also list their `files` with their ids.
+
 ## Writing notes
 
 Before changing a note, read the whole thing (`GET /agent/tasks/T42` or `/agent/meetings/M17`).
