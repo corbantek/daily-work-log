@@ -29,6 +29,7 @@ from . import tasks as task_routes
 from .insights import build_meeting_insights, task_date
 from .self_review import self_review
 from ..refs import meeting_ref, parse_ref, task_ref
+from .. import note_snapshots
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
@@ -485,11 +486,12 @@ def agent_update_task(task_id: str, body: TaskChanges, session: Session = Depend
 @router.post("/tasks/{task_id}/notes")
 def agent_task_notes(task_id: str, body: NotesText, session: Session = Depends(get_session)):
     t = _get_task(session, task_id)
+    backup = note_snapshots.save(task_ref(t.number), t.notes)  # before every change, in case it goes wrong
     t.notes = _join_notes(t.notes, body.text, body.mode)
     session.add(t)
     session.commit()
     _record(session, f"{body.mode}_task_notes", "task", t.id, f'{NOTES_VERB[body.mode]} notes on {task_ref(t.number)} "{t.action}"')
-    return task_detail(t, session)
+    return {**task_detail(t, session), "notes_backup": backup}
 
 
 @router.post("/tasks/{task_id}/links", status_code=201)
@@ -545,11 +547,12 @@ def agent_update_meeting(meeting_id: str, body: MeetingChanges, session: Session
 @router.post("/meetings/{meeting_id}/notes")
 def agent_meeting_notes(meeting_id: str, body: NotesText, session: Session = Depends(get_session)):
     m = _get_meeting(session, meeting_id)
+    backup = note_snapshots.save(meeting_ref(m.number), m.notes)  # before every change, in case it goes wrong
     m.notes = _join_notes(m.notes, body.text, body.mode)
     session.add(m)
     session.commit()
     _record(session, f"{body.mode}_meeting_notes", "meeting", m.id, f'{NOTES_VERB[body.mode]} notes on {meeting_ref(m.number)} "{m.title}"')
-    return meeting_detail(m, session)
+    return {**meeting_detail(m, session), "notes_backup": backup}
 
 
 @router.post("/meetings/{meeting_id}/tasks", status_code=201)
@@ -571,6 +574,31 @@ def agent_meeting_task(meeting_id: str, body: MeetingTask, session: Session = De
     return meeting_detail(m, session)
 
 
+# ── note backups (taken automatically before every notes change) ─────────────
+
+def _backup_ref(ref: str) -> str:
+    parsed = parse_ref(ref)
+    if not parsed or parsed[0] is None:
+        raise _bad("Give a task or meeting reference like T42 or M17")
+    return f"{parsed[0]}{parsed[1]}"
+
+
+@router.get("/notes-backups/{ref}")
+def agent_note_backups(ref: str):
+    """Saved earlier versions of a task's or meeting's notes (newest first; kept 30 days)."""
+    r = _backup_ref(ref)
+    return {"ref": r, "backups": note_snapshots.list_for(r)}
+
+
+@router.get("/notes-backups/{ref}/{name}")
+def agent_note_backup(ref: str, name: str):
+    r = _backup_ref(ref)
+    text = note_snapshots.read(r, name)
+    if text is None:
+        raise HTTPException(404, detail={"error": f"No backup {name!r} for {r}"})
+    return {"ref": r, "name": name, "notes": text}
+
+
 # ── self-description ──────────────────────────────────────────────────────────
 
 @router.get("/help")
@@ -584,7 +612,9 @@ def agent_help():
             "Task states: todo, in_progress, complete, abandoned (aliases like 'done' work).",
             "Tasks and meetings have short references, T42 and M17 (the 'ref' field, shown in the app). "
             "Use a reference or the id wherever an {id}, task_id or parent_id is expected.",
-            "Notes endpoints append by default; send mode='replace' only when the user asked to replace.",
+            "Notes endpoints append by default; mode='replace' rewrites the whole note (e.g. to merge repeated "
+            "information or mark finished TODOs DONE). Before every notes change the previous version is saved "
+            "(response field notes_backup; list them with GET /agent/notes-backups/{ref}).",
             "There are no delete endpoints. Every change is recorded in GET /agent/activity.",
         ],
         "read": {
@@ -597,6 +627,8 @@ def agent_help():
             "GET /agent/search?q=": "Search tasks, meetings, people, interactions.",
             "GET /agent/summary?date_from=&date_to=": "What I did in a period (default this week so far).",
             "GET /agent/activity?limit=": "Changes made through /agent, newest first.",
+            "GET /agent/notes-backups/{ref}": "Saved earlier versions of a task/meeting's notes (newest first, kept 30 days).",
+            "GET /agent/notes-backups/{ref}/{name}": "One saved version's text (restore it with POST …/notes mode=replace).",
         },
         "write": {
             "POST /agent/tasks": "{action, workstream?, state?, notes?, high_impact?, labels?, start_date?, end_date?, parent_id?}",

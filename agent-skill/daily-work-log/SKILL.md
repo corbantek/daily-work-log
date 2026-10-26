@@ -35,8 +35,13 @@ curl -s "$API/agent/help"
   it isn't clear. Never invent a workstream. The names in the examples below are only examples —
   use the user's own, from `/agent/day`, `/agent/open` or that error.
 - **Task states:** `todo`, `in_progress`, `complete`, `abandoned` ("done" also works).
-- **Notes are appended by default.** Only send `"mode": "replace"` when the user explicitly asked to
-  replace or rewrite the notes.
+- **Follow-up work is written as `TODO:`**, one item per line or bullet (`- TODO: share the numbers
+  with Zz`). Never use "Next:", "Next steps" or similar for it: the app highlights `TODO` in red and
+  `DONE` in green, so the keywords are what make follow-ups visible. When a follow-up is finished,
+  change its `TODO:` to `DONE:` rather than deleting it.
+- **Keep notes clean, not just longer** — see "Writing notes" below. Append when the note only
+  needs something new; rewrite the note when appending would leave repeated information or
+  finished TODOs behind.
 - **References.** Every task and meeting has a short reference, `T42` or `M17` (the `ref` field;
   the app shows it next to each title). When the user gives one ("mark T42 done", "add this to
   M17"; "T42" works too), use it directly wherever an id goes: `/agent/tasks/T42`, `"task_id": "T42"`,
@@ -89,15 +94,16 @@ curl -s -X PATCH "$API/agent/tasks/T42" -H 'Content-Type: application/json' -d '
 Fields: `action`, `state`, `high_impact`, `workstream` (`""` for none), `labels`, `start_date`,
 `end_date`. Completing a task with open sub-tasks is refused; tell the user.
 
-Append notes (markdown) to a task or a meeting:
+Add to a task's or meeting's notes (markdown). See "Writing notes" for when to rewrite instead:
 
 ```bash
 curl -s -X POST "$API/agent/tasks/T42/notes" -H 'Content-Type: application/json' --data-binary @- <<'JSON'
-{"text": "- Found the root cause: the retry loop didn't back off."}
+{"text": "- Found the root cause: the retry loop didn't back off.\n- TODO: add a backoff test"}
 JSON
 ```
 
-Use `/agent/meetings/M17/notes` for a meeting, e.g. when the user pastes AI meeting notes.
+Use `/agent/meetings/M17/notes` for a meeting, e.g. when the user pastes AI meeting notes. Keep
+pasted meeting notes as the user gave them unless they ask you to tidy them.
 
 Add a link (the type — pr, issue, doc, slack, quip, other — is guessed from the URL):
 
@@ -122,6 +128,30 @@ curl -s -X POST "$API/agent/meetings/M17/tasks" -H 'Content-Type: application/js
   -d '{"action": "Share bottleneck numbers", "workstream": "DevOps"}'
 curl -s -X POST "$API/agent/meetings/M17/tasks" -H 'Content-Type: application/json' -d '{"task_id": "T42"}'
 ```
+
+## Writing notes
+
+Before changing a note, read the whole thing (`GET /agent/tasks/T42` or `/agent/meetings/M17`).
+
+- **Only something new?** Append it (the default).
+- **Would appending repeat what's already there, or leave TODOs that are now done?** Rewrite the
+  note instead and send it whole with `"mode": "replace"`:
+  - merge repeated or overlapping points into one,
+  - turn finished `TODO:` items into `DONE:`, and keep open ones as `TODO:`,
+  - keep every fact, link and decision, and keep the user's own wording and headings —
+    tidy, don't summarise away detail or drop anything you weren't asked to remove.
+- Tell the user when you rewrote a note and what you merged or marked done.
+
+The app saves the previous version automatically before every notes change, for 30 days. The
+response's `notes_backup` field names it. If a change went wrong, or the user wants the old text
+back:
+
+```bash
+curl -s "$API/agent/notes-backups/T42"                        # earlier versions, newest first
+curl -s "$API/agent/notes-backups/T42/BACKUP_NAME"            # one version's text
+```
+
+Restore it by sending that text back with `"mode": "replace"` (which is itself backed up first).
 
 ## Writing summaries
 

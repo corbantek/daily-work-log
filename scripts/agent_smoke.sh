@@ -7,7 +7,7 @@ cd "$(dirname "$0")/.."
 
 PORT="${SMOKE_PORT:-4796}"
 TMP="$(mktemp -d)"
-export WORKLOG_DB="$TMP/smoke.db" WORKLOG_FILES="$TMP/files"
+export WORKLOG_DB="$TMP/smoke.db" WORKLOG_FILES="$TMP/files" WORKLOG_NOTE_SNAPSHOTS="$TMP/note-snapshots"
 api/.venv/bin/uvicorn api.main:app --port "$PORT" --log-level warning > "$TMP/api.log" 2>&1 < /dev/null &
 SERVER=$!
 trap 'kill $SERVER 2>/dev/null; wait $SERVER 2>/dev/null; rm -rf "$TMP"' EXIT
@@ -33,9 +33,17 @@ ok "$(echo "$C" | jq '.action == "Review the team'"'"'s CI changes" and .workstr
 T=$(curl -s "$API/agent/tasks?state=in_progress&workstream=devops"); ok "$(echo "$T" | jq '.count == 1 and (.tasks|all(.state=="in_progress"))')" "tasks by state + workstream name" "$T"
 P=$(curl -s -X PATCH "$API/agent/tasks/$TASK_ID" -H 'Content-Type: application/json' -d '{"state": "complete"}'); ok "$(echo "$P" | jq '.state == "complete"')" "update task state" "$P"
 N=$(curl -s -X POST "$API/agent/tasks/$TASK_ID/notes" -H 'Content-Type: application/json' --data-binary @- <<'JSON'
-{"text": "- Found the root cause: the retry loop didn't back off."}
+{"text": "- Found the root cause: the retry loop didn't back off.\n- TODO: add a backoff test"}
 JSON
-); ok "$(echo "$N" | jq '.notes | contains("didn'"'"'t back off")')" "append task notes" "$N"
+); ok "$(echo "$N" | jq '(.notes | contains("didn'"'"'t back off")) and (.notes | contains("TODO: add a backoff test"))')" "append task notes (with a TODO line)" "$N"
+ok "$(echo "$N" | jq '.notes_backup == null')" "nothing to back up when the note was empty" "$(echo "$N" | jq -c .notes_backup)"
+R=$(curl -s -X POST "$API/agent/tasks/$TASK_ID/notes" -H 'Content-Type: application/json' --data-binary @- <<'JSON'
+{"text": "- Found the root cause: the retry loop didn't back off.\n- DONE: add a backoff test", "mode": "replace"}
+JSON
+); BACKUP=$(echo "$R" | jq -r .notes_backup)
+ok "$(echo "$R" | jq '(.notes | contains("DONE: add a backoff test")) and (.notes | contains("TODO") | not) and (.notes_backup | startswith("T1--"))')" "rewrite (replace) marks the TODO done and saves a backup first" "$R"
+BL=$(curl -s "$API/agent/notes-backups/$TASK_ID"); ok "$(echo "$BL" | jq --arg b "$BACKUP" '.backups[0].name == $b')" "list note backups" "$BL"
+BR=$(curl -s "$API/agent/notes-backups/$TASK_ID/$BACKUP"); ok "$(echo "$BR" | jq '.notes | contains("TODO: add a backoff test")')" "read a note backup (the version before the rewrite)" "$BR"
 L=$(curl -s -X POST "$API/agent/tasks/$TASK_ID/links" -H 'Content-Type: application/json' \
   -d '{"url": "https://github.com/org/repo/pull/123", "label": "Retry fix PR"}'); ok "$(echo "$L" | jq '.links[0].type == "pr"')" "add link (type guessed from the URL)" "$L"
 G=$(curl -s "$API/agent/tasks/$TASK_ID"); ok "$(echo "$G" | jq '(.links|length) == 1 and (.notes|length) > 0')" "task detail"
@@ -71,7 +79,7 @@ SU=$(curl -s "$API/agent/summary"); ok "$(echo "$SU" | jq '.tasks.completed == 1
 E=$(curl -s -w '\n%{http_code}' -X POST "$API/agent/tasks" -H 'Content-Type: application/json' -d '{"action": "x", "workstream": "Nope"}')
 ok "$( [ "$(echo "$E" | tail -1)" = "400" ] && echo "$E" | head -1 | jq '.detail.valid == ["DevOps Improvements"]' || echo false )" "unknown workstream -> 400 with the valid names" "$E"
 E2=$(curl -s -o /dev/null -w '%{http_code}' -X DELETE "$API/agent/tasks/$TASK_ID"); ok "$( [ "$E2" = "405" ] && echo true || echo false )" "no deletes (DELETE -> 405)" "$E2"
-A=$(curl -s "$API/agent/activity"); ok "$(echo "$A" | jq 'length == 9 and .[0].action == "meeting_task"')" "activity log records every change" "$(echo "$A" | jq -c '[.[]|.action]')"
+A=$(curl -s "$API/agent/activity"); ok "$(echo "$A" | jq 'length == 10 and .[0].action == "meeting_task"')" "activity log records every change" "$(echo "$A" | jq -c '[.[]|.action]')"
 
 echo; echo "$pass passed, $fail failed"
 [ "$fail" -eq 0 ]
