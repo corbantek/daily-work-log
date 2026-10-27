@@ -176,6 +176,77 @@ Before changing a note, read the whole thing (`GET /agent/tasks/T42` or `/agent/
     tidy, don't summarise away detail or drop anything you weren't asked to remove.
 - Tell the user when you rewrote a note and what you merged or marked done.
 
+### Task notes
+
+A task's notes have four jobs. Keep them doing all four as the task evolves:
+
+1. **Context** — what the task is, why it matters, the intended approach, key decisions and open
+   questions, and the background or links needed to pick it up. Written when the task starts;
+   updated when the goal, approach or a decision changes.
+2. **Progress — what was done and where the time went.** Grouped by day, oldest first: a date
+   line (`**Oct 22**`; add the year only if it isn't the current one) with that day's work as
+   bullets underneath. If the day already has a heading, add to it instead of starting a second
+   one. Write work at a meaningful level — the outcome and anything worth knowing later ("Step 0,
+   draft PR #4725: added a DB-request counter and a report-only budget test"), not every small
+   step ("ran lint", "fixed a typo"). Add rough effort when you know it or the user mentions it —
+   on the date line for the day (`**Oct 22** (~3h)`) or on a single item; never guess.
+3. **Wins — for review season.** Anything with impact: shipped work, problems solved, numbers
+   moved, people unblocked, recognition received. Concrete ("cut p99 latency from 900 ms to
+   520 ms", not "improved performance"), with the PR, doc or thread as evidence, and estimates
+   labelled as estimates. When a win is significant, suggest marking the task ⚡ high-impact —
+   ask; don't set it yourself.
+4. **To do — the rolling "what's next".** The user's remaining follow-ups as `TODO:` items. Update
+   it on every change: add new ones, turn finished ones into `DONE:`, drop what's no longer
+   relevant. Things the user is waiting on from others are plain lines ("Waiting on Joshua
+   about …").
+
+End with a **status line**: a sentence or two on where the task stands right now. It's the last
+line of the note, and you rewrite it on every update.
+
+**Keep it readable, without losing work.** Short bullets, links instead of pasted text, and a level
+of detail like a good standup update; long notes are fine when the work was substantial. Don't
+drop or summarize away past work — Progress is the record of what the user did. You may merge
+entries that repeat each other (the same fact recorded twice), and keep wins and decisions in
+their own sections.
+
+**Dates:** use a date the note or the user gives. Infer one only from clear evidence (a linked
+meeting that day, an activity timestamp) and say so when you report the change; otherwise ask, or
+put the item under `**Earlier**`.
+
+**Updating:** new work belongs inside its section (today's Progress, To do) and the status line is
+last, so updating a structured task note normally means sending the whole revised note with
+`"mode": "replace"` rather than appending to the end. The previous version is backed up first.
+
+**Existing notes in another shape:** the first time you update such a task, reorganize its notes
+into this shape, keeping every fact, link, decision and the user's wording (a backup is saved
+automatically). Tell the user you reorganized them, and which dates you inferred.
+
+Shape (omit empty sections):
+
+```markdown
+**Context**
+Retries on the LPS registration path pile up under load. Goal: add exponential backoff so a slow
+DB doesn't cascade. Background: incident review (link).
+
+**Progress**
+- **Oct 20** (~2h)
+  - Traced the retries to a missing backoff.
+- **Oct 22**
+  - Merged the backoff fix (PR #123) (~1.5h).
+  - Measured p99 on staging before and after.
+
+**Wins**
+- Cut p99 latency from 900 ms to 520 ms (PR #123).
+
+**To do**
+- DONE: share the numbers with Zz
+- TODO: add a backoff regression test
+
+Status: fix shipped and measured; only the regression test is left.
+```
+
+Meeting notes keep the general rules above (and `TODO:` only for the user's own action items).
+
 The app saves the previous version automatically before every notes change, for 30 days. The
 response's `notes_backup` field names it. If a change went wrong, or the user wants the old text
 back:
