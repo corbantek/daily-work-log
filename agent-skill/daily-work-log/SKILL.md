@@ -94,6 +94,10 @@ JSON
 
 Add `"parent_id": "T42"` to make it a sub-task (it takes the parent's workstream).
 
+If you have anything to note about a new task, write it in the **Task notes** shape (below) from
+the start (Context, today's Progress, What's Next, and a status line) and send it as `notes` in the
+create call, not as a separate append afterwards. The same goes for a task created from a meeting.
+
 Update a task (send only what changes):
 
 ```bash
@@ -180,6 +184,9 @@ Before changing a note, read the whole thing (`GET /agent/tasks/T42` or `/agent/
 
 ### Task notes
 
+Use this shape whenever you write a task's notes: when you create the task as well as when you
+update it.
+
 A task's notes have four jobs. Keep them doing all four as the task evolves:
 
 1. **Context** — what the task is, why it matters, the intended approach, key decisions and open
@@ -197,13 +204,13 @@ A task's notes have four jobs. Keep them doing all four as the task evolves:
    520 ms", not "improved performance"), with the PR, doc or thread as evidence, and estimates
    labelled as estimates. When a win is significant, suggest marking the task ⚡ high-impact —
    ask; don't set it yourself.
-4. **To do — the rolling "what's next".** The user's remaining follow-ups as `TODO:` items. Update
+4. **What's Next — the rolling to-do list.** The user's remaining follow-ups as `TODO:` items. Update
    it on every change: add new ones, turn finished ones into `DONE:`, drop what's no longer
    relevant. Things the user is waiting on from others are plain lines ("Waiting on Joshua
    about …").
 
-End with a **status line**: a sentence or two on where the task stands right now. It's the last
-line of the note, and you rewrite it on every update.
+End with a **status line** that starts with a bold `**Status:**`: a sentence or two on where the
+task stands right now. It's the last line of the note, and you rewrite it on every update.
 
 **Keep it readable, without losing work.** Short bullets, links instead of pasted text, and a level
 of detail like a good standup update; long notes are fine when the work was substantial. Don't
@@ -215,7 +222,7 @@ their own sections.
 meeting that day, an activity timestamp) and say so when you report the change; otherwise ask, or
 put the item under `**Earlier**`.
 
-**Updating:** new work belongs inside its section (today's Progress, To do) and the status line is
+**Updating:** new work belongs inside its section (today's Progress, What's Next) and the status line is
 last, so updating a structured task note normally means sending the whole revised note with
 `"mode": "replace"` rather than appending to the end. The previous version is backed up first.
 
@@ -240,11 +247,11 @@ DB doesn't cascade. Background: incident review (link).
 **Wins**
 - Cut p99 latency from 900 ms to 520 ms (PR #123).
 
-**To do**
+**What's Next**
 - DONE: share the numbers with Zz
 - TODO: add a backoff regression test
 
-Status: fix shipped and measured; only the regression test is left.
+**Status:** fix shipped and measured; only the regression test is left.
 ```
 
 Meeting notes keep the general rules above (and `TODO:` only for the user's own action items).

@@ -31,6 +31,10 @@ JSON
 ); TASK_ID=$(echo "$C" | jq -r .ref)
 ok "$(echo "$C" | jq '.action == "Review the team'"'"'s CI changes" and .workstream == "DevOps Improvements" and .state == "in_progress" and .ref == "T1"')" "create task (partial workstream name, apostrophe kept, ref T1)" "$C"
 T=$(curl -s "$API/agent/tasks?state=in_progress&workstream=devops"); ok "$(echo "$T" | jq '.count == 1 and (.tasks|all(.state=="in_progress"))')" "tasks by state + workstream name" "$T"
+CN=$(curl -s -X POST "$API/agent/tasks" -H 'Content-Type: application/json' --data-binary @- <<'JSON'
+{"action": "Investigate duplicate acks", "notes": "**Context**\nSeen in a PR run.\n\n**What's Next**\n- TODO: pull the pod logs\n\n**Status:** just started."}
+JSON
+); ok "$(echo "$CN" | jq '(.notes | startswith("**Context**")) and (.notes | endswith("**Status:** just started."))')" "create a task with structured notes in one call" "$CN"
 P=$(curl -s -X PATCH "$API/agent/tasks/$TASK_ID" -H 'Content-Type: application/json' -d '{"state": "complete"}'); ok "$(echo "$P" | jq '.state == "complete"')" "update task state" "$P"
 N=$(curl -s -X POST "$API/agent/tasks/$TASK_ID/notes" -H 'Content-Type: application/json' --data-binary @- <<'JSON'
 {"text": "- Found the root cause: the retry loop didn't back off.\n- TODO: add a backoff test"}
@@ -85,7 +89,7 @@ ok "$( [ "$(echo "$FP" | jq -r .content)" = "null" ] && [ -f "$FPATH" ] && echo 
 # ── reads ──
 D=$(curl -s "$API/agent/day"); ok "$(echo "$D" | jq --arg t "$TODAY" '.date == $t and (.meetings|length) == 1')" "day (today)" "$D"
 D2=$(curl -s "$API/agent/day?date=$TODAY"); ok "$(echo "$D2" | jq --arg t "$TODAY" '.date == $t')" "day?date= (query date parsed)" "$D2"
-O=$(curl -s "$API/agent/open"); ok "$(echo "$O" | jq '.count == 1')" "open (only the new todo task)" "$O"
+O=$(curl -s "$API/agent/open"); ok "$(echo "$O" | jq '.count == 2')" "open (the two todo tasks)" "$O"
 T2=$(curl -s "$API/agent/tasks?q=retry&date_from=$TODAY&date_to=$TODAY"); ok "$(echo "$T2" | jq '.count == 1')" "tasks by text + date range" "$T2"
 M=$(curl -s "$API/agent/meetings"); ok "$(echo "$M" | jq '.count == 1')" "today's meetings" "$M"
 M2=$(curl -s "$API/agent/meetings?date_from=$TODAY&date_to=$TODAY&q=sync"); ok "$(echo "$M2" | jq '.count == 1')" "meetings by range + text" "$M2"
@@ -98,7 +102,7 @@ SU=$(curl -s "$API/agent/summary"); ok "$(echo "$SU" | jq '.tasks.completed == 1
 E=$(curl -s -w '\n%{http_code}' -X POST "$API/agent/tasks" -H 'Content-Type: application/json' -d '{"action": "x", "workstream": "Nope"}')
 ok "$( [ "$(echo "$E" | tail -1)" = "400" ] && echo "$E" | head -1 | jq '.detail.valid == ["DevOps Improvements"]' || echo false )" "unknown workstream -> 400 with the valid names" "$E"
 E2=$(curl -s -o /dev/null -w '%{http_code}' -X DELETE "$API/agent/tasks/$TASK_ID"); ok "$( [ "$E2" = "405" ] && echo true || echo false )" "no deletes (DELETE -> 405)" "$E2"
-A=$(curl -s "$API/agent/activity"); ok "$(echo "$A" | jq 'length == 14 and (map(.action) | index("attach_task_file")) != null')" "activity log records every change" "$(echo "$A" | jq -c '[.[]|.action]')"
+A=$(curl -s "$API/agent/activity"); ok "$(echo "$A" | jq 'length == 15 and (map(.action) | index("attach_task_file")) != null')" "activity log records every change" "$(echo "$A" | jq -c '[.[]|.action]')"
 
 echo; echo "$pass passed, $fail failed"
 [ "$fail" -eq 0 ]
