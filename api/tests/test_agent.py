@@ -125,6 +125,41 @@ class TaskWriteTests(Base):
         self.assert400(lambda: A.agent_task_link(t["id"], A.NewLink(url="https://x.test", type="video"), self.s), "Unknown link type")
 
 
+class SubTaskTests(Base):
+    def test_create_edit_and_clear_a_parent(self):
+        parent = A.agent_create_task(A.NewTask(action="Parent", workstream="LPS"), self.s)
+        child = A.agent_create_task(A.NewTask(action="Child", parent_id=parent["ref"]), self.s)
+        self.assertEqual((child["parent_id"], child["workstream"]), (parent["id"], "LPS"))
+        loose = A.agent_create_task(A.NewTask(action="Loose", workstream="DevOps Improvements"), self.s)
+        moved = A.agent_update_task(loose["ref"], A.TaskChanges(parent_id=parent["ref"]), self.s)
+        self.assertEqual((moved["parent_id"], moved["workstream"]), (parent["id"], "LPS"))  # follows its parent
+        free = A.agent_update_task(loose["ref"], A.TaskChanges(parent_id=""), self.s)
+        self.assertNotIn("parent_id", free)
+        self.assertEqual(free["workstream"], "LPS")
+
+    def test_task_from_a_meeting_can_be_a_sub_task(self):
+        parent = A.agent_create_task(A.NewTask(action="Parent", workstream="LPS"), self.s)
+        m = A.agent_create_meeting(A.NewMeeting(title="Sync"), self.s)
+        A.agent_meeting_task(m["ref"], A.MeetingTask(action="Follow-up", parent_id=parent["ref"]), self.s)
+        sub = self.s.exec(select(Task).where(Task.action == "Follow-up")).one()
+        self.assertEqual(sub.parent_task_id, parent["id"])
+
+    def test_refusals_say_what_to_do_instead(self):
+        parent = A.agent_create_task(A.NewTask(action="Parent", workstream="LPS"), self.s)
+        child = A.agent_create_task(A.NewTask(action="Child", parent_id=parent["ref"]), self.s)
+        with self.assertRaises(HTTPException) as cm:  # a sub-task can't be a parent
+            A.agent_create_task(A.NewTask(action="Grandchild", parent_id=child["ref"]), self.s)
+        self.assertIn(parent["ref"], cm.exception.detail["error"])
+        with self.assertRaises(HTTPException) as cm:  # a workstream other than the parent's
+            A.agent_create_task(A.NewTask(action="x", workstream="DevOps Improvements", parent_id=parent["ref"]), self.s)
+        self.assertIn("LPS", cm.exception.detail["error"])
+        with self.assertRaises(HTTPException) as cm:  # it already has sub-tasks
+            A.agent_update_task(parent["ref"], A.TaskChanges(parent_id=child["ref"]), self.s)
+        with self.assertRaises(HTTPException) as cm:
+            A.agent_update_task(parent["ref"], A.TaskChanges(parent_id=parent["ref"]), self.s)
+        self.assertIn("own parent", cm.exception.detail["error"])
+
+
 class MeetingWriteTests(Base):
     def test_create_defaults_to_today_and_update_exclude(self):
         m = A.agent_create_meeting(A.NewMeeting(title="Team party", start_time="17:00", duration_minutes=120), self.s)

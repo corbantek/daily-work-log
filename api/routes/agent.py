@@ -367,6 +367,7 @@ class TaskChanges(BaseModel):
     labels: Optional[List[str]] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
+    parent_id: Optional[str] = None  # make it a sub-task of this task; "" (or null) makes it top-level again
 
 
 class NotesText(BaseModel):
@@ -424,6 +425,7 @@ class MeetingTask(BaseModel):
     state: Optional[str] = None
     notes: Optional[str] = None
     high_impact: bool = False
+    parent_id: Optional[str] = None  # create the new task as a sub-task of this one
 
 
 NOTES_VERB = {"append": "appended", "replace": "replaced"}
@@ -444,14 +446,33 @@ def _create_task(session: Session, body: NewTask) -> Task:
         parent_id = parent.id
         if body.workstream is None:
             ws_id = parent.workstream_id  # a sub-task lives in its parent's workstream
-    created = task_routes.create_task(TaskCreate(
-        action=body.action.strip(), workstream_id=ws_id,
-        state=parse_state(body.state) if body.state else TaskState.TODO,
-        notes=(body.notes or "").strip() or None, high_impact=body.high_impact,
-        start_date=body.start_date or Date.today(), end_date=body.end_date,
-        parent_task_id=parent_id, label_ids=resolve_labels(session, body.labels),
-    ), session)
+        _check_parent(session, parent, ws_id)
+    try:
+        created = task_routes.create_task(TaskCreate(
+            action=body.action.strip(), workstream_id=ws_id,
+            state=parse_state(body.state) if body.state else TaskState.TODO,
+            notes=(body.notes or "").strip() or None, high_impact=body.high_impact,
+            start_date=body.start_date or Date.today(), end_date=body.end_date,
+            parent_task_id=parent_id, label_ids=resolve_labels(session, body.labels),
+        ), session)
+    except HTTPException as e:
+        if e.status_code == 400 and isinstance(e.detail, str):
+            raise _bad(e.detail)
+        raise
     return session.get(Task, created.id)
+
+
+def _check_parent(session: Session, parent: Task, workstream_id: Optional[str]):
+    """Explain, in the agent's terms, why a task can't go under `parent`."""
+    ref = task_ref(parent.number)
+    if parent.parent_task_id:
+        top = session.get(Task, parent.parent_task_id)
+        raise _bad(f"{ref} is itself a sub-task, and sub-tasks can't have sub-tasks (one level only). "
+                   f"Use its parent {task_ref(top.number)} as parent_id instead.")
+    if workstream_id != parent.workstream_id:
+        ws = _ws_names(session).get(parent.workstream_id) or "no workstream"
+        raise _bad(f"A sub-task must be in its parent's workstream ({ws}, for {ref}). "
+                   "Leave workstream out and it will use it.")
 
 
 @router.post("/tasks", status_code=201)
@@ -483,6 +504,19 @@ def agent_update_task(task_id: str, body: TaskChanges, session: Session = Depend
     for k in ("start_date", "end_date"):
         if k in changes:
             update[k] = changes[k]
+    if "parent_id" in changes:
+        if changes["parent_id"]:
+            parent = _get_task(session, changes["parent_id"])
+            if parent.id == t.id:
+                raise _bad("A task can't be its own parent")
+            if "workstream_id" not in update:
+                update["workstream_id"] = parent.workstream_id  # a sub-task moves into its parent's workstream
+            if session.exec(select(Task).where(Task.parent_task_id == t.id)).first():
+                raise _bad(f"{task_ref(t.number)} has sub-tasks of its own, so it can't become a sub-task (one level only)")
+            _check_parent(session, parent, update["workstream_id"])
+            update["parent_task_id"] = parent.id
+        else:
+            update["parent_task_id"] = None
     if not update:
         raise _bad("Nothing to change", fields=list(TaskChanges.model_fields))
     try:
@@ -491,7 +525,7 @@ def agent_update_task(task_id: str, body: TaskChanges, session: Session = Depend
         raise _bad(e.detail if isinstance(e.detail, str) else str(e.detail))
     t = session.get(Task, task_id)
     after = task_brief(t, _ws_names(session), session, notes_preview=False)
-    diff = ", ".join(f"{k} {before[k]!r} → {after[k]!r}" for k in after if before.get(k) != after[k])
+    diff = ", ".join(f"{k} {before.get(k)!r} → {after.get(k)!r}" for k in [*after, *(k for k in before if k not in after)] if before.get(k) != after.get(k))
     _record(session, "update_task", "task", t.id, f'updated {task_ref(t.number)} "{t.action}": {diff or "no change"}')
     return task_detail(t, session)
 
@@ -588,7 +622,8 @@ def agent_meeting_task(meeting_id: str, body: MeetingTask, session: Session = De
         verb = "linked"
     else:
         t = _create_task(session, NewTask(action=body.action, workstream=body.workstream, state=body.state,
-                                          notes=body.notes, high_impact=body.high_impact, start_date=m.date))
+                                          notes=body.notes, high_impact=body.high_impact, start_date=m.date,
+                                          parent_id=body.parent_id))
         verb = "created"
     if not session.get(MeetingTaskLink, (m.id, t.id)):
         session.add(MeetingTaskLink(meeting_id=m.id, task_id=t.id))
@@ -716,7 +751,7 @@ def agent_help():
         },
         "write": {
             "POST /agent/tasks": "{action, workstream?, state?, notes?, high_impact?, labels?, start_date?, end_date?, parent_id?}",
-            "PATCH /agent/tasks/{id}": "{action?, state?, high_impact?, workstream?, labels?, start_date?, end_date?}",
+            "PATCH /agent/tasks/{id}": "{action?, state?, high_impact?, workstream?, labels?, start_date?, end_date?, parent_id? (\"\" makes it top-level)}",
             "POST /agent/tasks/{id}/notes": "{text, mode?: append|replace}",
             "POST /agent/tasks/{id}/links": "{url, label?, type?: pr|issue|doc|slack|quip|other}",
             "POST /agent/meetings": "{title, date?, start_time?, duration_minutes?, notes?, exclude_from_stats?, passive?}",
@@ -725,6 +760,6 @@ def agent_help():
             "POST /agent/tasks/{id}/files": "multipart form field 'file' (curl -F 'file=@/path/to/file'); 25 MB max",
             "POST /agent/meetings/{id}/links": "{url, label?, type?: pr|issue|doc|slack|quip|other}",
             "POST /agent/meetings/{id}/files": "multipart form field 'file'; 25 MB max",
-            "POST /agent/meetings/{id}/tasks": "{task_id} to link, or {action, workstream?, state?, notes?, high_impact?} to create",
+            "POST /agent/meetings/{id}/tasks": "{task_id} to link, or {action, workstream?, state?, notes?, high_impact?, parent_id?} to create",
         },
     }

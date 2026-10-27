@@ -92,7 +92,10 @@ curl -s -X POST "$API/agent/tasks" -H 'Content-Type: application/json' --data-bi
 JSON
 ```
 
-Add `"parent_id": "T42"` to make it a sub-task (it takes the parent's workstream).
+Add `"parent_id": "T42"` to make it a sub-task (leave `workstream` out: it takes the parent's). That
+also works when creating a task from a meeting. Sub-tasks go one level deep only: if T42 is itself a
+sub-task, use its parent. To move an existing task under another, or back to top level, PATCH it
+with `"parent_id": "T42"` (or `""`).
 
 If you have anything to note about a new task, write it in the **Task notes** shape (below) from
 the start (Context, today's Progress, What's Next, and a status line) and send it as `notes` in the
@@ -105,7 +108,7 @@ curl -s -X PATCH "$API/agent/tasks/T42" -H 'Content-Type: application/json' -d '
 ```
 
 Fields: `action`, `state`, `high_impact`, `workstream` (`""` for none), `labels`, `start_date`,
-`end_date`. Completing a task with open sub-tasks is refused; tell the user.
+`end_date`, `parent_id`. Completing a task with open sub-tasks is refused; tell the user.
 
 Add to a task's or meeting's notes (markdown). See "Writing notes" for when to rewrite instead:
 
