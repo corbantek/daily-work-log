@@ -1,6 +1,6 @@
 ---
 name: daily-work-log
-description: Read and update the user's local Daily Work Log app (their record of tasks, meetings and workstreams) through its /agent HTTP API on localhost. Use when the user asks what is on their plate or on today, what they did this week or in a period, to log, find or update a task, to mark a task done, to add notes or a link to a task or meeting, to record a meeting or paste meeting notes, to create a task from a meeting, or to draft a standup or status update from their work log.
+description: Read and update the user's local Daily Work Log app (their record of tasks, meetings and workstreams) through its /agent HTTP API on localhost. Use when the user asks what is on their plate or on today, what they did this week or in a period, to log, find or update a task, to mark a task done, to add notes, a link or a file/attachment to a task or meeting, to read or summarize a file attached to one, to record a meeting or paste meeting notes, to create a task from a meeting, to draft a standup or status update from their work log, or mentions a task or meeting reference like T42 or M17.
 allowed-tools: Bash(curl *)
 ---
 
@@ -39,6 +39,11 @@ curl -s "$API/agent/help"
   with Zz`). Never use "Next:", "Next steps" or similar for it: the app highlights `TODO` in red and
   `DONE` in green, so the keywords are what make follow-ups visible. When a follow-up is finished,
   change its `TODO:` to `DONE:` rather than deleting it.
+- **`TODO:` is only for the user's own follow-ups.** In meeting notes especially, mark as `TODO:`
+  only the action items that are the user's (assigned to them by name, or "I"/"me"/"we'll have
+  <user> …"). Write everyone else's as plain statements without the keyword — "Zz will share
+  the benchmark" — so the red TODOs stay a list of what the user has to do. If you can't tell
+  which name is the user's, or whether an item is theirs, ask.
 - **Keep notes clean, not just longer** — see "Writing notes" below. Append when the note only
   needs something new; rewrite the note when appending would leave repeated information or
   finished TODOs behind.
@@ -50,6 +55,10 @@ curl -s "$API/agent/help"
   list) to get its `ref`; if several match, ask which one. Confirm with the user before making more than three changes
   at once.
 - **There are no deletes.** If the user wants something removed, tell them to do it in the app.
+- **Don't conclude something is impossible from one failure.** Before telling the user the app
+  can't do something, check `GET /agent/help`, which lists every endpoint. A failure on one kind
+  of item (say, a meeting link) says nothing about other operations (say, a meeting file); try
+  the right endpoint. If something really isn't supported, say exactly what, and why.
 - **After a change,** tell the user briefly what changed, in their words, not ids.
   `GET /agent/activity` lists everything changed through this API.
 - Send JSON bodies with a quoted heredoc so apostrophes and newlines in notes survive:
@@ -105,11 +114,13 @@ JSON
 Use `/agent/meetings/M17/notes` for a meeting, e.g. when the user pastes AI meeting notes. Keep
 pasted meeting notes as the user gave them unless they ask you to tidy them.
 
-Add a link (the type — pr, issue, doc, slack, quip, other — is guessed from the URL):
+Add a link to a task or a meeting (the type — pr, issue, doc, slack, quip, other — is guessed from the URL):
 
 ```bash
 curl -s -X POST "$API/agent/tasks/T42/links" -H 'Content-Type: application/json' \
   -d '{"url": "https://github.com/org/repo/pull/123", "label": "Retry fix PR"}'
+curl -s -X POST "$API/agent/meetings/M17/links" -H 'Content-Type: application/json' \
+  -d '{"url": "https://docs.example.com/agenda", "label": "Agenda"}'
 ```
 
 Record a meeting, or change one (`exclude_from_stats: true` keeps parties and conferences out of
@@ -142,6 +153,11 @@ curl -s -X POST "$API/agent/meetings/M17/files" -F "file=@/Users/me/Desktop/q3-d
 
 - **Attach only what the user asked for.** If the path is unclear ("that PDF I downloaded"), find
   candidates and confirm the exact file with the user before uploading. 25 MB at most per file.
+- **Files shared in Slack are attached, not linked.** When Slack content you are logging (a
+  message or thread) has files attached, download each one to a temporary local path with the
+  Slack tools and attach it to the task or meeting here; don't add a Slack file link instead.
+  If no available tool can download it (some Slack integrations can't), say so, name the file,
+  and ask the user to save it locally so you can attach it; don't silently fall back to a link.
 - **Reading files for context:** markdown, text, CSV, JSON and HTML come back in `content`
   (`truncated` is true for very long files). For PDFs, images and other files `content` is null —
   open the returned `path` with your file-reading tool instead.

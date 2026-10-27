@@ -134,6 +134,18 @@ class MeetingWriteTests(Base):
         with self.assertRaises(ValueError):
             A.NewMeeting(title="x", start_time="5pm")
 
+    def test_add_link_to_a_meeting_by_reference(self):
+        A.agent_create_meeting(A.NewMeeting(title="Design review"), self.s)
+        out = A.agent_meeting_link("M1", A.NewLink(url="https://quip-apple.com/AbC", label="Agenda"), self.s)
+        self.assertEqual(out["links"], [{"url": "https://quip-apple.com/AbC", "label": "Agenda", "type": "quip"}])
+        out = A.agent_meeting_link("M1", A.NewLink(url="https://example.com/rec", label="Recording", type="other"), self.s)
+        self.assertEqual([l["label"] for l in out["links"]], ["Agenda", "Recording"])
+        self.assertEqual(A.agent_activity(1, self.s)[0]["summary"], 'added other link to M1 "Design review": https://example.com/rec')
+        self.assert400(lambda: A.agent_meeting_link("M1", A.NewLink(url="  "), self.s), "url is required")
+        with self.assertRaises(HTTPException) as cm:
+            A.agent_meeting_link("M9", A.NewLink(url="https://x.test"), self.s)
+        self.assertEqual(cm.exception.status_code, 404)
+
     def test_meeting_notes_append(self):
         m = A.agent_create_meeting(A.NewMeeting(title="Sync", notes="## Summary\nok"), self.s)
         out = A.agent_meeting_notes(m["id"], A.NotesText(text="## Action items\n- ship it"), self.s)

@@ -142,7 +142,7 @@ api/.venv/bin/python -m unittest discover -s api/tests -t .
 | `/insights/meetings` | GET | Meeting stats, digest and outcomes (`?date_from&date_to`) |
 | `/insights/links` | GET | Links and files on tasks/meetings in the range (`?date_from&date_to`) |
 | `/agent/day`, `/agent/tasks`, `/agent/tasks/{id}`, `/agent/open`, `/agent/meetings`, `/agent/meetings/{id}`, `/agent/search`, `/agent/summary`, `/agent/activity`, `/agent/help` | GET | Agent API reads (compact, name-based) |
-| `/agent/tasks`, `/agent/tasks/{id}/notes`, `/agent/tasks/{id}/links`, `/agent/meetings`, `/agent/meetings/{id}/notes`, `/agent/meetings/{id}/tasks` | POST | Agent API writes (create, append notes, add link, create/link task from meeting) |
+| `/agent/tasks`, `/agent/tasks/{id}/notes`, `/agent/tasks/{id}/links`, `/agent/meetings`, `/agent/meetings/{id}/notes`, `/agent/meetings/{id}/links`, `/agent/meetings/{id}/tasks` | POST | Agent API writes (create, append notes, add link, create/link task from meeting) |
 | `/agent/tasks/{id}`, `/agent/meetings/{id}` | PATCH | Agent API updates |
 | `/agent/tasks/{id}/files`, `/agent/meetings/{id}/files`, `/agent/files/{file_id}` | GET | List a task's/meeting's files; one file's details and text contents (or local path) |
 | `/agent/tasks/{id}/files`, `/agent/meetings/{id}/files` | POST | Agent attaches a file (multipart `file`, 25 MB) |

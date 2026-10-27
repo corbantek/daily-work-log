@@ -511,8 +511,18 @@ def agent_task_link(task_id: str, body: NewLink, session: Session = Depends(get_
     task_id = t.id
     link_type = _link_type(body)
     task_routes.add_link(task_id, TaskLinkCreate(url=body.url.strip(), label=body.label, link_type=link_type), session)
-    _record(session, "add_task_link", "task", t.id, f'added {link_type.value} link to "{t.action}": {body.url.strip()}')
+    _record(session, "add_task_link", "task", t.id, f'added {link_type.value} link to {task_ref(t.number)} "{t.action}": {body.url.strip()}')
     return task_detail(t, session)
+
+
+@router.post("/meetings/{meeting_id}/links", status_code=201)
+def agent_meeting_link(meeting_id: str, body: NewLink, session: Session = Depends(get_session)):
+    """Add a link to a meeting (type guessed from the URL unless given), e.g. an agenda or a recording."""
+    m = _get_meeting(session, meeting_id)
+    link_type = _link_type(body)
+    meeting_routes.add_link(m.id, TaskLinkCreate(url=body.url.strip(), label=body.label, link_type=link_type), session)
+    _record(session, "add_meeting_link", "meeting", m.id, f'added {link_type.value} link to {meeting_ref(m.number)} "{m.title}": {body.url.strip()}')
+    return meeting_detail(m, session)
 
 
 def _link_type(body: NewLink) -> LinkType:
@@ -711,6 +721,7 @@ def agent_help():
             "PATCH /agent/meetings/{id}": "{title?, date?, start_time?, duration_minutes?, exclude_from_stats?}",
             "POST /agent/meetings/{id}/notes": "{text, mode?: append|replace}",
             "POST /agent/tasks/{id}/files": "multipart form field 'file' (curl -F 'file=@/path/to/file'); 25 MB max",
+            "POST /agent/meetings/{id}/links": "{url, label?, type?: pr|issue|doc|slack|quip|other}",
             "POST /agent/meetings/{id}/files": "multipart form field 'file'; 25 MB max",
             "POST /agent/meetings/{id}/tasks": "{task_id} to link, or {action, workstream?, state?, notes?, high_impact?} to create",
         },
