@@ -196,6 +196,7 @@ export const updateMeeting = (id: string, body: Partial<{
   start_time: string | null
   notes: string | null
   exclude_from_stats: boolean
+  passive: boolean
   task_ids: string[]
 }>) => req<Meeting>(`/meetings/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
 

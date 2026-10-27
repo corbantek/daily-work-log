@@ -18,6 +18,7 @@ import { formatTime, type TimeFormat } from '../api/date'
 import { AttachButton, AttachmentList, useAttachmentUpload } from './Attachments'
 import { LinkSection } from './LinkSection'
 import { ExcludedBadge, ExcludeToggle } from './ExcludeFromStats'
+import { PassiveToggle } from './Passive'
 import { RefBadge } from './RefBadge'
 import { hasDraft } from '@/lib/drafts'
 import { cn } from '@/lib/utils'
@@ -93,6 +94,11 @@ export function MeetingSection({ meetings, date, onChanged, timeFormat = '12h' }
     const extra = parts.length ? ` and its ${parts.join(' and ')}` : ''
     if (!confirm(`Delete "${meeting.title}"${extra}?`)) return
     await deleteMeeting(meeting.id)
+    onChanged()
+  }
+
+  async function setPassive(meeting: Meeting, passive: boolean) {
+    await updateMeeting(meeting.id, { passive })
     onChanged()
   }
 
@@ -266,6 +272,7 @@ export function MeetingSection({ meetings, date, onChanged, timeFormat = '12h' }
                     {meeting.tasks.length} task{meeting.tasks.length !== 1 ? 's' : ''}
                   </span>
                 )}
+                <PassiveToggle value={meeting.passive} onChange={v => setPassive(meeting, v)} />
                 {meeting.exclude_from_stats && <ExcludedBadge />}
                 {meeting.duration_minutes && (
                   <span className={cn('flex items-center gap-1 text-xs text-muted-foreground flex-shrink-0', meeting.exclude_from_stats && 'line-through opacity-60')}>

@@ -253,6 +253,9 @@ class MeetingBase(SQLModel):
     # Left out of meeting stats (hours, share of week, count, busiest day, weekly chart, Self-Review's
     # count), e.g. parties and conferences. Calendar sync never changes it.
     exclude_from_stats: bool = False
+    # Attended without participating (worked through it). Still a work meeting: counted in the hours,
+    # and shown separately as "passive" / subtracted for "engaged" time. Calendar sync never changes it.
+    passive: bool = False
 
     @field_validator("start_time")
     @classmethod
@@ -313,6 +316,7 @@ class MeetingUpdate(SQLModel):
     notes: Optional[str] = None
     start_time: Optional[str] = None
     exclude_from_stats: Optional[bool] = None
+    passive: Optional[bool] = None
     task_ids: Optional[List[str]] = None
 
     @field_validator("start_time")
@@ -627,6 +631,16 @@ class LinkInsight(SQLModel):
 class MeetingWeek(SQLModel):
     week_start: DateType  # Monday
     minutes: int
+    passive_minutes: int = 0  # part of `minutes`
+
+
+class OftenPassive(SQLModel):
+    """A recurring meeting (same title, ignoring case/punctuation) you were passive in at least twice."""
+    title: str
+    passive: int
+    total: int
+    latest_meeting_id: str
+    latest_number: Optional[int] = None
 
 
 class BusiestDay(SQLModel):
@@ -646,6 +660,11 @@ class MeetingStats(SQLModel):
     weekly: List[MeetingWeek] = []
     excluded_count: int = 0  # meetings marked "Exclude from stats" (left out of everything above)
     excluded_minutes: int = 0
+    passive_count: int = 0  # meetings marked Passive (included in the numbers above)
+    passive_minutes: int = 0
+    engaged_minutes: int = 0  # total_minutes - passive_minutes
+    engaged_share: Optional[float] = None  # engaged_minutes / capacity_minutes
+    often_passive: List[OftenPassive] = []
 
 
 class TaskBrief(SQLModel):
@@ -664,6 +683,7 @@ class MeetingDigestEntry(SQLModel):
     start_time: Optional[str] = None
     duration_minutes: Optional[int] = None
     exclude_from_stats: bool = False
+    passive: bool = False
     preview: str  # markdown: a "summary" section if the notes have one, else the first lines; "" without notes
     has_more: bool
     notes: str

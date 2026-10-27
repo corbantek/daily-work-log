@@ -170,7 +170,7 @@ def meeting_brief(m: Meeting, session: Session) -> dict:
     task_ids = [ml.task_id for ml in session.exec(select(MeetingTaskLink).where(MeetingTaskLink.meeting_id == m.id)).all()]
     return {
         "ref": meeting_ref(m.number), "id": m.id, "date": m.date.isoformat(), "start_time": m.start_time, "title": m.title,
-        "duration_minutes": m.duration_minutes, "excluded_from_stats": m.exclude_from_stats,
+        "duration_minutes": m.duration_minutes, "excluded_from_stats": m.exclude_from_stats, "passive": m.passive,
         "from_calendar": m.source is not None, "notes_preview": _preview(m.notes),
         "tasks": [{"ref": task_ref(t.number), "id": t.id, "action": t.action, "state": t.state.value}
                   for t in (session.get(Task, i) for i in task_ids) if t],
@@ -394,6 +394,7 @@ class NewMeeting(BaseModel):
     duration_minutes: Optional[int] = None
     notes: Optional[str] = None
     exclude_from_stats: bool = False
+    passive: bool = False
 
     @field_validator("start_time")
     @classmethod
@@ -407,6 +408,7 @@ class MeetingChanges(BaseModel):
     start_time: Optional[str] = None
     duration_minutes: Optional[int] = None
     exclude_from_stats: Optional[bool] = None
+    passive: Optional[bool] = None
 
     @field_validator("start_time")
     @classmethod
@@ -543,7 +545,7 @@ def agent_create_meeting(body: NewMeeting, session: Session = Depends(get_sessio
     created = meeting_routes.create_meeting(MeetingCreate(
         title=body.title.strip(), date=body.date or Date.today(), start_time=body.start_time,
         duration_minutes=body.duration_minutes, notes=(body.notes or "").strip() or None,
-        exclude_from_stats=body.exclude_from_stats,
+        exclude_from_stats=body.exclude_from_stats, passive=body.passive,
     ), session)
     m = session.get(Meeting, created.id)
     _record(session, "create_meeting", "meeting", m.id, f'created {meeting_ref(m.number)} "{m.title}" on {m.date.isoformat()}')
@@ -717,8 +719,8 @@ def agent_help():
             "PATCH /agent/tasks/{id}": "{action?, state?, high_impact?, workstream?, labels?, start_date?, end_date?}",
             "POST /agent/tasks/{id}/notes": "{text, mode?: append|replace}",
             "POST /agent/tasks/{id}/links": "{url, label?, type?: pr|issue|doc|slack|quip|other}",
-            "POST /agent/meetings": "{title, date?, start_time?, duration_minutes?, notes?, exclude_from_stats?}",
-            "PATCH /agent/meetings/{id}": "{title?, date?, start_time?, duration_minutes?, exclude_from_stats?}",
+            "POST /agent/meetings": "{title, date?, start_time?, duration_minutes?, notes?, exclude_from_stats?, passive?}",
+            "PATCH /agent/meetings/{id}": "{title?, date?, start_time?, duration_minutes?, exclude_from_stats?, passive?}",
             "POST /agent/meetings/{id}/notes": "{text, mode?: append|replace}",
             "POST /agent/tasks/{id}/files": "multipart form field 'file' (curl -F 'file=@/path/to/file'); 25 MB max",
             "POST /agent/meetings/{id}/links": "{url, label?, type?: pr|issue|doc|slack|quip|other}",

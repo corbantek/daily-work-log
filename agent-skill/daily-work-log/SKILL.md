@@ -124,7 +124,9 @@ curl -s -X POST "$API/agent/meetings/M17/links" -H 'Content-Type: application/js
 ```
 
 Record a meeting, or change one (`exclude_from_stats: true` keeps parties and conferences out of
-the meeting-time stats):
+the meeting-time stats; `passive: true` marks one the user attended without participating, working
+through it; it still counts as meeting time but not as engaged time. Set `passive` only when the user
+says so, never by guessing from the notes):
 
 ```bash
 curl -s -X POST "$API/agent/meetings" -H 'Content-Type: application/json' \

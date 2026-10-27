@@ -134,6 +134,12 @@ class MeetingWriteTests(Base):
         with self.assertRaises(ValueError):
             A.NewMeeting(title="x", start_time="5pm")
 
+    def test_passive_on_create_and_update(self):
+        m = A.agent_create_meeting(A.NewMeeting(title="All hands"), self.s)
+        self.assertFalse(m["passive"])
+        self.assertTrue(A.agent_update_meeting(m["ref"], A.MeetingChanges(passive=True), self.s)["passive"])
+        self.assertTrue(A.agent_create_meeting(A.NewMeeting(title="Town hall", passive=True), self.s)["passive"])
+
     def test_add_link_to_a_meeting_by_reference(self):
         A.agent_create_meeting(A.NewMeeting(title="Design review"), self.s)
         out = A.agent_meeting_link("M1", A.NewLink(url="https://quip-apple.com/AbC", label="Agenda"), self.s)

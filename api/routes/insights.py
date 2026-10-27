@@ -11,7 +11,7 @@ from ..database import get_session
 from ..models import (
     BusiestDay, DayStatus, InsightSource, LinkInsight, Meeting, MeetingAttachment, MeetingDigestEntry,
     MeetingInsights, MeetingLink, MeetingStats, MeetingTaskLink, MeetingWeek, OutcomeMeeting,
-    OutcomeTask, Task, TaskAttachment, TaskBrief, TaskLink, TaskState,
+    OftenPassive, OutcomeTask, Task, TaskAttachment, TaskBrief, TaskLink, TaskState,
 )
 from .meetings import MEETING_ORDER
 
@@ -146,6 +146,31 @@ def _brief(t: Task) -> TaskBrief:
     return TaskBrief(id=t.id, number=t.number, action=t.action, state=t.state, high_impact=t.high_impact)
 
 
+OFTEN_PASSIVE_MIN = 2
+
+
+def title_key(title: str) -> str:
+    """Recurring meetings match by title, ignoring case, punctuation and spacing."""
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", title.lower()).split())
+
+
+def often_passive(meetings) -> List[OftenPassive]:
+    """Titles you were passive in at least OFTEN_PASSIVE_MIN times among `meetings` (most passive first)."""
+    groups: Dict[str, list] = {}
+    for m in meetings:
+        groups.setdefault(title_key(m.title), []).append(m)
+    out = []
+    for ms in groups.values():
+        n_passive = sum(1 for m in ms if m.passive)
+        if n_passive < OFTEN_PASSIVE_MIN:
+            continue
+        latest = max(ms, key=lambda m: (m.date, m.start_time or "", m.created_at))
+        out.append(OftenPassive(title=latest.title.strip(), passive=n_passive, total=len(ms),
+                                latest_meeting_id=latest.id, latest_number=latest.number))
+    out.sort(key=lambda o: (-o.passive, -(o.passive / o.total), o.title.lower()))
+    return out
+
+
 def _week_start(d: date) -> date:
     return d - timedelta(days=d.weekday())
 
@@ -214,18 +239,25 @@ def build_meeting_insights(
 
     per_day: Dict[date, int] = {}
     per_week: Dict[date, int] = {}
+    passive_week: Dict[date, int] = {}
     for m in counted:
         mins = m.duration_minutes or 0
         per_day[m.date] = per_day.get(m.date, 0) + mins
         per_week[_week_start(m.date)] = per_week.get(_week_start(m.date), 0) + mins
+        if m.passive:
+            passive_week[_week_start(m.date)] = passive_week.get(_week_start(m.date), 0) + mins
     total = sum(per_day.values())
     busiest = max(per_day.items(), key=lambda kv: (kv[1], kv[0]), default=None)
     weekly = []
     if start <= through:
         w = _week_start(start)
         while w <= through:
-            weekly.append(MeetingWeek(week_start=w, minutes=per_week.get(w, 0)))
+            weekly.append(MeetingWeek(week_start=w, minutes=per_week.get(w, 0), passive_minutes=passive_week.get(w, 0)))
             w += timedelta(days=7)
+
+    passive = [m for m in counted if m.passive]
+    passive_minutes = sum(m.duration_minutes or 0 for m in passive)
+    engaged = total - passive_minutes
 
     stats = MeetingStats(
         stats_through=through,
@@ -239,6 +271,11 @@ def build_meeting_insights(
         weekly=weekly,
         excluded_count=len(excluded),
         excluded_minutes=sum(m.duration_minutes or 0 for m in excluded),
+        passive_count=len(passive),
+        passive_minutes=passive_minutes,
+        engaged_minutes=engaged,
+        engaged_share=(engaged / capacity) if capacity else None,
+        often_passive=often_passive(counted),
     )
 
     # ── digest: every meeting in the range, in time order (the UI shows ones with nothing attached compactly)
@@ -248,7 +285,7 @@ def build_meeting_insights(
         preview, has_more = notes_preview(notes) if notes else ("", False)
         digest.append(MeetingDigestEntry(
             id=m.id, number=m.number, title=m.title, date=m.date, start_time=m.start_time, duration_minutes=m.duration_minutes,
-            exclude_from_stats=m.exclude_from_stats, preview=preview, has_more=has_more, notes=notes,
+            exclude_from_stats=m.exclude_from_stats, passive=m.passive, preview=preview, has_more=has_more, notes=notes,
             tasks=[_brief(t) for t in tasks_by_meeting.get(m.id, [])],
             links=links_by_meeting.get(m.id, []),
             attachments=files_by_meeting.get(m.id, []),

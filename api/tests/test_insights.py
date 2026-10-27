@@ -232,6 +232,56 @@ class ExcludeFromStatsTests(Base):
         self.assertEqual((m.duration_minutes, m.exclude_from_stats), (180, True))
 
 
+class PassiveTests(Base):
+    def passive(self, title, day, minutes=30):
+        m = self.meeting(title, day, minutes)
+        m.passive = True
+        self.s.commit()
+        return m
+
+    def test_passive_time_is_counted_and_split_out_as_engaged(self):
+        self.meeting("Design review", MON, 60)
+        self.passive("All hands", TUE, 90)
+        st = build_meeting_insights(self.s, MON, SUN, today=SUN).stats
+        self.assertEqual((st.total_minutes, st.meeting_count), (150, 2))  # still meeting time
+        self.assertEqual((st.passive_count, st.passive_minutes, st.engaged_minutes), (1, 90, 60))
+        self.assertAlmostEqual(st.engaged_share, 60 / st.capacity_minutes)
+        self.assertEqual([(w.minutes, w.passive_minutes) for w in st.weekly], [(150, 90)])
+
+    def test_excluded_and_future_passive_meetings_are_ignored(self):
+        party = self.passive("Team party", MON, 120)
+        party.exclude_from_stats = True
+        self.passive("All hands", FRI, 60)  # after today
+        self.s.commit()
+        st = build_meeting_insights(self.s, MON, SUN, today=TUE).stats
+        self.assertEqual((st.passive_count, st.passive_minutes, st.often_passive), (0, 0, []))
+
+    def test_often_passive_groups_recurring_titles(self):
+        for d in (MON, TUE, WED):
+            self.passive("LPS weekly", d)
+        self.meeting("lps  Weekly!", THU)  # same meeting, different spelling: engaged this time
+        self.passive("Standup", MON)  # only once: not "often"
+        r = build_meeting_insights(self.s, MON, SUN, today=SUN)
+        [o] = r.stats.often_passive
+        self.assertEqual((o.passive, o.total), (3, 4))
+        latest = self.s.get(Meeting, o.latest_meeting_id)
+        self.assertEqual((latest.date, o.title), (THU, "lps  Weekly!"))  # opens the most recent instance
+        self.assertEqual({d.title: d.passive for d in r.digest}["Standup"], True)
+
+    def test_flag_through_the_meeting_api_and_calendar_sync_keeps_it(self):
+        ev = CalendarEvent(external_id="a", title="All hands", start=datetime(2026, 10, 21, 10), duration_minutes=60,
+                           all_day=False, declined=False, cancelled=False, calendar_id="c")
+        apply_events(self.s, WED, [ev])
+        m = self.s.exec(select(Meeting).where(Meeting.title == "All hands")).one()
+        self.assertFalse(m.passive)
+        self.assertTrue(update_meeting(m.id, MeetingUpdate(passive=True), self.s).passive)
+        ev.duration_minutes = 90
+        apply_events(self.s, WED, [ev])
+        self.s.refresh(m)
+        self.assertEqual((m.duration_minutes, m.passive), (90, True))
+        self.assertFalse(update_meeting(m.id, MeetingUpdate(passive=False), self.s).passive)
+
+
 class DigestAndOutcomeTests(Base):
     def test_digest_has_every_meeting_in_time_order(self):
         self.meeting("Afternoon", MON, start="14:00", notes="## Summary\nok")

@@ -5,8 +5,8 @@ import { Download, Eye, EyeOff, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { rehypeHighlightTodo } from '@/lib/rehype-highlight-todo'
-import type { MeetingDigestEntry, MeetingInsights, TaskBrief } from '../api/types'
-import { attachmentOpenUrl, getMeetingInsights, updateMeeting } from '../api/client'
+import type { MeetingDigestEntry, MeetingInsights, MeetingStats, TaskBrief } from '../api/types'
+import { attachmentOpenUrl, getMeetingInsights } from '../api/client'
 import {
   formatMonthDay, formatShortDate, formatTime, rangeForPreset, type DateRange, type TimeFormat,
 } from '../api/date'
@@ -15,7 +15,8 @@ import { ItemDetailDialog, type DetailTarget } from './ItemDetailDialog'
 import { LINK_ICONS } from './LinkSection'
 import { useOnActivate } from '@/lib/use-on-activate'
 import { useOnDataChange } from '@/lib/live-updates'
-import { ExcludeToggle } from './ExcludeFromStats'
+import { ExcludedBadge } from './ExcludeFromStats'
+import { PassiveBadge } from './Passive'
 import { RefBadge } from './RefBadge'
 
 const STATE_LABELS: Record<string, string> = {
@@ -79,18 +80,19 @@ export function MeetingInsightsView({ theme, timeFormat, active = true }: Props)
     })
   }
 
-  // Mark/unmark "Exclude from stats" straight from the digest; the tiles recompute on reload.
-  async function setExcluded(m: MeetingDigestEntry, exclude: boolean) {
-    await updateMeeting(m.id, { exclude_from_stats: exclude })
-    load()
-  }
-
   function buildMarkdown(d: MeetingInsights): string {
     const s = d.stats
     const lines = [`# Meetings — ${range.from} to ${range.to}`, '']
     const share = s.work_share != null ? ` · **${Math.round(s.work_share * 100)}%** of the work week` : ''
+    const engaged = s.passive_minutes && s.engaged_share != null ? ` (${Math.round(s.engaged_share * 100)}% engaged)` : ''
+    const passive = s.passive_count ? ` · ${hours(s.passive_minutes)} passive in ${s.passive_count}` : ''
     const excl = s.excluded_count ? ` · ${s.excluded_count} excluded (${hours(s.excluded_minutes)})` : ''
-    lines.push(`**${hours(s.total_minutes)}** in **${s.meeting_count}** meetings${share} · **${s.with_notes}** with notes${excl}`, '')
+    lines.push(`**${hours(s.total_minutes)}** in **${s.meeting_count}** meetings${share}${engaged}${passive} · **${s.with_notes}** with notes${excl}`, '')
+    if (s.often_passive.length) {
+      lines.push('## Often passive', '')
+      for (const o of s.often_passive) lines.push(`- ${o.title}: passive ${o.passive} of ${o.total}`)
+      lines.push('')
+    }
     if (d.outcomes.length) {
       lines.push('## Outcomes', '')
       for (const t of d.outcomes) {
@@ -104,7 +106,7 @@ export function MeetingInsightsView({ theme, timeFormat, active = true }: Props)
       lines.push('## Digest', '')
       for (const m of digest) {
         const dur = m.duration_minutes ? ` (${m.duration_minutes}m)` : ''
-        lines.push(`### ${when(m)} · ${m.title}${dur}${m.exclude_from_stats ? ' — excluded from stats' : ''}`, '')
+        lines.push(`### ${when(m)} · ${m.title}${dur}${m.passive ? ' — passive' : ''}${m.exclude_from_stats ? ' — excluded from stats' : ''}`, '')
         if (m.preview) lines.push(m.preview, '')
         for (const t of m.tasks) lines.push(`- [${STATE_LABELS[t.state]}]${t.high_impact ? ' ⚡' : ''} ${t.action}`)
         for (const l of m.links) lines.push(`- [${l.label || l.url}](${l.url})`)
@@ -128,12 +130,26 @@ export function MeetingInsightsView({ theme, timeFormat, active = true }: Props)
 
   const s = data?.stats
   const tiles = s ? [
-    { label: 'In meetings', value: hours(s.total_minutes) },
+    {
+      label: 'In meetings',
+      value: hours(s.total_minutes),
+      sub: s.passive_minutes ? `${hours(s.passive_minutes)} passive` : undefined,
+      title: s.passive_minutes
+        ? `${hours(s.engaged_minutes)} engaged + ${hours(s.passive_minutes)} passive (${s.passive_count} meeting${s.passive_count === 1 ? '' : 's'} you worked through)`
+        : undefined,
+    },
     {
       label: 'Of work week',
       value: s.work_share != null ? `${Math.round(s.work_share * 100)}%` : '—',
-      title: `${hours(s.total_minutes)} of ${hours(s.capacity_minutes)} working time (weekdays × 8 h${s.days_off ? `, ${s.days_off} day${s.days_off === 1 ? '' : 's'} off excluded` : ''})`,
+      sub: s.passive_minutes && s.engaged_share != null ? `${Math.round(s.engaged_share * 100)}% engaged` : undefined,
+      title: `${hours(s.total_minutes)} of ${hours(s.capacity_minutes)} working time (weekdays × 8 h${s.days_off ? `, ${s.days_off} day${s.days_off === 1 ? '' : 's'} off excluded` : ''})`
+        + (s.passive_minutes && s.engaged_share != null ? `; ${hours(s.engaged_minutes)} engaged without passive meetings` : ''),
     },
+    ...(s.passive_minutes ? [{
+      label: 'Engaged',
+      value: hours(s.engaged_minutes),
+      title: 'Meeting time minus passive meetings (ones you attended without participating)',
+    }] : []),
     { label: 'Meetings', value: String(s.meeting_count) },
     { label: 'With notes', value: String(s.with_notes) },
     {
@@ -160,7 +176,7 @@ export function MeetingInsightsView({ theme, timeFormat, active = true }: Props)
 
       {s && (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-1">
+          <div className={cn('grid grid-cols-2 gap-2 mb-1', tiles.length > 5 ? 'sm:grid-cols-3 md:grid-cols-6' : 'sm:grid-cols-5')}>
             {tiles.map(t => (
               <div key={t.label} className="rounded-lg border border-border bg-card px-3 py-2" title={t.title}>
                 <div className="text-xl font-semibold text-foreground tabular-nums">
@@ -177,6 +193,9 @@ export function MeetingInsightsView({ theme, timeFormat, active = true }: Props)
             {s.excluded_count > 0 && <> {s.excluded_count} excluded ({hours(s.excluded_minutes)}).</>}
           </p>
           {s.weekly.length > 1 && <WeeklyHoursChart weeks={s.weekly} rangeFrom={range.from} />}
+          {s.often_passive.length > 0 && (
+            <OftenPassiveList items={s.often_passive} onOpen={o => setDetail({ type: 'meeting', id: o.latest_meeting_id, title: o.title })} />
+          )}
         </>
       )}
 
@@ -262,11 +281,8 @@ export function MeetingInsightsView({ theme, timeFormat, active = true }: Props)
                     {m.duration_minutes ? (
                       <span className={cn('text-xs text-muted-foreground/60', m.exclude_from_stats && 'line-through')}>{m.duration_minutes}m</span>
                     ) : null}
-                    <ExcludeToggle
-                      value={m.exclude_from_stats}
-                      onChange={v => setExcluded(m, v)}
-                      className={cn('ml-auto h-6', !m.exclude_from_stats && 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100')}
-                    />
+                    {m.passive && <PassiveBadge />}
+                    {m.exclude_from_stats && <ExcludedBadge />}
                   </div>
                 ) : (
                   <DigestCard
@@ -277,7 +293,6 @@ export function MeetingInsightsView({ theme, timeFormat, active = true }: Props)
                     onToggle={() => toggle(m.id)}
                     onOpen={() => setDetail({ type: 'meeting', id: m.id, title: m.title })}
                     onOpenTask={t => setDetail({ type: 'task', id: t.id, title: t.action })}
-                    onExclude={v => setExcluded(m, v)}
                   />
                 ))}
               </div>
@@ -305,14 +320,13 @@ function TaskLine({ t, onOpen }: { t: TaskBrief; onOpen: () => void }) {
   )
 }
 
-function DigestCard({ m, when, open, onToggle, onOpen, onOpenTask, onExclude }: {
+function DigestCard({ m, when, open, onToggle, onOpen, onOpenTask }: {
   m: MeetingDigestEntry; when: string; open: boolean; onToggle: () => void; onOpen: () => void
   onOpenTask: (t: TaskBrief) => void
-  onExclude: (exclude: boolean) => void
 }) {
   const hasItems = m.tasks.length > 0 || m.links.length > 0 || m.attachments.length > 0
   return (
-    <div className="group rounded-lg border border-border bg-card px-3 py-2">
+    <div className="rounded-lg border border-border bg-card px-3 py-2">
       <div className="flex flex-wrap items-baseline gap-x-2">
         <span className="text-xs text-muted-foreground tabular-nums">{when}</span>
         <button onClick={onOpen} className="text-sm font-medium text-foreground hover:underline text-left">
@@ -322,12 +336,8 @@ function DigestCard({ m, when, open, onToggle, onOpen, onOpenTask, onExclude }: 
         {m.duration_minutes ? (
           <span className={cn('text-xs text-muted-foreground', m.exclude_from_stats && 'line-through opacity-60')}>{m.duration_minutes}m</span>
         ) : null}
-        {/* visible when set; otherwise appears on hover so the cards stay calm */}
-        <ExcludeToggle
-          value={m.exclude_from_stats}
-          onChange={onExclude}
-          className={cn('ml-auto h-6 self-center', !m.exclude_from_stats && 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100')}
-        />
+        {m.passive && <PassiveBadge className="self-center" />}
+        {m.exclude_from_stats && <ExcludedBadge className="self-center" />}
       </div>
       {m.notes ? (
         <div className="prose-worklog max-w-none mt-1.5 text-sm">
@@ -371,30 +381,71 @@ function DigestCard({ m, when, open, onToggle, onOpen, onOpenTask, onExclude }: 
   )
 }
 
-/** Hours in meetings per week: one series, so no legend. Each bar is focusable and labeled, with a hover/focus tooltip. */
-function WeeklyHoursChart({ weeks, rangeFrom }: { weeks: { week_start: string; minutes: number }[]; rangeFrom: string }) {
+/** Recurring meetings (same title) you were passive in at least twice: candidates to skip. */
+function OftenPassiveList({ items, onOpen }: { items: MeetingStats['often_passive']; onOpen: (o: MeetingStats['often_passive'][number]) => void }) {
+  return (
+    <section className="mb-6">
+      <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2">
+        Often passive
+        <span className="normal-case tracking-normal font-normal ml-2">recurring meetings you mostly worked through</span>
+      </h2>
+      <div className="divide-y divide-border/60 rounded-lg border border-border bg-card">
+        {items.map(o => (
+          <div key={o.latest_meeting_id} className="flex items-center gap-2 px-3 py-1.5 text-sm">
+            <button onClick={() => onOpen(o)} className="text-foreground hover:underline text-left" title="Open the most recent one">
+              {o.title}
+            </button>
+            <RefBadge kind="meeting" number={o.latest_number} />
+            <span className="ml-auto text-xs text-muted-foreground tabular-nums">passive {o.passive} of {o.total}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+type Week = MeetingStats['weekly'][number]
+
+/**
+ * Hours in meetings per week. With no passive meetings it is one series (no legend); otherwise each bar stacks
+ * engaged (primary, at the baseline) under passive (muted tint), split by a 2px surface gap, with a legend.
+ * Each bar is focusable and labeled, with a hover/focus tooltip.
+ */
+function WeeklyHoursChart({ weeks, rangeFrom }: { weeks: Week[]; rangeFrom: string }) {
   // A range that starts mid-week makes the first week partial: label it by the range start instead.
   const label = (weekStart: string) => formatMonthDay(weekStart < rangeFrom ? rangeFrom : weekStart)
   const [active, setActive] = useState<number | null>(null)
   const max = Math.max(...weeks.map(w => w.minutes), 1)
   const maxIndex = weeks.findIndex(w => w.minutes === max)
   const labelEvery = weeks.length > 8 ? 2 : 1
+  const split = weeks.some(w => w.passive_minutes > 0)
   const PLOT = 96
+  const describe = (w: Week) => split && w.passive_minutes
+    ? `${hours(w.minutes)} (${hours(w.minutes - w.passive_minutes)} engaged, ${hours(w.passive_minutes)} passive)`
+    : hours(w.minutes)
 
   return (
     <figure className="mb-6">
-      <figcaption className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2">
-        Hours per week
+      <figcaption className="flex items-center gap-4 mb-2">
+        <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Hours per week</span>
+        {split && (
+          <span className="flex items-center gap-3 text-xs text-muted-foreground" aria-hidden>
+            <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-primary" /> Engaged</span>
+            <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-chart-passive" /> Passive</span>
+          </span>
+        )}
       </figcaption>
       <div className="relative">
         <div className="flex items-end gap-1 border-b border-border" style={{ height: PLOT + 18 }} role="group" aria-label="Hours in meetings per week">
           {weeks.map((w, i) => {
-            const h = Math.round((w.minutes / max) * PLOT)
+            const total = Math.max(Math.round((w.minutes / max) * PLOT), w.minutes > 0 ? 2 : 0)
+            const passive = w.passive_minutes ? Math.max(Math.round((w.passive_minutes / max) * PLOT), 2) : 0
+            const engaged = w.minutes - w.passive_minutes > 0 ? Math.max(total - passive, 2) : 0
             return (
               <div
                 key={w.week_start}
                 tabIndex={0}
-                aria-label={`Week of ${label(w.week_start)}: ${hours(w.minutes)}`}
+                aria-label={`Week of ${label(w.week_start)}: ${describe(w)}`}
                 onMouseEnter={() => setActive(i)}
                 onMouseLeave={() => setActive(a => (a === i ? null : a))}
                 onFocus={() => setActive(i)}
@@ -404,13 +455,16 @@ function WeeklyHoursChart({ weeks, rangeFrom }: { weeks: { week_start: string; m
                 {i === maxIndex && w.minutes > 0 && (
                   <span className="text-[11px] text-muted-foreground tabular-nums mb-0.5" aria-hidden>{hours(w.minutes)}</span>
                 )}
-                <div
-                  className={cn('w-full max-w-6 rounded-t bg-primary transition-opacity', active !== null && active !== i && 'opacity-60')}
-                  style={{ height: Math.max(h, w.minutes > 0 ? 2 : 0) }}
-                />
+                <div className={cn('w-full max-w-6 flex flex-col gap-[2px] transition-opacity', active !== null && active !== i && 'opacity-60')}>
+                  {passive > 0 && <div className="rounded-t bg-chart-passive" style={{ height: passive }} />}
+                  {engaged > 0 && <div className={cn('bg-primary', !passive && 'rounded-t')} style={{ height: engaged }} />}
+                </div>
                 {active === i && (
                   <div className="absolute bottom-full mb-1 z-10 whitespace-nowrap rounded-md border border-border bg-popover px-2 py-1 text-xs shadow-sm" aria-hidden>
                     <span className="font-semibold text-foreground tabular-nums">{hours(w.minutes)}</span>
+                    {split && w.passive_minutes > 0 && (
+                      <span className="text-muted-foreground tabular-nums"> ({hours(w.minutes - w.passive_minutes)} engaged, {hours(w.passive_minutes)} passive)</span>
+                    )}
                     <span className="text-muted-foreground"> · week of {label(w.week_start)}</span>
                   </div>
                 )}

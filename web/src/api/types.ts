@@ -88,6 +88,7 @@ export interface Meeting {
   start_time: string | null
   missing_from_source: boolean
   exclude_from_stats: boolean
+  passive: boolean
   tasks: Task[]
   links: MeetingLink[]
   attachments: Attachment[]
@@ -144,9 +145,22 @@ export interface MeetingStats {
   work_share: number | null
   days_off: number
   busiest_day: { date: string; minutes: number } | null
-  weekly: { week_start: string; minutes: number }[]
+  weekly: { week_start: string; minutes: number; passive_minutes: number }[]
   excluded_count: number
   excluded_minutes: number
+  passive_count: number
+  passive_minutes: number
+  engaged_minutes: number
+  engaged_share: number | null
+  often_passive: OftenPassive[]
+}
+
+export interface OftenPassive {
+  title: string
+  passive: number
+  total: number
+  latest_meeting_id: string
+  latest_number: number | null
 }
 
 export interface MeetingDigestEntry {
@@ -157,6 +171,7 @@ export interface MeetingDigestEntry {
   start_time: string | null
   duration_minutes: number | null
   exclude_from_stats: boolean
+  passive: boolean
   preview: string
   has_more: boolean
   notes: string

@@ -53,6 +53,8 @@ CM=$(curl -s -X POST "$API/agent/meetings" -H 'Content-Type: application/json' \
 ok "$(echo "$CM" | jq --arg t "$TODAY" '.date == $t and .start_time == "14:00" and .ref == "M1"')" "create meeting (defaults to today, ref M1)" "$CM"
 PM=$(curl -s -X PATCH "$API/agent/meetings/$MEETING_ID" -H 'Content-Type: application/json' -d '{"exclude_from_stats": true}')
 ok "$(echo "$PM" | jq '.excluded_from_stats == true')" "exclude meeting from stats" "$PM"
+PP=$(curl -s -X PATCH "$API/agent/meetings/$MEETING_ID" -H 'Content-Type: application/json' -d '{"passive": true}')
+ok "$(echo "$PP" | jq '.passive == true and .excluded_from_stats == true')" "mark meeting passive" "$PP"
 ML0=$(curl -s -X POST "$API/agent/meetings/$MEETING_ID/links" -H 'Content-Type: application/json' \
   -d '{"url": "https://docs.example.com/agenda", "label": "Agenda"}')
 ok "$(echo "$ML0" | jq '.links == [{"url": "https://docs.example.com/agenda", "label": "Agenda", "type": "doc"}]')" "add a link to a meeting (type guessed)" "$ML0"
@@ -96,7 +98,7 @@ SU=$(curl -s "$API/agent/summary"); ok "$(echo "$SU" | jq '.tasks.completed == 1
 E=$(curl -s -w '\n%{http_code}' -X POST "$API/agent/tasks" -H 'Content-Type: application/json' -d '{"action": "x", "workstream": "Nope"}')
 ok "$( [ "$(echo "$E" | tail -1)" = "400" ] && echo "$E" | head -1 | jq '.detail.valid == ["DevOps Improvements"]' || echo false )" "unknown workstream -> 400 with the valid names" "$E"
 E2=$(curl -s -o /dev/null -w '%{http_code}' -X DELETE "$API/agent/tasks/$TASK_ID"); ok "$( [ "$E2" = "405" ] && echo true || echo false )" "no deletes (DELETE -> 405)" "$E2"
-A=$(curl -s "$API/agent/activity"); ok "$(echo "$A" | jq 'length == 13 and (map(.action) | index("attach_task_file")) != null')" "activity log records every change" "$(echo "$A" | jq -c '[.[]|.action]')"
+A=$(curl -s "$API/agent/activity"); ok "$(echo "$A" | jq 'length == 14 and (map(.action) | index("attach_task_file")) != null')" "activity log records every change" "$(echo "$A" | jq -c '[.[]|.action]')"
 
 echo; echo "$pass passed, $fail failed"
 [ "$fail" -eq 0 ]
