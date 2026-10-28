@@ -17,6 +17,7 @@ import { DateRangePicker } from '../components/DateRangePicker'
 import { useOnActivate } from '@/lib/use-on-activate'
 import { useOnDataChange } from '@/lib/live-updates'
 import { RefBadge } from '../components/RefBadge'
+import { LinkedItems } from '../components/LinkedItems'
 import { REVIEW_VIEWS, type ReviewMode } from './review-views'
 import { ItemDetailDialog, type DetailTarget } from '../components/ItemDetailDialog'
 import type { TimeFormat } from '../api/date'
@@ -139,7 +140,8 @@ export function ReviewPage({
         const impact = t.high_impact ? ' ⚡' : ''
         const state = `[${STATE_LABELS[t.state]}]`
         const linkStr = t.links.map(l => `[${l.label || l.link_type}](${l.url})`).join(' ')
-        lines.push(`- ${state}${impact} ${t.action}${linkStr ? ' ' + linkStr : ''}`)
+        const fileStr = t.attachments.map(a => `📎 ${a.filename}`).join(' ')
+        lines.push(`- ${state}${impact} ${t.action}${linkStr ? ' ' + linkStr : ''}${fileStr ? ' ' + fileStr : ''}`)
       }
       lines.push('')
     }
@@ -336,6 +338,11 @@ export function ReviewPage({
                         <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlightTodo]}>
                           {task.notes}
                         </ReactMarkdown>
+                      </div>
+                    )}
+                    {(task.links.length > 0 || task.attachments.length > 0) && (
+                      <div className="mt-2 pt-2 border-t border-border/60 space-y-1">
+                        <LinkedItems links={task.links} attachments={task.attachments} />
                       </div>
                     )}
                     <div className="flex flex-wrap items-center gap-2 mt-1.5">

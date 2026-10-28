@@ -96,6 +96,7 @@ api/.venv/bin/python -m unittest discover -s api/tests -t .
 - `ManageFramework.tsx` — dialog to edit competency dimensions/attributes (opened from Settings → Competency framework)
 - `SelfReviewDraft.tsx` — your own year-end summary (stat tiles, high-impact highlights, tasks grouped by workstream) + Markdown export; shown via the Review tab's Tasks/Self-Review toggle
 - `MeetingInsightsView.tsx` — Review → Meetings: stat tiles, hours-per-week chart (shown for ranges over one week), deduplicated outcomes list, then digest cards (preview / full notes, then the meeting's tasks, links and files), Markdown export (same order)
+- `LinkedItems.tsx` — a task's/meeting's links and attached files, one per line; shared by the Review → Meetings digest and Review → Tasks cards
 - `LinksView.tsx` — Review → Links: merged link/file list with search and type filter; sources open `ItemDetailDialog`
 - `DateRangePicker.tsx` — preset + custom date range control used by Review → Meetings, Links and Tasks
 - `CommandPalette.tsx` — ⌘K / Ctrl-K global search overlay; opens a person in the People tab, or a focused read-only detail (`ItemDetailDialog`) for a task/meeting (tasks live inside collapsed days, so jumping the Log view to them is unreliable — a recall dialog is used instead)

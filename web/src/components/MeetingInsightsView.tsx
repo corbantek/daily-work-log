@@ -6,13 +6,13 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { rehypeHighlightTodo } from '@/lib/rehype-highlight-todo'
 import type { MeetingDigestEntry, MeetingInsights, MeetingStats, TaskBrief } from '../api/types'
-import { attachmentOpenUrl, getMeetingInsights } from '../api/client'
+import { getMeetingInsights } from '../api/client'
 import {
   formatMonthDay, formatShortDate, formatTime, rangeForPreset, type DateRange, type TimeFormat,
 } from '../api/date'
 import { DateRangePicker } from './DateRangePicker'
 import { ItemDetailDialog, type DetailTarget } from './ItemDetailDialog'
-import { LINK_ICONS } from './LinkSection'
+import { LinkedItems } from './LinkedItems'
 import { useOnActivate } from '@/lib/use-on-activate'
 import { useOnDataChange } from '@/lib/live-updates'
 import { ExcludedBadge } from './ExcludeFromStats'
@@ -356,25 +356,7 @@ function DigestCard({ m, when, open, onToggle, onOpen, onOpenTask }: {
       {hasItems && (
         <div className="mt-2 pt-2 border-t border-border/60 space-y-1">
           {m.tasks.map(t => <TaskLine key={t.id} t={t} onOpen={() => onOpenTask(t)} />)}
-          {m.links.map(l => (
-            <div key={l.id} className="flex items-center gap-2 text-xs">
-              <span className="w-4 text-center text-muted-foreground shrink-0" aria-hidden>{LINK_ICONS[l.link_type]}</span>
-              <a href={l.url} target="_blank" rel="noopener noreferrer"
-                className="text-primary hover:text-primary/80 truncate transition-colors" title={l.url}>
-                {l.label || l.url}
-              </a>
-            </div>
-          ))}
-          {m.attachments.map(a => (
-            <div key={a.id} className="flex items-center gap-2 text-xs">
-              <span className="w-4 text-center text-muted-foreground shrink-0" aria-hidden>📎</span>
-              <a href={attachmentOpenUrl(a)}
-                {...(a.kind === 'other' ? { download: a.filename } : { target: '_blank', rel: 'noopener noreferrer' })}
-                className="text-primary hover:text-primary/80 truncate transition-colors">
-                {a.filename}
-              </a>
-            </div>
-          ))}
+          <LinkedItems links={m.links} attachments={m.attachments} />
         </div>
       )}
     </div>
