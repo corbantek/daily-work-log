@@ -99,9 +99,10 @@ api/.venv/bin/python -m unittest discover -s api/tests -t .
 - `LinkedItems.tsx` — a task's/meeting's links and attached files, one per line; shared by the Review → Meetings digest and Review → Tasks cards
 - `LinksView.tsx` — Review → Links: merged link/file list with search and type filter; sources open `ItemDetailDialog`
 - `DateRangePicker.tsx` — preset + custom date range control used by Review → Meetings, Links and Tasks
-- `CommandPalette.tsx` — ⌘K / Ctrl-K global search overlay; opens a person in the People tab, or a focused read-only detail (`ItemDetailDialog`) for a task/meeting (tasks live inside collapsed days, so jumping the Log view to them is unreliable — a recall dialog is used instead)
+- `CommandPalette.tsx` — ⌘K / Ctrl-K global search overlay; opens a person in the People tab, or a focused read-only detail (`ItemDetailDialog`) for a task/meeting (search opens this read-only recall dialog; its **Open in Log** button then jumps to the item)
 - `Passive.tsx` — `PassiveToggle` (Log meeting row hover pill) and `PassiveBadge` (Review)
 - `ItemDetailDialog.tsx` — read-only detail view for a task or meeting selected from search (state, workstream, dates, labels, links, notes, linked items)
+- **Open in Log** (`web/src/lib/log-target.tsx`): `ItemDetailDialog` (opened from search and the Review views) has an *Open in Log* button that calls `openInLog` from `App.tsx` via `OpenInLogContext`. It closes the dialog, switches to the Log, extends `?from=` to the item's day if it isn't loaded, unhides the day if it is hidden (weekend / hidden by hand; creates a visibility override), and sets `LogTarget` (`LogTargetContext`, cleared after 5 s). The day (`DaySection`), workstream section (`WorkstreamSection`) and the row (`JumpTarget` wrapping `TaskRow` and each meeting card) open themselves, scroll to the middle and flash `.jump-highlight`. Day chosen by `logDateFor()`: meeting → its date; done/abandoned task → its end date (else start); open task → today. The target is never in the URL (a reload doesn't replay it).
 
 ## API Routes
 

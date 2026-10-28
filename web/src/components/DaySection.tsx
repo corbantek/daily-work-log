@@ -1,4 +1,5 @@
-import { useEffect, useState, useRef } from 'react'
+import { useContext, useEffect, useState, useRef } from 'react'
+import { LogTargetContext } from '@/lib/log-target'
 import { ChevronDown, ChevronRight, X, Plus, Eye, EyeOff, ArrowLeft, Bell } from 'lucide-react'
 import type { DayView } from '../api/types'
 import { getDay, setDayStatus, clearDayStatus, getSettings } from '../api/client'
@@ -21,6 +22,10 @@ interface Props {
 
 export function DaySection({ date, isToday, defaultCollapsed = false, isHiddenByDefault = false, onVisibilityChange, timeFormat = '12h' }: Props) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed)
+  // An "Open in Log" jump to something on this day opens it.
+  const jumpTo = useContext(LogTargetContext)
+  const jumpHere = jumpTo?.date === date
+  useEffect(() => { if (jumpHere) setCollapsed(false) }, [jumpHere, jumpTo?.nonce])
   const [data, setData] = useState<DayView | null>(null)
   const [loading, setLoading] = useState(false)
   const [statusPickerOpen, setStatusPickerOpen] = useState(false)

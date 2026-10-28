@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useContext } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Zap, Calendar, ExternalLink, Paperclip } from 'lucide-react'
+import { Zap, Calendar, ExternalLink, Paperclip, CornerDownRight } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 import { rehypeHighlightTodo } from '@/lib/rehype-highlight-todo'
@@ -9,6 +9,8 @@ import type { SearchResult, Task, Meeting } from '../api/types'
 import { getTask, getMeeting, attachmentOpenUrl } from '../api/client'
 import { RefBadge } from './RefBadge'
 import { useOnDataChange } from '@/lib/live-updates'
+import { OpenInLogContext, logDateFor } from '@/lib/log-target'
+import { todayStr } from '../api/date'
 
 const STATE_LABELS: Record<string, string> = {
   todo: 'TODO', in_progress: 'IN PROGRESS', complete: 'DONE', abandoned: 'ABANDONED',
@@ -55,6 +57,12 @@ export function ItemDetailDialog({ result, onClose }: Props) {
 
   const open = !!result && (result.type === 'task' || result.type === 'meeting')
 
+  // "Open in Log": jump to the item where it can be edited.
+  const openInLog = useContext(OpenInLogContext)
+  const jump = task
+    ? { type: 'task' as const, id: task.id, date: logDateFor({ type: 'task', ...task }, todayStr()) }
+    : meeting ? { type: 'meeting' as const, id: meeting.id, date: logDateFor({ type: 'meeting', date: meeting.date }, todayStr()) } : null
+
   return (
     <Dialog open={open} onOpenChange={o => { if (!o) onClose() }}>
       <DialogContent className="sm:max-w-lg flex flex-col max-h-[85vh]">
@@ -65,6 +73,15 @@ export function ItemDetailDialog({ result, onClose }: Props) {
             <span className="text-base">{result?.title || task?.action || meeting?.title}</span>
             {result?.type === 'task' && <RefBadge kind="task" number={task?.number} className="text-xs" />}
             {result?.type === 'meeting' && <RefBadge kind="meeting" number={meeting?.number} className="text-xs" />}
+            {openInLog && jump && (
+              <button
+                onClick={() => { onClose(); openInLog(jump) }}
+                title="Open this in the Log, where you can edit it"
+                className="ml-auto flex items-center gap-1 text-xs font-normal text-primary hover:text-primary/80 shrink-0"
+              >
+                <CornerDownRight size={12} /> Open in Log
+              </button>
+            )}
           </DialogTitle>
         </DialogHeader>
 

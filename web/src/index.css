@@ -311,6 +311,13 @@
   font-weight: normal;
 }
 
+/* Flash on the item an "Open in Log" jump lands on. */
+@keyframes jump-flash {
+  0%, 60% { box-shadow: 0 0 0 2px var(--primary); }
+  100% { box-shadow: 0 0 0 2px transparent; }
+}
+.jump-highlight { animation: jump-flash 2.2s ease-out; border-radius: 0.5rem; }
+
 .todo-keyword {
   color: oklch(0.65 0.22 25);
   font-weight: 600;

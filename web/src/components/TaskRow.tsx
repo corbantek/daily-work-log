@@ -18,6 +18,7 @@ import { updateTask, deleteTask, addTaskLink, updateTaskLink, deleteTaskLink, ge
 import { hasDraft } from '@/lib/drafts'
 import { cn } from '@/lib/utils'
 import { todayStr } from '../api/date'
+import { JumpTarget } from '@/lib/log-target'
 
 interface Props {
   task: Task
@@ -120,7 +121,7 @@ export function TaskRow({ task, onChanged, isSubtask }: Props) {
   }
 
   return (
-    <div className={cn(
+    <JumpTarget id={task.id} onHit={() => setExpanded(true)} className={cn(
       'group rounded-lg border border-border bg-card px-3 py-2 transition-opacity',
       isDone && 'opacity-55',
       isSubtask && 'border-border/60 bg-card/60',
@@ -331,7 +332,7 @@ export function TaskRow({ task, onChanged, isSubtask }: Props) {
           )}
         </div>
       )}
-    </div>
+    </JumpTarget>
   )
 }
 

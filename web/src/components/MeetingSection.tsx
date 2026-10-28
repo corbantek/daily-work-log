@@ -21,6 +21,7 @@ import { ExcludedBadge, ExcludeToggle } from './ExcludeFromStats'
 import { PassiveToggle } from './Passive'
 import { RefBadge } from './RefBadge'
 import { hasDraft } from '@/lib/drafts'
+import { JumpTarget } from '@/lib/log-target'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -187,7 +188,7 @@ export function MeetingSection({ meetings, date, onChanged, timeFormat = '12h' }
 
       <div className="space-y-1.5 ml-2">
         {meetings.map(meeting => (
-          <div key={meeting.id} className="group rounded-lg border border-border bg-card px-3 py-2">
+          <JumpTarget key={meeting.id} id={meeting.id} onHit={() => setExpandedId(meeting.id)} className="group rounded-lg border border-border bg-card px-3 py-2">
             {editingMeeting === meeting.id ? (
               <div className="flex flex-wrap items-center gap-2">
                 <Input
@@ -298,7 +299,7 @@ export function MeetingSection({ meetings, date, onChanged, timeFormat = '12h' }
             {expandedId === meeting.id && editingMeeting !== meeting.id && (
               <MeetingDetails meeting={meeting} date={date} onChanged={onChanged} />
             )}
-          </div>
+          </JumpTarget>
         ))}
 
         {meetings.length === 0 && !adding && (

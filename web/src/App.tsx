@@ -21,6 +21,7 @@ import {
 } from './lib/notes-height'
 import { DismissedEventsDialog } from './components/DismissedEventsDialog'
 import { DataVersionContext, usePollForChanges } from './lib/live-updates'
+import { LogTargetContext, OpenInLogContext, type LogTarget, type OpenInLog } from './lib/log-target'
 import { AgentToasts } from './components/AgentToasts'
 import { CommandPalette } from './components/CommandPalette'
 import { ItemDetailDialog } from './components/ItemDetailDialog'
@@ -173,6 +174,7 @@ export default function App() {
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [peopleTarget, setPeopleTarget] = useState<string | null>(null)
   const [detailResult, setDetailResult] = useState<SearchResult | null>(null)
+  const [logTarget, setLogTarget] = useState<LogTarget | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
   const [theme, setTheme] = useState<Theme>('dim')
   const [appTitle, setAppTitle] = useState('Daily Work Log')
@@ -345,6 +347,32 @@ export default function App() {
     loadVisibilityOverrides(newFrom)
   }
 
+  /** "Open in Log": bring a task/meeting's day into the Log (load, unhide, expand it) and highlight the item. */
+  const openInLog = useCallback<OpenInLog>(t => {
+    const bottom = dates.length > 0 ? dates[dates.length - 1] : today
+    if (t.date < bottom) applyExtendedFrom(t.date)
+    setDetailResult(null)
+    setLogTarget({ ...t, nonce: Date.now() })
+    navigate('log')
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dates, today])
+
+  // The jump's day may be hidden (weekend or hidden by hand): unhide it so the item can show.
+  useEffect(() => {
+    if (!logTarget || dates.length === 0 || dates.includes(logTarget.date)) return
+    if (logTarget.date < dates[dates.length - 1]) return  // still loading the older days
+    if (logTarget.date > today) return
+    handleVisibilityChange(logTarget.date, true)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [logTarget, dates])
+
+  // The highlight is a one-off: forget the target once it has had time to land.
+  useEffect(() => {
+    if (!logTarget) return
+    const t = setTimeout(() => setLogTarget(null), 5000)
+    return () => clearTimeout(t)
+  }, [logTarget])
+
   function loadMore() {
     const currentBottom = dates.length > 0 ? dates[dates.length - 1] : today
     applyExtendedFrom(addDays(currentBottom, -windowSize))
@@ -472,6 +500,8 @@ export default function App() {
   return (
     <DataVersionContext.Provider value={dataVersion}>
     <NotesHeightContext.Provider value={notesHeights}>
+    <OpenInLogContext.Provider value={openInLog}>
+    <LogTargetContext.Provider value={logTarget}>
     <div className="min-h-screen text-foreground">
       <header ref={headerRef} className="sticky top-0 z-10 bg-background/70 backdrop-blur-md border-b border-border/60 px-6 py-3 flex items-center gap-4">
         <button
@@ -988,6 +1018,8 @@ export default function App() {
         )}
       </main>
     </div>
+    </LogTargetContext.Provider>
+    </OpenInLogContext.Provider>
     </NotesHeightContext.Provider>
     </DataVersionContext.Provider>
   )

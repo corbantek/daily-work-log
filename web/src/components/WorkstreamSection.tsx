@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useContext, useEffect, useState } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import type { WorkstreamWithTasks, Task } from '../api/types'
 import { TaskRow } from './TaskRow'
 import { AddTaskForm } from './AddTaskForm'
+import { LogTargetContext } from '@/lib/log-target'
 
 interface Props {
   section: WorkstreamWithTasks
@@ -16,6 +17,11 @@ export function WorkstreamSection({ section, date, onChanged }: Props) {
   const [collapsed, setCollapsed] = useState(false)
   const { workstream, tasks } = section
   const name = workstream?.name ?? 'Unassigned'
+
+  // An "Open in Log" jump to one of these tasks opens the section if it was collapsed.
+  const jumpTo = useContext(LogTargetContext)
+  const hasTarget = !!jumpTo && tasks.some(t => t.id === jumpTo.id)
+  useEffect(() => { if (hasTarget) setCollapsed(false) }, [hasTarget, jumpTo?.nonce])
 
   const taskById = new Map<string, Task>(tasks.map(t => [t.id, t]))
 
