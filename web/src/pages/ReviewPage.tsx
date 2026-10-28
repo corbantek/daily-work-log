@@ -70,6 +70,7 @@ export function ReviewPage({
   const [filterWorkstream, setFilterWorkstream] = useState<string>('all')
   const [filterLabel, setFilterLabel] = useState<string>('all')
   const [filterHighImpact, setFilterHighImpact] = useState(false)
+  // One date range for Meetings, Tasks and Links, so it sticks as you switch between them (Self-Review has its own).
   const [range, setRange] = useState<DateRange>(() => rangeForPreset('this_week'))
   const [detail, setDetail] = useState<DetailTarget | null>(null)
   const { from: filterFrom, to: filterTo } = range
@@ -194,12 +195,12 @@ export function ReviewPage({
       )}
       {visited.has('meetings') && (
         <div hidden={mode !== 'meetings'}>
-          <MeetingInsightsView theme={theme} timeFormat={timeFormat} active={showing('meetings')} />
+          <MeetingInsightsView theme={theme} timeFormat={timeFormat} active={showing('meetings')} range={range} onRangeChange={setRange} />
         </div>
       )}
       {visited.has('links') && (
         <div hidden={mode !== 'links'}>
-          <LinksView theme={theme} active={showing('links')} />
+          <LinksView theme={theme} active={showing('links')} range={range} onRangeChange={setRange} />
         </div>
       )}
 

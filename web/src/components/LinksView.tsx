@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Input } from '@/components/ui/input'
 import type { LinkInsight, LinkType } from '../api/types'
 import { attachmentOpenUrl, getLinkInsights } from '../api/client'
-import { formatMonthDay, rangeForPreset, type DateRange } from '../api/date'
+import { formatMonthDay, type DateRange } from '../api/date'
 import { DateRangePicker } from './DateRangePicker'
 import { ItemDetailDialog, type DetailTarget } from './ItemDetailDialog'
 import { LINK_ICONS, LINK_TYPE_OPTIONS } from './LinkSection'
@@ -17,12 +17,14 @@ const typeLabel = (t: LinkInsight['link_type']) =>
 const typeIcon = (t: LinkInsight['link_type']) => (t === 'file' ? '📎' : LINK_ICONS[t] ?? '🔗')
 
 /** Review → Links: every link and file on tasks and meetings dated in the range. */
-export function LinksView({ theme, active = true }: {
+export function LinksView({ theme, active = true, range, onRangeChange }: {
   theme?: 'light' | 'dim' | 'dark'
   /** False while hidden behind another view; the data reloads when it turns true again. */
   active?: boolean
+  /** The date range, shared by every Review view (owned by ReviewPage). */
+  range: DateRange
+  onRangeChange: (range: DateRange) => void
 }) {
-  const [range, setRange] = useState<DateRange>(() => rangeForPreset('this_week'))
   const [links, setLinks] = useState<LinkInsight[]>([])
   const [loading, setLoading] = useState(false)
   const [query, setQuery] = useState('')
@@ -58,7 +60,7 @@ export function LinksView({ theme, active = true }: {
   return (
     <div>
       <div className="flex flex-wrap items-center gap-2 mb-5 p-3 rounded-lg border border-border bg-card/50">
-        <DateRangePicker value={range} onChange={setRange} theme={theme} />
+        <DateRangePicker value={range} onChange={onRangeChange} theme={theme} />
         <div className="flex-1" />
         <Input
           value={query}

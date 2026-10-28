@@ -8,7 +8,7 @@ import { rehypeHighlightTodo } from '@/lib/rehype-highlight-todo'
 import type { MeetingDigestEntry, MeetingInsights, MeetingStats, TaskBrief } from '../api/types'
 import { getMeetingInsights } from '../api/client'
 import {
-  formatMonthDay, formatShortDate, formatTime, rangeForPreset, type DateRange, type TimeFormat,
+  formatMonthDay, formatShortDate, formatTime, type DateRange, type TimeFormat,
 } from '../api/date'
 import { DateRangePicker } from './DateRangePicker'
 import { ItemDetailDialog, type DetailTarget } from './ItemDetailDialog'
@@ -48,11 +48,13 @@ interface Props {
   timeFormat: TimeFormat
   /** False while hidden behind another view; the data reloads when it turns true again. */
   active?: boolean
+  /** The date range, shared by every Review view (owned by ReviewPage so it sticks between them). */
+  range: DateRange
+  onRangeChange: (range: DateRange) => void
 }
 
 /** Review → Meetings: meeting load, a digest of meeting notes, and the tasks that came out of them. */
-export function MeetingInsightsView({ theme, timeFormat, active = true }: Props) {
-  const [range, setRange] = useState<DateRange>(() => rangeForPreset('this_week'))
+export function MeetingInsightsView({ theme, timeFormat, active = true, range, onRangeChange }: Props) {
   const [data, setData] = useState<MeetingInsights | null>(null)
   const [loading, setLoading] = useState(false)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
@@ -166,7 +168,7 @@ export function MeetingInsightsView({ theme, timeFormat, active = true }: Props)
   return (
     <div>
       <div className="flex flex-wrap items-center gap-2 mb-5 p-3 rounded-lg border border-border bg-card/50">
-        <DateRangePicker value={range} onChange={setRange} theme={theme} />
+        <DateRangePicker value={range} onChange={onRangeChange} theme={theme} />
         {loading && <span className="text-xs text-muted-foreground ml-1">Loading…</span>}
         <div className="flex-1" />
         <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs" onClick={exportMarkdown} disabled={!data}>
