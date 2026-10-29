@@ -4,6 +4,7 @@ from typing import List
 
 from ..database import get_session
 from ..refs import parse_ref
+from .. import org
 from ..models import (
     Task, TaskAttachment, MeetingAttachment, Meeting, Person, Interaction, Workstream, SearchResult,
 )
@@ -38,6 +39,11 @@ def search(q: str = "", session: Session = Depends(get_session)):
             if m:
                 results.append(SearchResult(type="meeting", id=m.id, title=m.title, number=m.number,
                                             subtitle="Meeting", date=m.date))
+        if kind == "P":  # only an explicit P: a bare number already means a task or meeting
+            p = session.exec(select(Person).where(Person.number == n)).first()
+            if p:
+                results.append(SearchResult(type="person", id=p.id, title=p.name, number=p.number,
+                                            subtitle=p.role or p.team, person_id=p.id))
     seen = {r.id for r in results}
 
     tasks = session.exec(
@@ -78,16 +84,24 @@ def search(q: str = "", session: Session = Depends(get_session)):
             results.append(SearchResult(type="meeting", id=m.id, title=m.title, number=m.number,
                                         subtitle=f"Attachment: {att.filename}", date=m.date))
 
+    # Team and focus match inherited values too, so "Maps data" finds everyone in that group.
+    by_id = org.load_people(session)
     people = session.exec(
         select(Person).where(
-            Person.name.ilike(like) | Person.role.ilike(like)
-            | Person.team.ilike(like) | Person.notes.ilike(like)
+            Person.name.ilike(like) | Person.role.ilike(like) | Person.notes.ilike(like)
         ).limit(PER_TYPE)
     ).all()
-    for p in people:
+    team_matches = [by_id[i] for i in org.matching_ids(by_id, term)
+                    if by_id[i].id not in {p.id for p in people}]
+    team_matches.sort(key=lambda p: p.name.lower())
+    for p in (people + team_matches)[:PER_TYPE * 2]:
+        if p.id in seen:
+            continue
+        seen.add(p.id)
+        team = org.effective(p, "team", org.chain(p, by_id)).value
         results.append(SearchResult(
-            type="person", id=p.id, title=p.name,
-            subtitle=p.role or p.team, person_id=p.id,
+            type="person", id=p.id, title=p.name, number=p.number,
+            subtitle=" · ".join(x for x in (p.role, team) if x) or None, person_id=p.id,
         ))
 
     interactions = session.exec(

@@ -52,8 +52,21 @@ def _run_migrations():
                 cursor.execute(f"ALTER TABLE meeting ADD COLUMN {col} {ddl}")
         conn.commit()
 
-    # Short reference numbers (T<n>, M<n>): add the column and number existing rows once, oldest first.
-    for table in ("task", "meeting"):
+    # Org tree columns on person (team already exists).
+    cursor.execute("PRAGMA table_info(person)")
+    person_columns = {row[1] for row in cursor.fetchall()}
+    if person_columns:
+        for col, ddl in [
+            ("focus", "VARCHAR"),
+            ("manager_id", "VARCHAR"),
+            ("is_placeholder", "BOOLEAN NOT NULL DEFAULT 0"),
+        ]:
+            if col not in person_columns:
+                cursor.execute(f"ALTER TABLE person ADD COLUMN {col} {ddl}")
+        conn.commit()
+
+    # Short reference numbers (T<n>, M<n>, P<n>): add the column and number existing rows once, oldest first.
+    for table in ("task", "meeting", "person"):
         cursor.execute(f"PRAGMA table_info({table})")
         cols = {row[1] for row in cursor.fetchall()}
         if cols and "number" not in cols:
@@ -111,10 +124,11 @@ def _forget_write(session):
 
 @event.listens_for(OrmSession, "before_flush")
 def _assign_reference_numbers(session, flush_context, instances):
-    """Give every new Task / Meeting the next T/M number, whatever created it (the app, the agent,
-    calendar sync, a backup restore). Rows that already carry a number (a restored backup) keep it."""
-    from .models import Meeting, Setting, Task
-    for model, counter_key in ((Task, "ref_counter_task"), (Meeting, "ref_counter_meeting")):
+    """Give every new Task / Meeting / Person the next T/M/P number, whatever created it (the app, the
+    agent, calendar sync, a backup restore). Rows that already carry a number (a restored backup) keep it."""
+    from .models import Meeting, Person, Setting, Task
+    for model, counter_key in ((Task, "ref_counter_task"), (Meeting, "ref_counter_meeting"),
+                               (Person, "ref_counter_person")):
         new = [o for o in session.new if isinstance(o, model)]
         missing = [o for o in new if o.number is None]
         if not missing:

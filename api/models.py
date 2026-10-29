@@ -444,8 +444,13 @@ class CompetencyDimensionRead(SQLModel):
 
 class PersonBase(SQLModel):
     name: str
-    role: Optional[str] = None
+    role: Optional[str] = None  # their own job; never inherited
+    # Org tree: team and focus are inherited from the nearest manager that has them when left
+    # blank (see api/org.py); setting them on a person overrides it for them and everyone below.
     team: Optional[str] = None
+    focus: Optional[str] = None  # what the group works on
+    manager_id: Optional[str] = Field(default=None, foreign_key="person.id")
+    is_placeholder: bool = False  # stands in for someone not identified yet ("? (Jane's manager)")
     relationship: Optional[str] = None
     notes: Optional[str] = None
 
@@ -453,6 +458,8 @@ class PersonBase(SQLModel):
 class Person(PersonBase, table=True):
     __tablename__ = "person"
     id: str = Field(default_factory=new_id, primary_key=True)
+    # Short human reference shown as P<number>; assigned on insert (see database.py), never reused.
+    number: Optional[int] = Field(default=None, index=True, unique=True)
     archived_at: Optional[datetime] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -465,17 +472,56 @@ class PersonUpdate(SQLModel):
     name: Optional[str] = None
     role: Optional[str] = None
     team: Optional[str] = None
+    focus: Optional[str] = None
+    manager_id: Optional[str] = None
+    is_placeholder: Optional[bool] = None
     relationship: Optional[str] = None
     notes: Optional[str] = None
     archived_at: Optional[datetime] = None
 
 
+class InheritedValue(SQLModel):
+    """A person's effective team/focus: their own, or the nearest manager's (`from_*` set)."""
+    value: Optional[str] = None
+    from_person_id: Optional[str] = None  # None = set on the person themselves (or not set anywhere)
+    from_name: Optional[str] = None
+
+
+class PersonBrief(SQLModel):
+    id: str
+    name: str
+    number: Optional[int] = None
+    role: Optional[str] = None
+    is_placeholder: bool = False
+    archived: bool = False
+
+
 class PersonRead(PersonBase):
     id: str
+    number: Optional[int] = None  # shown as P<number>
     archived_at: Optional[datetime]
     created_at: datetime
     interaction_count: int = 0
     last_interaction_date: Optional[date] = None
+    effective_team: InheritedValue = InheritedValue()
+    effective_focus: InheritedValue = InheritedValue()
+    chain: List[PersonBrief] = []  # managers, nearest first
+    reports: List[PersonBrief] = []  # direct reports
+
+
+class OrgNode(SQLModel):
+    id: str
+    name: str
+    number: Optional[int] = None
+    role: Optional[str] = None
+    team: Optional[str] = None
+    focus: Optional[str] = None
+    is_placeholder: bool = False
+    archived: bool = False
+    effective_team: InheritedValue = InheritedValue()
+    effective_focus: InheritedValue = InheritedValue()
+    report_count: int = 0  # everyone below, not just direct reports
+    reports: List["OrgNode"] = []
 
 
 # ── Interactions (dated observations about a person) ────────────────────────────
@@ -737,7 +783,7 @@ class SearchResult(SQLModel):
     subtitle: Optional[str] = None
     date: Optional[DateType] = None
     person_id: Optional[str] = None
-    number: Optional[int] = None  # tasks: T<number>, meetings: M<number>
+    number: Optional[int] = None  # tasks: T<number>, meetings: M<number>, people: P<number>
 
 
 # Default framework seeded on first run (editable later via the framework editor).

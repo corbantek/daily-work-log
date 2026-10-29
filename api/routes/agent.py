@@ -193,7 +193,7 @@ def _get_task(session: Session, task_id: str) -> Task:
     if ref and ref[0] in (None, "T"):
         t = session.exec(select(Task).where(Task.number == ref[1])).first()
     elif ref:
-        raise _bad(f"{task_id!r} is a meeting reference; tasks are T<number>")
+        raise _bad(f"{task_id!r} is not a task reference; tasks are T<number>")
     else:
         t = session.get(Task, task_id)
     if not t:
@@ -207,7 +207,7 @@ def _get_meeting(session: Session, meeting_id: str) -> Meeting:
     if ref and ref[0] in (None, "M"):
         m = session.exec(select(Meeting).where(Meeting.number == ref[1])).first()
     elif ref:
-        raise _bad(f"{meeting_id!r} is a task reference; meetings are M<number>")
+        raise _bad(f"{meeting_id!r} is not a meeting reference; meetings are M<number>")
     else:
         m = session.get(Meeting, meeting_id)
     if not m:
