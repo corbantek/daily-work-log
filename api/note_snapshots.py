@@ -1,4 +1,4 @@
-"""Temporary snapshots of task/meeting notes, taken before every /agent notes change.
+"""Temporary snapshots of task/meeting/person notes, taken before every /agent notes change.
 
 They let the user (or the agent) recover a note if a rewrite goes wrong. Plain .md files in a folder
 next to the database (WORKLOG_NOTE_SNAPSHOTS to override), named "<ref>--<UTC time>.md", kept for
@@ -13,7 +13,7 @@ from typing import List, Optional
 from .database import DB_PATH
 
 RETENTION_DAYS = 30
-_NAME = re.compile(r"^(?P<ref>[TM]\d+)--(?P<stamp>\d{8}T\d{6}\d{6}Z)\.md$")
+_NAME = re.compile(r"^(?P<ref>[TMP]\d+)--(?P<stamp>\d{8}T\d{6}\d{6}Z)\.md$")
 
 
 def snapshots_dir() -> Path:
@@ -59,7 +59,7 @@ def prune(d: Optional[Path] = None, now: Optional[datetime] = None) -> int:
 
 
 def list_for(ref: str) -> List[dict]:
-    """Snapshots of one task/meeting, newest first."""
+    """Snapshots of one task/meeting/person, newest first."""
     out = []
     for f in snapshots_dir().iterdir():
         parsed = _parse(f.name)

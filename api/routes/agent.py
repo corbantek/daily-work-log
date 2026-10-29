@@ -695,13 +695,13 @@ def agent_file(file_id: str, session: Session = Depends(get_session)):
 def _backup_ref(ref: str) -> str:
     parsed = parse_ref(ref)
     if not parsed or parsed[0] is None:
-        raise _bad("Give a task or meeting reference like T42 or M17")
+        raise _bad("Give a task, meeting or person reference like T42, M17 or P12")
     return f"{parsed[0]}{parsed[1]}"
 
 
 @router.get("/notes-backups/{ref}")
 def agent_note_backups(ref: str):
-    """Saved earlier versions of a task's or meeting's notes (newest first; kept 30 days)."""
+    """Saved earlier versions of a task's, meeting's or person's notes (newest first; kept 30 days)."""
     r = _backup_ref(ref)
     return {"ref": r, "backups": note_snapshots.list_for(r)}
 
@@ -731,6 +731,12 @@ def agent_help():
             "Notes endpoints append by default; mode='replace' rewrites the whole note (e.g. to merge repeated "
             "information or mark finished TODOs DONE). Before every notes change the previous version is saved "
             "(response field notes_backup; list them with GET /agent/notes-backups/{ref}).",
+            "People have references like P12; a person's name also works where {person} is expected if it's "
+            "unique (ambiguous → 400 with matches). Each person can have a manager, forming an org tree: team and "
+            "focus left blank are inherited from the nearest manager who has them (responses say team_inherited_from), "
+            "so set them on the highest person they apply to; role is personal.",
+            "Interactions are dated observations about one person: summary, sentiment (strength | growth | neutral), "
+            "competency tags as \"Dimension\" or \"Dimension: attribute\" (GET /agent/framework lists them), notes.",
             "There are no delete endpoints. Every change is recorded in GET /agent/activity.",
         ],
         "read": {
@@ -748,6 +754,12 @@ def agent_help():
             "GET /agent/files/{file_id}": "One file: text contents for markdown/text/CSV/JSON/HTML; otherwise a local `path` to read.",
             "GET /agent/notes-backups/{ref}": "Saved earlier versions of a task/meeting's notes (newest first, kept 30 days).",
             "GET /agent/notes-backups/{ref}/{name}": "One saved version's text (restore it with POST …/notes mode=replace).",
+            "GET /agent/people?q=&team=&include_archived=": "People (team matches inherited teams/focus too).",
+            "GET /agent/people/tree?include_archived=": "Org tree; each node shows only what's set on it (the rest is inherited).",
+            "GET /agent/people/{person}": "One person: effective team/focus, manager chain, reports, notes, recent interactions.",
+            "GET /agent/people/{person}/interactions?date_from=&date_to=&sentiment=": "A person's interactions, newest first.",
+            "GET /agent/people/{person}/review-draft?date_from=&date_to=": "Interactions arranged for a peer review (per dimension, candidates).",
+            "GET /agent/framework": "Competency dimensions and attributes (valid interaction tags).",
         },
         "write": {
             "POST /agent/tasks": "{action, workstream?, state?, notes?, high_impact?, labels?, start_date?, end_date?, parent_id?}",
@@ -761,5 +773,10 @@ def agent_help():
             "POST /agent/meetings/{id}/links": "{url, label?, type?: pr|issue|doc|slack|quip|other}",
             "POST /agent/meetings/{id}/files": "multipart form field 'file'; 25 MB max",
             "POST /agent/meetings/{id}/tasks": "{task_id} to link, or {action, workstream?, state?, notes?, high_impact?, parent_id?} to create",
+            "POST /agent/people": "{name, role?, team?, focus?, manager? (ref or name), relationship?, notes?, placeholder?}",
+            "PATCH /agent/people/{person}": "{name?, role?, team? (\"\" = inherit), focus?, manager? (\"\" = none), relationship?, placeholder?, archived?}",
+            "POST /agent/people/{person}/notes": "{text, mode?: append|replace}",
+            "POST /agent/people/{person}/interactions": "{summary, date?, sentiment?, tags?: [\"Dimension: attribute\"], notes?, workstream?, high_impact?}",
+            "PATCH /agent/interactions/{interaction_id}": "{summary?, date?, sentiment?, tags? (replaces), notes? (replaces), workstream?, high_impact?}",
         },
     }

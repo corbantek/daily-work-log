@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session
 
 from .database import init_db, engine
-from .routes import workstreams, tasks, meetings, labels, day, day_status, day_visibility, backup, settings, oncall, people, interactions, framework, review_draft, self_review, search, calendar, attachments, insights, agent, changes
+from .routes import workstreams, tasks, meetings, labels, day, day_status, day_visibility, backup, settings, oncall, people, interactions, framework, review_draft, self_review, search, calendar, attachments, insights, agent, agent_people, changes
 from .attachments import mirror_attachments
 from .routes.backup import _get_backup_settings, _export_data, _prune_old_backups, DEFAULT_BACKUP_DIR
 
@@ -89,4 +89,5 @@ app.include_router(calendar.router)
 app.include_router(attachments.router)
 app.include_router(insights.router)
 app.include_router(agent.router)
+app.include_router(agent_people.router)
 app.include_router(changes.router)

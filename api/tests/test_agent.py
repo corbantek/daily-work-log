@@ -259,7 +259,7 @@ class SafetyTests(unittest.TestCase):
 
     def test_help_lists_every_route(self):
         listed = {k.split("?")[0].split(" |")[0] for section in ("read", "write") for k in A.agent_help()[section]}
-        actual = {f"{m} {r.path}".replace("{task_id}", "{id}").replace("{meeting_id}", "{id}")
+        actual = {f"{m} {r.path}".replace("{task_id}", "{id}").replace("{meeting_id}", "{id}").replace("{person_id}", "{person}")
                   for r in app.routes if r.path.startswith("/agent") and r.path != "/agent/help"
                   for m in r.methods}
         self.assertEqual(actual - listed, set())

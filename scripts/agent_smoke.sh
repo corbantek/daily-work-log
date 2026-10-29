@@ -98,11 +98,38 @@ S=$(curl -s "$API/agent/search?q=bottleneck"); ok "$(echo "$S" | jq 'length >= 1
 SR=$(curl -s "$API/agent/search?q=T1"); ok "$(echo "$SR" | jq '.[0].type == "task" and .[0].number == 1')" "search by reference (T1)" "$SR"
 SU=$(curl -s "$API/agent/summary"); ok "$(echo "$SU" | jq '.tasks.completed == 1 and .meetings.excluded_from_stats == 1')" "summary (this week so far)" "$SU"
 
+# ── people, the org tree, interactions ──
+VP=$(curl -s -X POST "$API/agent/people" -H 'Content-Type: application/json' -d '{"name": "Vera Ng", "role": "VP", "team": "Maps", "focus": "Maps platform"}' | jq -r .ref)
+DP=$(curl -s -X POST "$API/agent/people" -H 'Content-Type: application/json' --data-binary @- <<JSON
+{"name": "Dana Ruiz", "role": "Director", "manager": "$VP", "team": "Maps Data", "relationship": "Cross-functional"}
+JSON
+); ok "$(echo "$DP" | jq '.ref == "P2" and .manager.name == "Vera Ng" and .focus == "Maps platform" and .focus_inherited_from == "Vera Ng"')" "add a person under a manager (focus inherited)" "$DP"
+IP=$(curl -s -X POST "$API/agent/people" -H 'Content-Type: application/json' -d '{"name": "Ivy Chen", "manager": "Dana Ruiz"}')
+ok "$(echo "$IP" | jq '.team == "Maps Data" and .team_inherited_from == "Dana Ruiz" and (.chain|map(.name)) == ["Dana Ruiz","Vera Ng"]')" "manager by name; team inherited from the nearest manager" "$IP"
+PU=$(curl -s -X PATCH "$API/agent/people/P3" -H 'Content-Type: application/json' -d '{"manager": "Dana Ruiz", "focus": "Offline map tiles"}')
+ok "$(echo "$PU" | jq '.focus == "Offline map tiles" and .own.focus == "Offline map tiles"')" "update a person (own focus overrides)" "$PU"
+PT=$(curl -s "$API/agent/people?team=maps%20data"); ok "$(echo "$PT" | jq '[.people[].name] == ["Dana Ruiz","Ivy Chen"]')" "people by (inherited) team" "$PT"
+TR=$(curl -s "$API/agent/people/tree"); ok "$(echo "$TR" | jq '.roots[0].name == "Vera Ng" and .roots[0].reports[0].reports[0].name == "Ivy Chen"')" "org tree" "$TR"
+PN=$(curl -s -X POST "$API/agent/people/P3/notes" -H 'Content-Type: application/json' --data-binary @- <<'JSON'
+{"text": "- Owns the tile-cache rollout; good contact for offline questions."}
+JSON
+); ok "$(echo "$PN" | jq '.notes | contains("tile-cache")')" "person notes" "$PN"
+FW=$(curl -s "$API/agent/framework"); ok "$(echo "$FW" | jq '(.dimensions|length) > 0')" "framework lists tag options" "$FW"
+DIM=$(echo "$FW" | jq -r '.dimensions[0].dimension'); ATTR=$(echo "$FW" | jq -r '.dimensions[0].attributes[0]')
+IN=$(curl -s -X POST "$API/agent/people/P3/interactions" -H 'Content-Type: application/json' \
+  -d "{\"summary\": \"Walked the team through the sync design\", \"sentiment\": \"strength\", \"tags\": [\"$DIM: $ATTR\"]}")
+ok "$(echo "$IN" | jq --arg t "$DIM: $ATTR" '.sentiment == "strength" and .tags == [$t]')" "log an interaction with a competency tag" "$IN"
+IU=$(curl -s -X PATCH "$API/agent/interactions/$(echo "$IN" | jq -r .id)" -H 'Content-Type: application/json' -d "{\"tags\": [\"$DIM\"]}")
+ok "$(echo "$IU" | jq --arg d "$DIM" '.tags == [$d]')" "update an interaction's tags" "$IU"
+RD=$(curl -s "$API/agent/people/P3/review-draft"); ok "$(echo "$RD" | jq '.total_interactions == 1')" "review draft" "$RD"
+E3=$(curl -s -w '\n%{http_code}' -X PATCH "$API/agent/people/$VP" -H 'Content-Type: application/json' -d '{"manager": "P3"}')
+ok "$( [ "$(echo "$E3" | tail -1)" = "400" ] && echo true || echo false )" "a reporting loop is refused (400)" "$E3"
+
 # ── the guard rails the skill relies on ──
 E=$(curl -s -w '\n%{http_code}' -X POST "$API/agent/tasks" -H 'Content-Type: application/json' -d '{"action": "x", "workstream": "Nope"}')
 ok "$( [ "$(echo "$E" | tail -1)" = "400" ] && echo "$E" | head -1 | jq '.detail.valid == ["DevOps Improvements"]' || echo false )" "unknown workstream -> 400 with the valid names" "$E"
 E2=$(curl -s -o /dev/null -w '%{http_code}' -X DELETE "$API/agent/tasks/$TASK_ID"); ok "$( [ "$E2" = "405" ] && echo true || echo false )" "no deletes (DELETE -> 405)" "$E2"
-A=$(curl -s "$API/agent/activity"); ok "$(echo "$A" | jq 'length == 15 and (map(.action) | index("attach_task_file")) != null')" "activity log records every change" "$(echo "$A" | jq -c '[.[]|.action]')"
+A=$(curl -s "$API/agent/activity"); ok "$(echo "$A" | jq 'length == 22 and (map(.action) | index("attach_task_file")) != null and (map(.action) | index("log_interaction")) != null')" "activity log records every change" "$(echo "$A" | jq -c '[.[]|.action]')"
 
 echo; echo "$pass passed, $fail failed"
 [ "$fail" -eq 0 ]

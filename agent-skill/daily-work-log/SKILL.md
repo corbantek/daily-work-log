@@ -1,6 +1,6 @@
 ---
 name: daily-work-log
-description: Read and update the user's local Daily Work Log app (their record of tasks, meetings and workstreams) through its /agent HTTP API on localhost. Use when the user asks what is on their plate or on today, what they did this week or in a period, to log, find or update a task, to mark a task done, to add notes, a link or a file/attachment to a task or meeting, to read or summarize a file attached to one, to record a meeting or paste meeting notes, to create a task from a meeting, to draft a standup or status update from their work log, or mentions a task or meeting reference like T42 or M17.
+description: Read and update the user's local Daily Work Log app (their record of tasks, meetings and workstreams) through its /agent HTTP API on localhost. Use when the user asks what is on their plate or on today, what they did this week or in a period, to log, find or update a task, to mark a task done, to add notes, a link or a file/attachment to a task or meeting, to read or summarize a file attached to one, to record a meeting or paste meeting notes, to create a task from a meeting, to draft a standup or status update from their work log, to record or look up a coworker (who someone is, their role, team, what their group works on, who they report to — the user's personal org tree), to add notes about a person or log an interaction / peer-feedback observation, to draft peer-review input for someone, or mentions a task, meeting or person reference like T42, M17 or P12.
 allowed-tools: Bash(curl *)
 ---
 
@@ -47,7 +47,7 @@ curl -s "$API/agent/help"
 - **Keep notes clean, not just longer** — see "Writing notes" below. Append when the note only
   needs something new; rewrite the note when appending would leave repeated information or
   finished TODOs behind.
-- **References.** Every task and meeting has a short reference, `T42` or `M17` (the `ref` field;
+- **References.** Every task and meeting has a short reference, `T42` or `M17` (people: `P12`; the `ref` field;
   the app shows it next to each title). When the user gives one ("mark T42 done", "add this to
   M17"; "T42" works too), use it directly wherever an id goes: `/agent/tasks/T42`, `"task_id": "T42"`,
   `"parent_id": "T42"`. Mention the reference when you report what you changed.
@@ -171,6 +171,78 @@ curl -s -X POST "$API/agent/meetings/M17/files" -F "file=@/Users/me/Desktop/q3-d
   (`truncated` is true for very long files). For PDFs, images and other files `content` is null —
   open the returned `path` with your file-reading tool instead.
 - Single tasks and meetings (`GET /agent/tasks/T42`) also list their `files` with their ids.
+
+## People and the org tree
+
+The user's company doesn't publish titles, teams or reporting lines, so the user builds their own
+org tree here as they learn things. Each person has a `role` (their own job), a `team`, a `focus`
+(what the group works on), a `manager`, a free-form `relationship` (Report, Peer, Manager,
+Cross-functional, Other) and markdown `notes`.
+
+**Inheritance:** a person whose `team` or `focus` is blank inherits it from the nearest manager who
+has one (responses say `team_inherited_from`). So set team/focus on the **highest person it applies
+to** — usually the manager — not on each report; set it on a report only when theirs differs.
+`role` is never inherited. `own` in a person's details shows what's set on them directly.
+
+```bash
+curl -s "$API/agent/people?q=dana"                 # find someone (name, role, notes, team, focus)
+curl -s "$API/agent/people?team=maps"              # everyone whose team/focus (inherited too) matches
+curl -s "$API/agent/people/tree"                   # the whole tree; each node shows only its own values
+curl -s "$API/agent/people/P12"                    # one person: team/focus, manager chain, reports, notes, recent interactions
+```
+
+Add a person, or record what the user learned about one (send only what changes; `manager` takes a
+reference or a unique name; `"team": ""` makes it inherited again, `"manager": ""` removes the manager):
+
+```bash
+curl -s -X POST "$API/agent/people" -H 'Content-Type: application/json' --data-binary @- <<'JSON'
+{"name": "Dana Ruiz", "role": "Director", "manager": "P3", "team": "Maps Data", "relationship": "Cross-functional"}
+JSON
+curl -s -X PATCH "$API/agent/people/P12" -H 'Content-Type: application/json' -d '{"manager": "Dana Ruiz", "focus": "Offline map tiles"}'
+```
+
+- **Look before you add.** Search for the person first so you don't create a duplicate; if a name
+  matches several people (400 with `matches`), use the reference or ask.
+- **Record only what the user (or their notes) actually says.** Don't infer a title, team or
+  reporting line from an email address, a meeting invite or a guess. If something is uncertain
+  ("I think she's on the routing team"), say so in the person's notes rather than setting the field.
+- **Unknown manager:** when the user knows two people share a manager but not who, create a
+  placeholder (`"name": "? (Omar's manager)", "placeholder": true`), put both under it, and give it
+  the team/focus you know. When the manager is identified, rename the placeholder and set
+  `"placeholder": false` instead of creating a second person.
+- **Person notes** follow the same rules as other notes (append; rewrite with `"mode": "replace"`
+  when that would avoid repetition), backed up before every change:
+
+```bash
+curl -s -X POST "$API/agent/people/P12/notes" -H 'Content-Type: application/json' --data-binary @- <<'JSON'
+{"text": "- Owns the tile-cache rollout; good contact for offline questions."}
+JSON
+```
+
+### Interactions (peer feedback)
+
+An interaction is a dated observation about one person (it feeds the user's peer reviews):
+`summary` (one line), `sentiment` — `strength`, `growth` or `neutral` (the default) — competency
+`tags`, optional `notes`, `workstream` and `high_impact`. Tags are `"Dimension"` or
+`"Dimension: attribute"`; a unique part of either is enough. Get the valid ones from
+`GET /agent/framework`.
+
+```bash
+curl -s "$API/agent/framework"
+curl -s -X POST "$API/agent/people/P12/interactions" -H 'Content-Type: application/json' --data-binary @- <<'JSON'
+{"summary": "Walked the team through the sync design", "sentiment": "strength", "tags": ["Teamwork: shares context"], "notes": "Clear doc, answered every question."}
+JSON
+curl -s -X PATCH "$API/agent/interactions/INTERACTION_ID" -H 'Content-Type: application/json' -d '{"tags": ["Teamwork", "Impact"]}'
+curl -s "$API/agent/people/P12/interactions?date_from=2026-01-01"
+curl -s "$API/agent/people/P12/review-draft?date_from=2026-01-01"   # evidence arranged for a peer review
+```
+
+- **Log interactions only when the user asks** (or clearly says it's feedback about that person).
+  Facts about someone's job go in their fields or notes, not in an interaction.
+- Pick the sentiment and tags from what the user said; if it isn't clear whether something is a
+  strength or a growth area, ask. On PATCH, `tags` and `notes` replace what was there.
+- For "help me write feedback for Dana", start from `review-draft` and base the draft only on the
+  logged evidence; say where the evidence is thin.
 
 ## Writing notes
 

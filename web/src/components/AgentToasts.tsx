@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { Bot, X } from 'lucide-react'
-import type { DetailTarget } from './ItemDetailDialog'
 
 interface Activity {
   id: string
   action: string
-  entity_type: 'task' | 'meeting'
+  entity_type: 'task' | 'meeting' | 'person'  // interactions are logged under their person
   entity_id: string
   summary: string
 }
@@ -17,7 +16,7 @@ const MAX_VISIBLE = 3
  * Brief "Agent: …" notices for changes the AI agent makes while the page is open. `latest` is the
  * newest agent activity id from GET /changes; nothing that existed when the page opened is shown.
  */
-export function AgentToasts({ latest, onOpen }: { latest: string | null; onOpen: (t: DetailTarget) => void }) {
+export function AgentToasts({ latest, onOpen }: { latest: string | null; onOpen: (t: { type: Activity['entity_type']; id: string }) => void }) {
   const [toasts, setToasts] = useState<(Activity & { until: number })[]>([])
   const seen = useRef<string | null | undefined>(undefined)  // undefined = not initialised yet
 
@@ -62,7 +61,7 @@ export function AgentToasts({ latest, onOpen }: { latest: string | null; onOpen:
         <div key={t.id} className="flex items-start gap-2 rounded-lg border border-border bg-popover/95 backdrop-blur-md px-3 py-2 text-xs shadow-lg">
           <Bot size={14} className="text-primary shrink-0 mt-0.5" />
           <button
-            onClick={() => { onOpen({ type: t.entity_type, id: t.entity_id, title: '' }); setToasts(prev => prev.filter(x => x.id !== t.id)) }}
+            onClick={() => { onOpen({ type: t.entity_type, id: t.entity_id }); setToasts(prev => prev.filter(x => x.id !== t.id)) }}
             className="flex-1 text-left text-foreground hover:underline"
             title="Open"
           >

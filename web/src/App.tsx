@@ -930,7 +930,10 @@ export default function App() {
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} onNavigate={handleSearchNavigate} />
 
       <ItemDetailDialog result={detailResult} onClose={() => setDetailResult(null)} />
-      <AgentToasts latest={agentActivity} onOpen={t => setDetailResult({ ...t, subtitle: null, date: null, person_id: null })} />
+      <AgentToasts latest={agentActivity} onOpen={t => {
+        if (t.type === 'person') { setPeopleTarget(t.id); navigate('people') }
+        else setDetailResult({ ...t, title: '', subtitle: null, date: null, person_id: null })
+      }} />
 
       {!serverUp && (
         <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center">
