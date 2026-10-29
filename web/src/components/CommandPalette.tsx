@@ -112,7 +112,7 @@ export function CommandPalette({ open, onClose, onNavigate }: Props) {
                     >
                       <Icon size={14} className="text-muted-foreground shrink-0" />
                       <span className="flex-1 text-sm text-foreground truncate">{r.title}</span>
-                      {(r.type === 'task' || r.type === 'meeting') && <RefLabel kind={r.type} number={r.number} />}
+                      {r.type !== 'interaction' && <RefLabel kind={r.type} number={r.number} />}
                       {r.subtitle && <span className="text-xs text-muted-foreground/60 shrink-0 max-w-40 truncate">{r.subtitle}</span>}
                       {r.date && <span className="text-xs text-muted-foreground/40 font-mono shrink-0">{r.date}</span>}
                     </button>

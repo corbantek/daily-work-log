@@ -1,16 +1,19 @@
 import { useState, useEffect, useCallback } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Zap, Plus, Pencil, Trash2, ChevronLeft, FileText, Check, Archive, ArchiveRestore } from 'lucide-react'
+import { Zap, Plus, Pencil, Trash2, ChevronLeft, ChevronRight, FileText, Check, Archive, ArchiveRestore, UserPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { rehypeHighlightTodo } from '@/lib/rehype-highlight-todo'
 import type { CompetencyDimension, Interaction, Person, Sentiment, Workstream } from '../api/types'
-import { getInteractions, deleteInteraction, updatePerson, deletePerson } from '../api/client'
+import { getInteractions, deleteInteraction, updatePerson, deletePerson, createPerson } from '../api/client'
 import { InteractionForm } from './InteractionForm'
 import { ClickToEditMarkdown } from './ClickToEditMarkdown'
 import { dimensionColor } from './CompetencyTagPicker'
+import { PersonPicker } from './PersonPicker'
+import { InheritedText } from './OrgTree'
+import { RefBadge } from './RefBadge'
 
 const RELATIONSHIPS = ['Report', 'Peer', 'Manager', 'Cross-functional', 'Other']
 
@@ -22,16 +25,18 @@ const SENTIMENT_BADGE: Record<Sentiment, { label: string; color: string }> = {
 
 interface Props {
   person: Person
+  people: Person[]  // everyone (archived too), for "Reports to"
   framework: CompetencyDimension[]
   workstreams: Workstream[]
   theme?: 'light' | 'dim' | 'dark'
   onBack: () => void
+  onOpenPerson: (id: string) => void
   onChanged: () => void
   onRemoved: () => void
   onOpenReview: () => void
 }
 
-export function PersonDetail({ person, framework, workstreams, theme, onBack, onChanged, onRemoved, onOpenReview }: Props) {
+export function PersonDetail({ person, people, framework, workstreams, theme, onBack, onOpenPerson, onChanged, onRemoved, onOpenReview }: Props) {
   const [interactions, setInteractions] = useState<Interaction[]>([])
   const [adding, setAdding] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -42,6 +47,16 @@ export function PersonDetail({ person, framework, workstreams, theme, onBack, on
   const [editRole, setEditRole] = useState(person.role ?? '')
   const [editTeam, setEditTeam] = useState(person.team ?? '')
   const [editRel, setEditRel] = useState(person.relationship ?? '')
+  const [editFocus, setEditFocus] = useState(person.focus ?? '')
+  const [editPlaceholder, setEditPlaceholder] = useState(person.is_placeholder)
+  const [orgError, setOrgError] = useState<string | null>(null)
+  const [newReport, setNewReport] = useState('')
+  const [addingReport, setAddingReport] = useState(false)
+
+  // What team/focus would be with this person's own value cleared: the manager's effective value.
+  const manager = people.find(p => p.id === person.manager_id)
+  const inheritedTeam = manager?.effective_team.value
+  const inheritedFocus = manager?.effective_focus.value
 
   const load = useCallback(() => {
     getInteractions({
@@ -65,6 +80,8 @@ export function PersonDetail({ person, framework, workstreams, theme, onBack, on
     setEditRole(person.role ?? '')
     setEditTeam(person.team ?? '')
     setEditRel(person.relationship ?? '')
+    setEditFocus(person.focus ?? '')
+    setEditPlaceholder(person.is_placeholder)
     setEditingPerson(true)
   }
 
@@ -74,9 +91,30 @@ export function PersonDetail({ person, framework, workstreams, theme, onBack, on
       name: editName.trim(),
       role: editRole.trim() || null,
       team: editTeam.trim() || null,
+      focus: editFocus.trim() || null,
+      is_placeholder: editPlaceholder,
       relationship: editRel || null,
     })
     setEditingPerson(false)
+    onChanged()
+  }
+
+  async function setManager(id: string | null) {
+    setOrgError(null)
+    try {
+      await updatePerson(person.id, { manager_id: id })
+      onChanged()
+    } catch (e) {
+      setOrgError(e instanceof Error ? e.message : 'Could not change the manager')
+    }
+  }
+
+  async function addReport() {
+    const name = newReport.trim()
+    if (!name) return
+    await createPerson({ name, manager_id: person.id })
+    setNewReport('')
+    setAddingReport(false)
     onChanged()
   }
 
@@ -97,7 +135,10 @@ export function PersonDetail({ person, framework, workstreams, theme, onBack, on
   }
 
   async function handleDeletePerson() {
-    if (!confirm(`Delete ${person.name} and all their interactions? This cannot be undone.`)) return
+    const moved = person.reports.length
+      ? ` Their ${person.reports.length} direct report${person.reports.length === 1 ? '' : 's'} will move up to ${manager?.name ?? 'no manager'}.`
+      : ''
+    if (!confirm(`Delete ${person.name} and all their interactions?${moved} This cannot be undone.`)) return
     await deletePerson(person.id)
     onRemoved()
   }
@@ -107,6 +148,21 @@ export function PersonDetail({ person, framework, workstreams, theme, onBack, on
       <button onClick={onBack} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mb-4 transition-colors">
         <ChevronLeft size={14} /> All people
       </button>
+
+      {/* Reporting chain, top down */}
+      {person.chain.length > 0 && (
+        <nav className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground mb-1.5">
+          {[...person.chain].reverse().map(m => (
+            <span key={m.id} className="flex items-center gap-1">
+              <button onClick={() => onOpenPerson(m.id)}
+                className={cn('hover:text-foreground hover:underline underline-offset-2', m.is_placeholder && 'italic', m.archived && 'line-through')}>
+                {m.name}
+              </button>
+              <ChevronRight size={11} className="text-muted-foreground/50" />
+            </span>
+          ))}
+        </nav>
+      )}
 
       {/* Header */}
       <div className="flex items-start justify-between mb-4">
@@ -120,13 +176,24 @@ export function PersonDetail({ person, framework, workstreams, theme, onBack, on
             </div>
             <div className="flex gap-2">
               <Input value={editTeam} onChange={e => setEditTeam((e.target as HTMLInputElement).value)}
-                placeholder="Team" className="h-8 text-sm flex-1" />
+                placeholder={inheritedTeam ? `Team: ${inheritedTeam} (inherited)` : 'Team'} className="h-8 text-sm flex-1" />
+              <Input value={editFocus} onChange={e => setEditFocus((e.target as HTMLInputElement).value)}
+                placeholder={inheritedFocus ? `Focus: ${inheritedFocus} (inherited)` : 'Focus: what the group works on'}
+                className="h-8 text-sm flex-1" />
+            </div>
+            <div className="flex gap-2 items-center">
               <select value={editRel} onChange={e => setEditRel(e.target.value)}
                 className="h-8 text-xs px-2 rounded-md border border-border bg-card text-foreground focus:outline-none focus:border-ring flex-1">
                 <option value="">Relationship…</option>
                 {RELATIONSHIPS.map(r => <option key={r} value={r}>{r}</option>)}
               </select>
+              <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer flex-1"
+                title="Someone you know exists but haven't identified yet">
+                <input type="checkbox" checked={editPlaceholder} onChange={e => setEditPlaceholder(e.target.checked)} />
+                Not identified yet
+              </label>
             </div>
+            <p className="text-xs text-muted-foreground/60">Leave team or focus blank to inherit it from their manager.</p>
             <div className="flex items-center gap-1.5">
               <Button size="sm" className="h-7 text-xs gap-1" onClick={savePerson} disabled={!editName.trim()}>
                 <Check size={12} /> Save
@@ -152,7 +219,11 @@ export function PersonDetail({ person, framework, workstreams, theme, onBack, on
         ) : (
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-lg font-semibold text-foreground">{person.name}</h2>
+              <h2 className={cn('text-lg font-semibold text-foreground', person.is_placeholder && 'italic text-muted-foreground')}>{person.name}</h2>
+              <RefBadge kind="person" number={person.number} />
+              {person.is_placeholder && (
+                <span className="text-xs px-1.5 py-0.5 rounded-full border border-dashed border-border text-muted-foreground">Not identified yet</span>
+              )}
               {person.archived_at && (
                 <span className="text-xs px-1.5 py-0.5 rounded-full border border-border text-muted-foreground">Archived</span>
               )}
@@ -162,14 +233,69 @@ export function PersonDetail({ person, framework, workstreams, theme, onBack, on
             </div>
             <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-muted-foreground mt-0.5">
               {person.role && <span>{person.role}</span>}
-              {person.team && <span>· {person.team}</span>}
+              {person.effective_team.value && (
+                <span>· <InheritedText v={person.effective_team} />
+                  {person.effective_team.from_name && <span className="text-muted-foreground/50"> (via {person.effective_team.from_name})</span>}
+                </span>
+              )}
               {person.relationship && <span>· {person.relationship}</span>}
             </div>
+            {person.effective_focus.value && (
+              <div className="text-xs text-muted-foreground mt-0.5">
+                Focus: <InheritedText v={person.effective_focus} />
+                {person.effective_focus.from_name && <span className="text-muted-foreground/50"> (via {person.effective_focus.from_name})</span>}
+              </div>
+            )}
           </div>
         )}
         <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs shrink-0" onClick={onOpenReview}>
           <FileText size={13} /> Review Draft
         </Button>
+      </div>
+
+      {/* Org: manager and direct reports */}
+      <div className="mb-5 rounded-lg border border-border bg-card/40 px-3 py-2.5 space-y-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-medium text-muted-foreground w-20">Reports to</span>
+          <PersonPicker people={people} value={person.manager_id} onChange={setManager} excludeTreeOf={person.id} />
+          {manager && (
+            <button onClick={() => onOpenPerson(manager.id)} className="text-xs text-muted-foreground hover:text-foreground">
+              open
+            </button>
+          )}
+          {orgError && <span className="text-xs text-destructive">{orgError}</span>}
+        </div>
+        <div className="flex items-start gap-2 flex-wrap">
+          <span className="text-xs font-medium text-muted-foreground w-20 pt-1">Reports</span>
+          <div className="flex flex-wrap items-center gap-1.5 flex-1">
+            {person.reports.map(r => (
+              <button key={r.id} onClick={() => onOpenPerson(r.id)}
+                className={cn(
+                  'text-xs px-2 py-0.5 rounded-full border border-border hover:border-primary/40 hover:bg-accent/40 transition-colors',
+                  r.is_placeholder && 'italic text-muted-foreground border-dashed',
+                  r.archived && 'opacity-50',
+                )}
+                title={r.role ?? undefined}>
+                {r.name}
+              </button>
+            ))}
+            {person.reports.length === 0 && !addingReport && <span className="text-xs text-muted-foreground/50 pt-0.5">None yet</span>}
+            {addingReport ? (
+              <span className="flex items-center gap-1">
+                <Input autoFocus value={newReport} onChange={e => setNewReport((e.target as HTMLInputElement).value)}
+                  onKeyDown={e => { if (e.key === 'Enter') addReport(); if (e.key === 'Escape') setAddingReport(false) }}
+                  placeholder="Name" className="h-6 text-xs w-40" />
+                <Button size="sm" className="h-6 text-xs px-2" onClick={addReport} disabled={!newReport.trim()}>Add</Button>
+                <Button size="sm" variant="ghost" className="h-6 text-xs px-2" onClick={() => setAddingReport(false)}>Cancel</Button>
+              </span>
+            ) : (
+              <button onClick={() => setAddingReport(true)}
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-1.5 py-0.5 rounded hover:bg-accent">
+                <UserPlus size={11} /> Add report
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Person notes */}

@@ -1,7 +1,7 @@
 import type {
   DayView, Task, Workstream, Meeting, Label, TaskLink, MeetingLink,
   TaskState, LinkType, OncallPeriod,
-  Person, Interaction, InteractionTagInput, Sentiment,
+  Person, OrgNode, Interaction, InteractionTagInput, Sentiment,
   CompetencyDimension, ReviewDraft, SelfReview, SearchResult,
   CalendarSyncResult, CalendarStatus, LinkInsight, MeetingInsights, DismissedCalendarEvent, Attachment, AttachmentStats,
 } from './types'
@@ -13,7 +13,7 @@ async function req<T>(path: string, opts?: RequestInit): Promise<T> {
     headers: { 'Content-Type': 'application/json' },
     ...opts,
   })
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+  if (!res.ok) throw new Error(await failMessage(res))
   if (res.status === 204) return undefined as T
   return res.json()
 }
@@ -24,7 +24,9 @@ export const getDay = (date: string) => req<DayView>(`/day/${date}`)
 // ── Attachments ───────────────────────────────────────────────────────────────
 async function failMessage(res: Response): Promise<string> {
   const body = await res.json().catch(() => null)
-  return typeof body?.detail === 'string' ? body.detail : `${res.status} ${res.statusText}`
+  if (typeof body?.detail === 'string') return body.detail
+  if (typeof body?.detail?.error === 'string') return body.detail.error  // e.g. a refused manager change
+  return `${res.status} ${res.statusText}`
 }
 
 /** `owner` is the API path of whatever the file belongs to, e.g. `/tasks/<id>` or `/meetings/<id>`. */
@@ -315,10 +317,16 @@ export const getPeople = (includeArchived = false) =>
 
 export const getPerson = (id: string) => req<Person>(`/people/${id}`)
 
+export const getOrgTree = (includeArchived = true) =>
+  req<OrgNode[]>(`/people/tree${includeArchived ? '' : '?include_archived=false'}`)
+
 export const createPerson = (body: {
   name: string
   role?: string | null
   team?: string | null
+  focus?: string | null
+  manager_id?: string | null
+  is_placeholder?: boolean
   relationship?: string | null
   notes?: string | null
 }) => req<Person>('/people', { method: 'POST', body: JSON.stringify(body) })
@@ -327,6 +335,9 @@ export const updatePerson = (id: string, body: Partial<{
   name: string
   role: string | null
   team: string | null
+  focus: string | null
+  manager_id: string | null
+  is_placeholder: boolean
   relationship: string | null
   notes: string | null
   archived_at: string | null

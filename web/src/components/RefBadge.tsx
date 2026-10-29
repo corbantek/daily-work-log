@@ -1,15 +1,19 @@
 import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 
-/** "T42" / "M17": the short reference used when talking to the AI agent. */
-const refText = (kind: 'task' | 'meeting', number: number | null | undefined) =>
-  number ? `${kind === 'task' ? 'T' : 'M'}${number}` : null
+export type RefKind = 'task' | 'meeting' | 'person'
+
+const PREFIX: Record<RefKind, string> = { task: 'T', meeting: 'M', person: 'P' }
+
+/** "T42" / "M17" / "P12": the short reference used when talking to the AI agent. */
+const refText = (kind: RefKind, number: number | null | undefined) =>
+  number ? `${PREFIX[kind]}${number}` : null
 
 const baseClass = 'font-mono text-[11px] tabular-nums text-muted-foreground/60 flex-shrink-0'
 
 /** Muted reference that copies itself (e.g. "T42") on click. Renders nothing without a number. */
 export function RefBadge({ kind, number, className }: {
-  kind: 'task' | 'meeting'
+  kind: RefKind
   number: number | null | undefined
   className?: string
 }) {
@@ -44,7 +48,7 @@ export function RefBadge({ kind, number, className }: {
 }
 
 /** Non-interactive version, for places that are already a button (e.g. search results). */
-export function RefLabel({ kind, number, className }: { kind: 'task' | 'meeting'; number: number | null | undefined; className?: string }) {
+export function RefLabel({ kind, number, className }: { kind: RefKind; number: number | null | undefined; className?: string }) {
   const ref = refText(kind, number)
   return ref ? <span className={cn(baseClass, className)}>{ref}</span> : null
 }

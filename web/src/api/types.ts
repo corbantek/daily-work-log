@@ -240,17 +240,56 @@ export interface CompetencyDimension {
   attributes: CompetencyAttribute[]
 }
 
-export interface Person {
+/** A person's effective team/focus: their own, or inherited from the nearest manager (`from_*` set). */
+export interface InheritedValue {
+  value: string | null
+  from_person_id: string | null
+  from_name: string | null
+}
+
+export interface PersonBrief {
   id: string
   name: string
+  number: number | null
   role: string | null
-  team: string | null
+  is_placeholder: boolean
+  archived: boolean
+}
+
+export interface Person {
+  id: string
+  number: number | null  // shown as P<number>
+  name: string
+  role: string | null
+  team: string | null  // own value; blank = inherit (see effective_team)
+  focus: string | null
+  manager_id: string | null
+  is_placeholder: boolean
   relationship: string | null
   notes: string | null
   archived_at: string | null
   created_at: string
   interaction_count: number
   last_interaction_date: string | null
+  effective_team: InheritedValue
+  effective_focus: InheritedValue
+  chain: PersonBrief[]  // managers, nearest first
+  reports: PersonBrief[]  // direct reports
+}
+
+export interface OrgNode {
+  id: string
+  name: string
+  number: number | null
+  role: string | null
+  team: string | null
+  focus: string | null
+  is_placeholder: boolean
+  archived: boolean
+  effective_team: InheritedValue
+  effective_focus: InheritedValue
+  report_count: number  // everyone below
+  reports: OrgNode[]
 }
 
 export interface InteractionTag {

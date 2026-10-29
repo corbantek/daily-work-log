@@ -89,8 +89,10 @@ api/.venv/bin/python -m unittest discover -s api/tests -t .
 - `ReviewPage.tsx` — Review tab shell (Meetings | Tasks | Links | Self-Review) and the filterable task review: workstream grouping, oncall indicators, task titles open `ItemDetailDialog`, markdown export
 - `StateDropdown.tsx`, `WorkstreamPicker.tsx`, `LabelPicker.tsx` — custom dropdowns (not base-ui Select)
 - `HiddenDaysIndicator.tsx` — shows hidden day count between visible days
-- `PeoplePage.tsx` (page) — people list, add-person, show-archived toggle; routes to detail / review
-- `PersonDetail.tsx` — person header (inline edit, archive/restore/delete), editable markdown notes, interaction timeline with filters
+- `PeoplePage.tsx` (page) — **Org tree | List** toggle (remembered in localStorage `worklog-people-view`, default tree), filter box (name/role/effective team/focus), add-person form (team/focus show the inherited value as placeholder, "Reports to" picker, "Not identified yet"; opened in context by the tree's "+ report" / "+ manager", where "+ manager" slots the new person between someone and their old manager), show-archived toggle; refreshes on live updates; routes to detail / review
+- `OrgTree.tsx` — collapsible reporting-lines outline from `GET /people/tree` (collapsed ids in localStorage `worklog-org-collapsed`; people with no manager and no reports under "Unplaced"); `InheritedText` renders an inherited value muted/italic with "Inherited from X"
+- `PersonPicker.tsx` — searchable custom person dropdown for "Reports to"; hides the person and everyone below them (`selfAndBelow`)
+- `PersonDetail.tsx` — reporting-chain breadcrumbs, person header with P-ref and inherited team/focus ("via X"), inline edit (blank team/focus = inherit, not-identified flag), "Reports to" picker + direct reports with quick add, archive/restore/delete, editable markdown notes, interaction timeline with filters
 - `InteractionForm.tsx` — log/edit an interaction (date, summary, sentiment, competency tags, markdown notes, workstream, high-impact)
 - `CompetencyTagPicker.tsx` — grouped multi-select for competency tags; `dimensionColor()` helper for per-dimension colors
 - `ReviewDraftView.tsx` — aggregated peer-review draft with Markdown export
