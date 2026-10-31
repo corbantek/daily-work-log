@@ -1,6 +1,6 @@
 ---
 name: daily-work-log
-description: Read and update the user's local Daily Work Log app (their record of tasks, meetings and workstreams) through its /agent HTTP API on localhost. Use when the user asks what is on their plate or on today, what they did this week or in a period, to log, find or update a task, to mark a task done, to add notes, a link or a file/attachment to a task or meeting, to read or summarize a file attached to one, to record a meeting or paste meeting notes, to create a task from a meeting, to draft a standup or status update from their work log, to record or look up a coworker (who someone is, their role, team, what their group works on, who they report to — the user's personal org tree), to add notes about a person or log an interaction / peer-feedback observation, to draft peer-review input for someone, or mentions a task, meeting or person reference like T42, M17 or P12.
+description: Read and update the user's local Daily Work Log app (their record of tasks, meetings and workstreams) through its /agent HTTP API on localhost. Use when the user asks what is on their plate or on today, what they did this week or in a period, to log, find or update a task, to mark a task done, to add notes, a link or a file/attachment to a task or meeting, to read or summarize a file attached to one, to record a meeting or paste meeting notes, to create a task from a meeting, to draft a standup or status update from their work log, to record or look up a coworker (who someone is, their role, team, what their group works on, who they report to — the user's personal org tree), to add notes about a person or log an interaction / peer-feedback observation, to draft peer-review input for someone, to tidy or clean up a task's notes, or mentions a task, meeting or person reference like T42, M17 or P12.
 allowed-tools: Bash(curl *)
 ---
 
@@ -38,7 +38,8 @@ curl -s "$API/agent/help"
 - **Follow-up work is written as `TODO:`**, one item per line or bullet (`- TODO: share the numbers
   with Zz`). Never use "Next:", "Next steps" or similar for it: the app highlights `TODO` in red and
   `DONE` in green, so the keywords are what make follow-ups visible. When a follow-up is finished,
-  change its `TODO:` to `DONE:` rather than deleting it.
+  change its `TODO:` to `DONE:` rather than deleting it — except in a task's **What's Next**, which
+  holds only open work: there the finished item moves into Progress (see "Task notes" below).
 - **`TODO:` is only for the user's own follow-ups.** In meeting notes especially, mark as `TODO:`
   only the action items that are the user's (assigned to them by name, or "I"/"me"/"we'll have
   <user> …"). Write everyone else's as plain statements without the keyword — "Zz will share
@@ -252,10 +253,33 @@ Before changing a note, read the whole thing (`GET /agent/tasks/T42` or `/agent/
 - **Would appending repeat what's already there, or leave TODOs that are now done?** Rewrite the
   note instead and send it whole with `"mode": "replace"`:
   - merge repeated or overlapping points into one,
-  - turn finished `TODO:` items into `DONE:`, and keep open ones as `TODO:`,
+  - turn finished `TODO:` items into `DONE:`, and keep open ones as `TODO:` (in a task's What's
+    Next, move finished items into Progress instead — see "Task notes"),
   - keep every fact, link and decision, and keep the user's own wording and headings —
     tidy, don't summarise away detail or drop anything you weren't asked to remove.
 - Tell the user when you rewrote a note and what you merged or marked done.
+
+### Tidy as you go
+
+Whenever you write a task's notes anyway (you're already sending the whole note), tidy it in the
+same change. Only then — never on a read-only request, and only the note you're changing:
+
+- **What's Next:** take out finished items (after checking they're in Progress) and items that no
+  longer apply; keep the order current.
+- **Status line:** rewrite it.
+- **Context:** when a decision or number is superseded, update it in place but keep the history
+  ("revised Oct 30: …", "was 28, now about 23 on develop"). Merge points that say the same thing.
+- **Progress:** merge only facts recorded twice. Never cut or condense past days in a routine
+  update.
+- **Something looks wrong or contradicts something else?** Point it out to the user and ask —
+  never correct it silently.
+- Say what you tidied ("moved 3 finished items out of What's Next, merged a repeated decision in
+  Context").
+
+**Deep tidy, only when the user asks** ("tidy T32", "clean up T32's notes"): you may also condense
+older Progress days, reorganize Context and remove what has stopped being useful. Before saving,
+show the user the main cuts and condensations and wait for their OK; the automatic backup covers
+the rest.
 
 ### Task notes
 
@@ -279,10 +303,13 @@ A task's notes have four jobs. Keep them doing all four as the task evolves:
    520 ms", not "improved performance"), with the PR, doc or thread as evidence, and estimates
    labelled as estimates. When a win is significant, suggest marking the task ⚡ high-impact —
    ask; don't set it yourself.
-4. **What's Next — the rolling to-do list.** The user's remaining follow-ups as `TODO:` items. Update
-   it on every change: add new ones, turn finished ones into `DONE:`, drop what's no longer
-   relevant. Things the user is waiting on from others are plain lines ("Waiting on Joshua
-   about …").
+4. **What's Next — only what's still to do.** The user's open follow-ups as `TODO:` items, in the
+   order they'll be done (next action first, `Later:` items last), plus plain lines for what the
+   user is waiting on from others ("Waiting on Joshua about …"). Never `DONE:` items: when one is
+   finished, make sure Progress records it under the day it was done (add it if missing), put any
+   decision it settled in Context, and then remove it from What's Next. Update the list on every
+   change: add new items, take out finished ones, drop what's no longer relevant, and ask about
+   items whose deadline has passed.
 
 End with a **status line** that starts with a bold `**Status:**`: a sentence or two on where the
 task stands right now. It's the last line of the note, and you rewrite it on every update.
@@ -303,7 +330,7 @@ last, so updating a structured task note normally means sending the whole revise
 
 **Existing notes in another shape:** the first time you update such a task, reorganize its notes
 into this shape, keeping every fact, link, decision and the user's wording (a backup is saved
-automatically). Tell the user you reorganized them, and which dates you inferred.
+automatically). That includes moving any `DONE:` items out of What's Next into Progress. Tell the user you reorganized them, and which dates you inferred.
 
 Shape (omit empty sections):
 
@@ -317,17 +344,57 @@ DB doesn't cascade. Background: incident review (link).
   - Traced the retries to a missing backoff.
 - **Oct 22**
   - Merged the backoff fix (PR #123) (~1.5h).
-  - Measured p99 on staging before and after.
+  - Measured p99 on staging before and after, and shared the numbers with Zz.
 
 **Wins**
 - Cut p99 latency from 900 ms to 520 ms (PR #123).
 
 **What's Next**
-- DONE: share the numbers with Zz
 - TODO: add a backoff regression test
+- Waiting on Zz to confirm the staging numbers match production
 
 **Status:** fix shipped and measured; only the regression test is left.
 ```
+
+### Splitting out a sub-task
+
+When you add a TODO or tidy What's Next, check whether an item is really its own piece of work:
+it will take more than one sitting or its own working session; it gets its own PR, investigation or
+design with findings worth recording; it involves other people or waiting on them; or tracking it
+in the parent would add several Progress bullets or Context points that aren't about the parent's
+goal. One-step items (merge a PR, retarget a branch, reply to a comment) stay as TODOs.
+
+**Ask; don't create it yourself.** Name the item and why it qualifies ("Step 3 looks like its own
+sub-task: research O1, then an implementation PR. Open one under T32?"). At most one question per
+update, with all candidates in it. If the user says no, don't ask about that item again this
+session.
+
+**If the user says yes:**
+
+- **Create it** with `"parent_id"` (it takes the parent's workstream), state `todo`, and notes in
+  the task shape above. Its notes are the **handoff**: a fresh agent in a new session should be
+  able to start from them alone, without the parent's history.
+  - **Context:** the goal and what "done" looks like; why it was split out and how it serves the
+    parent; the parent's decisions, constraints and open questions that apply, copied in with
+    "(from T32)" rather than "see T32"; where the work lives (repos, branches, PRs, files, paths)
+    and who to talk to; gotchas and earlier findings.
+  - **What's Next:** the first concrete steps.
+  - **Status:** "Not started; split out from T32 on Oct 30."
+- **Update the parent** in the same pass: the What's Next item becomes a one-line pointer
+  (`- TODO: Step 3: single commit at Registration Accept (T51)`); detail that moved into the
+  sub-task comes out of the parent, keeping anything still about the parent's own goal; add a
+  Progress line ("Split out T51 for …"); rewrite the status line.
+- **Give the user a starting prompt** for a fresh session, since you can't start one yourself:
+  > Work on T51 (Step 3: single commit at Registration Accept). Read its notes with the
+  > daily-work-log skill first, then start on the first TODO. Record progress in T51's notes as you go.
+- Sub-tasks go one level deep. If the parent is itself a sub-task, offer a sibling under its
+  parent instead.
+
+**Keep parent and sub-tasks linked.** A parent TODO that has a sub-task names its reference
+(`(T44)`), never just "(sub-task)". The sub-task's day-by-day work lives in its own notes; the
+parent's Progress doesn't repeat it. When a sub-task is completed, take its pointer out of the
+parent's What's Next, add a one-line Progress entry to the parent ("T50 done: …"), and suggest
+copying a significant win up to the parent.
 
 Meeting notes keep the general rules above (and `TODO:` only for the user's own action items).
 

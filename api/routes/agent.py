@@ -729,7 +729,8 @@ def agent_help():
             "Tasks and meetings have short references, T42 and M17 (the 'ref' field, shown in the app). "
             "Use a reference or the id wherever an {id}, task_id or parent_id is expected.",
             "Notes endpoints append by default; mode='replace' rewrites the whole note (e.g. to merge repeated "
-            "information or mark finished TODOs DONE). Before every notes change the previous version is saved "
+            "information or mark finished TODOs DONE; in a task's What's Next, finished items move into Progress "
+            "instead, so it lists only open work). Before every notes change the previous version is saved "
             "(response field notes_backup; list them with GET /agent/notes-backups/{ref}).",
             "People have references like P12; a person's name also works where {person} is expected if it's "
             "unique (ambiguous → 400 with matches). Each person can have a manager, forming an org tree: team and "
