@@ -33,6 +33,7 @@ class LinkType(str, Enum):
     DOC = "doc"
     SLACK = "slack"
     QUIP = "quip"
+    RADAR = "radar"
     OTHER = "other"
 
 

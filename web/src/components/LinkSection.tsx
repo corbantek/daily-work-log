@@ -7,10 +7,11 @@ import {
 } from '@/components/ui/select'
 import type { LinkType, TaskLink } from '../api/types'
 
-export const LINK_ICONS: Record<LinkType, string> = { pr: '⤴', issue: '#', doc: '📄', slack: '💬', quip: '📝', other: '🔗' }
+export const LINK_ICONS: Record<LinkType, string> = { pr: '⤴', issue: '#', radar: '📡', doc: '📄', slack: '💬', quip: '📝', other: '🔗' }
 export const LINK_TYPE_OPTIONS: { value: LinkType; label: string }[] = [
   { value: 'pr', label: 'PR' },
   { value: 'issue', label: 'Issue' },
+  { value: 'radar', label: 'Radar' },
   { value: 'doc', label: 'Doc' },
   { value: 'slack', label: 'Slack' },
   { value: 'quip', label: 'Quip' },
@@ -59,6 +60,7 @@ export function LinkSection({ links, defaultType, onAdd, onUpdate, onDelete, onC
     if (cleanText && cleanText !== href) setLinkLabel(cleanText)
     if (/github\.com\/.*\/pull\//i.test(href)) setLinkType('pr')
     else if (/github\.com\/.*\/issues\//i.test(href)) setLinkType('issue')
+    else if (/^rdar:\/\/|(^|[/.])radar\.apple\.com\//i.test(href)) setLinkType('radar')
     else if (/slack\.com\//i.test(href)) setLinkType('slack')
     else if (/(^|[/.])quip(-[a-z0-9]+)?\.com\//i.test(href)) setLinkType('quip')
     else if (/docs\.|notion\.|confluence\.|wiki\./i.test(href)) setLinkType('doc')

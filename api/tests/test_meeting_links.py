@@ -103,6 +103,15 @@ class MeetingLinkTests(unittest.TestCase):
         self.assertEqual(_read_meeting(self.meeting, self.session).links[0].link_type.value, "quip")
         self.assertEqual([l.link_type.value for l in self.session.exec(select(TaskLink)).all()], ["quip"])
 
+    def test_radar_link_type_works_for_tasks_and_meetings(self):
+        task = Task(action="A task")
+        self.session.add(task)
+        self.session.commit()
+        m = self.add("rdar://problem/12345678", "Crash", "radar")
+        t = add_task_link(task.id, TaskLinkCreate(url="https://radar.apple.com/87654321", link_type="radar"), self.session)
+        self.assertEqual((m.link_type.value, t.link_type.value), ("radar", "radar"))
+        self.assertEqual(_read_meeting(self.meeting, self.session).links[0].link_type.value, "radar")
+
     def test_unknown_link_type_is_still_rejected(self):
         with self.assertRaises(ValueError):
             TaskLinkCreate(url="https://x.test", link_type="carrier-pigeon")

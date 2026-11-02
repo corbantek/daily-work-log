@@ -1,5 +1,5 @@
 export type TaskState = 'todo' | 'in_progress' | 'complete' | 'abandoned'
-export type LinkType = 'pr' | 'issue' | 'doc' | 'slack' | 'quip' | 'other'
+export type LinkType = 'pr' | 'issue' | 'radar' | 'doc' | 'slack' | 'quip' | 'other'
 
 export interface Label {
   id: string
