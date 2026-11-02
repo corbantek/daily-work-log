@@ -25,7 +25,7 @@ export function CommandPalette({ open, onClose, onNavigate }: Props) {
   const [results, setResults] = useState<SearchResult[]>([])
   const [selected, setSelected] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
-  const timer = useRef<ReturnType<typeof setTimeout>>()
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   useEffect(() => {
     if (open) {

@@ -71,7 +71,7 @@ export interface Task {
 export interface Workstream {
   id: string
   name: string
-  notes: string | null
+  description: string | null
   archived_at: string | null
   created_at: string
 }
