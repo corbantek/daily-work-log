@@ -34,6 +34,7 @@ class LinkType(str, Enum):
     SLACK = "slack"
     QUIP = "quip"
     RADAR = "radar"
+    GRAFANA = "grafana"
     OTHER = "other"
 
 

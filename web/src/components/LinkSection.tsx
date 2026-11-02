@@ -7,7 +7,7 @@ import {
 } from '@/components/ui/select'
 import type { LinkType, TaskLink } from '../api/types'
 
-export const LINK_ICONS: Record<LinkType, string> = { pr: '⤴', issue: '#', radar: '📡', doc: '📄', slack: '💬', quip: '📝', other: '🔗' }
+export const LINK_ICONS: Record<LinkType, string> = { pr: '⤴', issue: '#', radar: '📡', doc: '📄', slack: '💬', quip: '📝', grafana: '📈', other: '🔗' }
 export const LINK_TYPE_OPTIONS: { value: LinkType; label: string }[] = [
   { value: 'pr', label: 'PR' },
   { value: 'issue', label: 'Issue' },
@@ -15,6 +15,7 @@ export const LINK_TYPE_OPTIONS: { value: LinkType; label: string }[] = [
   { value: 'doc', label: 'Doc' },
   { value: 'slack', label: 'Slack' },
   { value: 'quip', label: 'Quip' },
+  { value: 'grafana', label: 'Grafana' },
   { value: 'other', label: 'Other' },
 ]
 
@@ -63,6 +64,7 @@ export function LinkSection({ links, defaultType, onAdd, onUpdate, onDelete, onC
     else if (/^rdar:\/\/|(^|[/.])radar\.apple\.com\//i.test(href)) setLinkType('radar')
     else if (/slack\.com\//i.test(href)) setLinkType('slack')
     else if (/(^|[/.])quip(-[a-z0-9]+)?\.com\//i.test(href)) setLinkType('quip')
+    else if (/^[a-z]+:\/\/[^/]*grafana/i.test(href)) setLinkType('grafana')
     else if (/docs\.|notion\.|confluence\.|wiki\./i.test(href)) setLinkType('doc')
   }
 

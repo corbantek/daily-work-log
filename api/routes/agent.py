@@ -96,6 +96,8 @@ def detect_link_type(url: str) -> LinkType:
         return LinkType.QUIP
     if re.search(r"^rdar://|(^|[/.])radar\.apple\.com/", url, re.I):
         return LinkType.RADAR
+    if re.search(r"^[a-z]+://[^/]*grafana", url, re.I):
+        return LinkType.GRAFANA
     if re.search(r"docs\.|notion\.|confluence\.|wiki\.", url, re.I):
         return LinkType.DOC
     return LinkType.OTHER
@@ -387,7 +389,7 @@ class NotesText(BaseModel):
 class NewLink(BaseModel):
     url: str
     label: Optional[str] = None
-    type: Optional[str] = None  # pr | issue | radar | doc | slack | quip | other; guessed from the URL when omitted
+    type: Optional[str] = None  # pr | issue | radar | doc | slack | quip | grafana | other; guessed from the URL when omitted
 
 
 class NewMeeting(BaseModel):
@@ -768,12 +770,12 @@ def agent_help():
             "POST /agent/tasks": "{action, workstream?, state?, notes?, high_impact?, labels?, start_date?, end_date?, parent_id?}",
             "PATCH /agent/tasks/{id}": "{action?, state?, high_impact?, workstream?, labels?, start_date?, end_date?, parent_id? (\"\" makes it top-level)}",
             "POST /agent/tasks/{id}/notes": "{text, mode?: append|replace}",
-            "POST /agent/tasks/{id}/links": "{url, label?, type?: pr|issue|radar|doc|slack|quip|other}",
+            "POST /agent/tasks/{id}/links": "{url, label?, type?: pr|issue|radar|doc|slack|quip|grafana|other}",
             "POST /agent/meetings": "{title, date?, start_time?, duration_minutes?, notes?, exclude_from_stats?, passive?}",
             "PATCH /agent/meetings/{id}": "{title?, date?, start_time?, duration_minutes?, exclude_from_stats?, passive?}",
             "POST /agent/meetings/{id}/notes": "{text, mode?: append|replace}",
             "POST /agent/tasks/{id}/files": "multipart form field 'file' (curl -F 'file=@/path/to/file'); 25 MB max",
-            "POST /agent/meetings/{id}/links": "{url, label?, type?: pr|issue|radar|doc|slack|quip|other}",
+            "POST /agent/meetings/{id}/links": "{url, label?, type?: pr|issue|radar|doc|slack|quip|grafana|other}",
             "POST /agent/meetings/{id}/files": "multipart form field 'file'; 25 MB max",
             "POST /agent/meetings/{id}/tasks": "{task_id} to link, or {action, workstream?, state?, notes?, high_impact?, parent_id?} to create",
             "POST /agent/people": "{name, role?, team?, focus?, manager? (ref or name), relationship?, notes?, placeholder?}",

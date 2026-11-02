@@ -122,7 +122,7 @@ JSON
 Use `/agent/meetings/M17/notes` for a meeting, e.g. when the user pastes AI meeting notes. Keep
 pasted meeting notes as the user gave them unless they ask you to tidy them.
 
-Add a link to a task or a meeting (the type — pr, issue, radar, doc, slack, quip, other — is guessed from the URL):
+Add a link to a task or a meeting (the type — pr, issue, radar, doc, slack, quip, grafana, other — is guessed from the URL):
 
 ```bash
 curl -s -X POST "$API/agent/tasks/T42/links" -H 'Content-Type: application/json' \

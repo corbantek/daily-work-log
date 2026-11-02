@@ -112,6 +112,15 @@ class MeetingLinkTests(unittest.TestCase):
         self.assertEqual((m.link_type.value, t.link_type.value), ("radar", "radar"))
         self.assertEqual(_read_meeting(self.meeting, self.session).links[0].link_type.value, "radar")
 
+    def test_grafana_link_type_works_for_tasks_and_meetings(self):
+        task = Task(action="A task")
+        self.session.add(task)
+        self.session.commit()
+        m = self.add("https://grafana.example.com/d/abc", "Latency", "grafana")
+        t = add_task_link(task.id, TaskLinkCreate(url="https://acme.grafana.net/d/x", link_type="grafana"), self.session)
+        self.assertEqual((m.link_type.value, t.link_type.value), ("grafana", "grafana"))
+        self.assertEqual(_read_meeting(self.meeting, self.session).links[0].link_type.value, "grafana")
+
     def test_unknown_link_type_is_still_rejected(self):
         with self.assertRaises(ValueError):
             TaskLinkCreate(url="https://x.test", link_type="carrier-pigeon")

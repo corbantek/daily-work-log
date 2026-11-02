@@ -65,6 +65,7 @@ class ResolverTests(Base):
         cases = {"https://github.com/o/r/pull/4": "pr", "https://github.com/o/r/issues/9": "issue",
                  "https://acme.slack.com/archives/C1": "slack", "https://quip-apple.com/AbC": "quip",
                  "rdar://problem/12345678": "radar", "https://radar.apple.com/12345678": "radar",
+                 "https://grafana.example.com/d/abc/latency": "grafana", "https://acme.grafana.net/d/x": "grafana",
                  "https://docs.example.com/x": "doc", "https://example.com": "other"}
         self.assertEqual({u: A.detect_link_type(u).value for u in cases}, cases)
 
