@@ -362,9 +362,12 @@ function MeetingTasks({ meeting, date, onChanged }: { meeting: Meeting; date: st
           <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Tasks</span>
           {meeting.tasks.map(task => (
             <div key={task.id} className="flex items-center gap-2 text-xs group/task rounded border border-border/50 bg-card/30 px-2.5 py-1.5">
-              <span className={cn('flex-1 truncate', (task.state === 'complete' || task.state === 'abandoned') ? 'line-through text-muted-foreground' : 'text-foreground')}>
-                {task.action}
-              </span>
+              <div className="flex-1 min-w-0 flex items-center gap-2">
+                <span className={cn('truncate', (task.state === 'complete' || task.state === 'abandoned') ? 'line-through text-muted-foreground' : 'text-foreground')}>
+                  {task.action}
+                </span>
+                <RefBadge kind="task" number={task.number} className="flex-shrink-0" />
+              </div>
               <span className={cn(
                 'text-xs border rounded-full px-2 py-0.5 font-medium flex-shrink-0',
                 task.state === 'todo' ? 'text-red-400 border-red-500/40' :
