@@ -1,12 +1,13 @@
 import { useState, useEffect, useContext } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Zap, Calendar, ExternalLink, Paperclip, CornerDownRight } from 'lucide-react'
+import { Zap, Calendar, CornerDownRight } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 import { rehypeHighlightTodo } from '@/lib/rehype-highlight-todo'
 import type { SearchResult, Task, Meeting } from '../api/types'
-import { getTask, getMeeting, attachmentOpenUrl } from '../api/client'
+import { getTask, getMeeting } from '../api/client'
+import { LinkedItems } from './LinkedItems'
 import { RefBadge } from './RefBadge'
 import { useOnDataChange } from '@/lib/live-updates'
 import { OpenInLogContext, logDateFor } from '@/lib/log-target'
@@ -119,28 +120,7 @@ export function ItemDetailDialog({ result, onClose }: Props) {
                 </div>
               )}
 
-              {task.links.length > 0 && (
-                <div className="space-y-1">
-                  {task.links.map(link => (
-                    <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 text-xs text-primary hover:underline">
-                      <ExternalLink size={12} /> {link.label || link.url}
-                    </a>
-                  ))}
-                </div>
-              )}
-
-              {task.attachments.length > 0 && (
-                <div className="space-y-1">
-                  {task.attachments.map(a => (
-                    <a key={a.id} href={attachmentOpenUrl(a)}
-                      {...(a.kind === 'other' ? { download: a.filename } : { target: '_blank', rel: 'noopener noreferrer' })}
-                      className="flex items-center gap-1.5 text-xs text-primary hover:underline">
-                      <Paperclip size={12} /> {a.filename}
-                    </a>
-                  ))}
-                </div>
-              )}
+              <LinkedItems links={task.links} attachments={task.attachments} />
 
               {task.meetings.length > 0 && (
                 <div className="text-xs text-muted-foreground">
@@ -164,28 +144,7 @@ export function ItemDetailDialog({ result, onClose }: Props) {
                 </div>
               )}
 
-              {meeting.links.length > 0 && (
-                <div className="space-y-1">
-                  {meeting.links.map(link => (
-                    <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 text-xs text-primary hover:underline">
-                      <ExternalLink size={12} /> {link.label || link.url}
-                    </a>
-                  ))}
-                </div>
-              )}
-
-              {meeting.attachments.length > 0 && (
-                <div className="space-y-1">
-                  {meeting.attachments.map(a => (
-                    <a key={a.id} href={attachmentOpenUrl(a)}
-                      {...(a.kind === 'other' ? { download: a.filename } : { target: '_blank', rel: 'noopener noreferrer' })}
-                      className="flex items-center gap-1.5 text-xs text-primary hover:underline">
-                      <Paperclip size={12} /> {a.filename}
-                    </a>
-                  ))}
-                </div>
-              )}
+              <LinkedItems links={meeting.links} attachments={meeting.attachments} />
 
               {meeting.tasks.length > 0 && (
                 <div>

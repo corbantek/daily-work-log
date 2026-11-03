@@ -77,7 +77,8 @@ api/.venv/bin/python -m unittest discover -s api/tests -t .
 - `TaskRow.tsx` — single task: expand/collapse, state/workstream/label/link editing, sub-task add, markdown notes
 - `AddTaskForm.tsx` — inline task creation form (`defaultOpen` prop for sub-task flow)
 - `MeetingSection.tsx` — meeting card with task linking, optional start time, per-day calendar sync button
-- `LinkSection.tsx` — link list with inline add/edit/delete and paste detection, shared by tasks and meetings (`beforeActions` / `actions` slots hold the attachment list and attach button)
+- `LinkSection.tsx` — link list with inline add/edit/delete and paste detection, shared by tasks and meetings
+- `LinksAndFiles.tsx` — editable layout used by an expanded `TaskRow` and `MeetingDetails`: Links | Files in two columns (stacked below `sm`), or one compact row of add buttons (add link · attach file · `extraActions` such as add sub-task) while there are neither
 - `Attachments.tsx` — attach button, drag-and-drop upload hook (`useAttachmentUpload`) and the attachment list (open in new tab, download, rename, delete); used by an expanded `TaskRow` and by `MeetingDetails` in `MeetingSection.tsx`
 - `AttachmentViewer.tsx` — standalone rendered-markdown page for `/?attachment=<id>`
 - `AttachmentsBackup.tsx` — Settings → Data: attachment count/size, missing-file warning, export/restore tar.gz
@@ -99,7 +100,7 @@ api/.venv/bin/python -m unittest discover -s api/tests -t .
 - `ManageFramework.tsx` — dialog to edit competency dimensions/attributes (opened from Settings → Competency framework)
 - `SelfReviewDraft.tsx` — your own year-end summary (stat tiles, high-impact highlights, tasks grouped by workstream) + Markdown export; shown via the Review tab's Tasks/Self-Review toggle
 - `MeetingInsightsView.tsx` — Review → Meetings: stat tiles, hours-per-week chart (shown for ranges over one week), deduplicated outcomes list, then digest cards (preview / full notes, then the meeting's tasks, links and files), Markdown export (same order)
-- `LinkedItems.tsx` — a task's/meeting's links and attached files, one per line; shared by the Review → Meetings digest and Review → Tasks cards
+- `LinkedItems.tsx` — read-only links and attached files: two columns ("Links (n)" | "Files (n)") when both exist, else one list; shared by the Review → Meetings digest and the search `ItemDetailDialog`
 - `LinksView.tsx` — Review → Links: merged link/file list with search and type filter; sources open `ItemDetailDialog`
 - `DateRangePicker.tsx` — preset + custom date range control used by Review → Meetings, Links and Tasks
 - `CommandPalette.tsx` — ⌘K / Ctrl-K global search overlay; opens a person in the People tab, or a focused read-only detail (`ItemDetailDialog`) for a task/meeting (search opens this read-only recall dialog; its **Open in Log** button then jumps to the item)

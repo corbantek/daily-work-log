@@ -15,8 +15,8 @@ import {
   addMeetingLink, updateMeetingLink, deleteMeetingLink,
 } from '../api/client'
 import { formatTime, type TimeFormat } from '../api/date'
-import { AttachButton, AttachmentList, useAttachmentUpload } from './Attachments'
-import { LinkSection } from './LinkSection'
+import { useAttachmentUpload } from './Attachments'
+import { LinksAndFiles } from './LinksAndFiles'
 import { ExcludedBadge, ExcludeToggle } from './ExcludeFromStats'
 import { PassiveToggle } from './Passive'
 import { RefBadge } from './RefBadge'
@@ -331,15 +331,15 @@ function MeetingDetails({ meeting, date, onChanged }: { meeting: Meeting; date: 
       />
 
       <div className="mt-3 space-y-1">
-        <LinkSection
+        <LinksAndFiles
           links={meeting.links}
+          attachments={meeting.attachments}
+          att={att}
           defaultType="other"
           onAdd={body => addMeetingLink(meeting.id, body)}
           onUpdate={(id, body) => updateMeetingLink(meeting.id, id, body)}
           onDelete={id => deleteMeetingLink(meeting.id, id)}
           onChanged={onChanged}
-          beforeActions={<AttachmentList attachments={meeting.attachments} att={att} onChanged={onChanged} />}
-          actions={<AttachButton att={att} />}
         />
       </div>
 

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useState } from 'react'
 import { Pencil, Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -19,7 +19,14 @@ export const LINK_TYPE_OPTIONS: { value: LinkType; label: string }[] = [
   { value: 'other', label: 'Other' },
 ]
 
-type LinkItem = Pick<TaskLink, 'id' | 'url' | 'label' | 'link_type'>
+/** Links grouped by type (in the order of `LINK_TYPE_OPTIONS`), oldest first within a type. */
+export function sortLinks<T extends { link_type: LinkType; created_at?: string }>(links: T[]): T[] {
+  const rank = (t: LinkType) => LINK_TYPE_OPTIONS.findIndex(o => o.value === t)
+  return [...links].sort((a, b) =>
+    rank(a.link_type) - rank(b.link_type) || (a.created_at ?? '').localeCompare(b.created_at ?? ''))
+}
+
+type LinkItem = Pick<TaskLink, 'id' | 'url' | 'label' | 'link_type'> & { created_at?: string }
 export interface LinkBody {
   url: string
   label?: string
@@ -34,14 +41,10 @@ interface Props {
   onUpdate: (id: string, body: LinkBody) => Promise<unknown>
   onDelete: (id: string) => Promise<unknown>
   onChanged: () => void
-  /** Rendered between the link list and the add form (e.g. an attachment list). */
-  beforeActions?: ReactNode
-  /** Extra buttons shown beside "add link" while the add form is closed. */
-  actions?: ReactNode
 }
 
 /** The list of links on a task or meeting, with inline add / edit / delete and paste detection. */
-export function LinkSection({ links, defaultType, onAdd, onUpdate, onDelete, onChanged, beforeActions, actions }: Props) {
+export function LinkSection({ links, defaultType, onAdd, onUpdate, onDelete, onChanged }: Props) {
   const [addingLink, setAddingLink] = useState(false)
   const [editingLinkId, setEditingLinkId] = useState<string | null>(null)
   const [linkUrl, setLinkUrl] = useState('')
@@ -122,7 +125,7 @@ export function LinkSection({ links, defaultType, onAdd, onUpdate, onDelete, onC
     <>
       {links.length > 0 && (
         <div className="space-y-1">
-          {links.map(link => (
+          {sortLinks(links).map(link => (
             editingLinkId === link.id ? (
               <form key={link.id} onSubmit={e => { e.preventDefault(); saveEditLink(link.id) }} className="flex flex-wrap gap-2 items-end">
                 {typeSelect}
@@ -143,7 +146,7 @@ export function LinkSection({ links, defaultType, onAdd, onUpdate, onDelete, onC
                   href={link.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-primary hover:text-primary/80 truncate max-w-xs transition-colors"
+                  className="text-primary hover:text-primary/80 truncate transition-colors"
                 >
                   {link.label || link.url}
                 </a>
@@ -165,8 +168,6 @@ export function LinkSection({ links, defaultType, onAdd, onUpdate, onDelete, onC
         </div>
       )}
 
-      {beforeActions}
-
       {addingLink ? (
         <form onSubmit={submitLink} className="flex flex-wrap gap-2 items-end">
           {typeSelect}
@@ -181,15 +182,12 @@ export function LinkSection({ links, defaultType, onAdd, onUpdate, onDelete, onC
           </Button>
         </form>
       ) : (
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setAddingLink(true)}
-            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
-          >
-            <Plus size={12} /> add link
-          </button>
-          {actions}
-        </div>
+        <button
+          onClick={() => setAddingLink(true)}
+          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+        >
+          <Plus size={12} /> add link
+        </button>
       )}
     </>
   )

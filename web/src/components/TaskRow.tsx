@@ -10,8 +10,8 @@ import { WorkstreamPicker } from './WorkstreamPicker'
 import { LabelPicker } from './LabelPicker'
 import { ClickToEditMarkdown } from './ClickToEditMarkdown'
 import { AddTaskForm } from './AddTaskForm'
-import { AttachButton, AttachmentList, useAttachmentUpload } from './Attachments'
-import { LinkSection } from './LinkSection'
+import { useAttachmentUpload } from './Attachments'
+import { LinksAndFiles } from './LinksAndFiles'
 import { RefBadge } from './RefBadge'
 import type { Task, TaskState, Workstream } from '../api/types'
 import { updateTask, deleteTask, addTaskLink, updateTaskLink, deleteTaskLink, getWorkstreams, unlinkTaskFromMeeting, getTasks } from '../api/client'
@@ -294,27 +294,23 @@ export function TaskRow({ task, onChanged, isSubtask }: Props) {
                 </div>
               )}
 
-              <LinkSection
+              <LinksAndFiles
                 links={task.links}
+                attachments={task.attachments}
+                att={att}
                 defaultType="pr"
                 onAdd={body => addTaskLink(task.id, body)}
                 onUpdate={(id, body) => updateTaskLink(task.id, id, body)}
                 onDelete={id => deleteTaskLink(task.id, id)}
                 onChanged={onChanged}
-                beforeActions={<AttachmentList attachments={task.attachments} att={att} onChanged={onChanged} />}
-                actions={
-                  <>
-                    <AttachButton att={att} />
-                    {!isSubtask && (
-                      <button
-                        onClick={() => { setAddingSubtask(v => !v) }}
-                        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
-                      >
-                        <GitBranch size={12} /> add sub-task
-                      </button>
-                    )}
-                  </>
-                }
+                extraActions={!isSubtask && (
+                  <button
+                    onClick={() => { setAddingSubtask(v => !v) }}
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    <GitBranch size={12} /> add sub-task
+                  </button>
+                )}
               />
 
               {addingSubtask && (
