@@ -1,13 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 from typing import List, Optional
-from datetime import date
+from datetime import date, datetime
 
 from ..attachments import delete_task_attachments, read_attachment, unlink_stored
 from ..database import get_session
 from ..models import (
     Task, TaskCreate, TaskRead, TaskUpdate, TaskState,
     TaskLink, TaskLinkCreate, TaskLinkRead, TaskAttachment,
+    TaskWin, TaskWinCreate, TaskWinUpdate, TaskWinRead,
     Label, TaskLabelLink, MeetingTaskLink,
     Meeting, MeetingBrief,
 )
@@ -49,6 +50,13 @@ def _state_dates(old_state: Optional[TaskState], new_state: TaskState, start_dat
     elif (new_state in (TaskState.TODO, TaskState.IN_PROGRESS)
           and old_state in (TaskState.COMPLETE, TaskState.ABANDONED) and "end_date" not in data):
         data["end_date"] = None
+
+
+def _clean_status(value: Optional[str]) -> Optional[str]:
+    """Status is one line: collapse whitespace/newlines; blank means none."""
+    if value is None:
+        return None
+    return " ".join(value.split()) or None
 
 
 def _validate_parent(task: Task, parent_id: str, session: Session):
@@ -102,7 +110,10 @@ def create_task(body: TaskCreate, session: Session = Depends(get_session)):
     given = {k: v for k, v in data.items() if not (k in ("start_date", "end_date") and v is None)}
     _state_dates(TaskState.TODO, body.state, body.start_date, given)  # as if it moved from todo
     data.update({k: given[k] for k in ("start_date", "end_date") if k in given})
+    data["status"] = _clean_status(data.get("status"))
     task = Task(**data)
+    if task.status:
+        task.status_updated_at = datetime.utcnow()
     session.add(task)
     session.flush()
     if task.parent_task_id:
@@ -139,6 +150,10 @@ def update_task(task_id: str, body: TaskUpdate, session: Session = Depends(get_s
         ).all()
         if open_children:
             raise HTTPException(400, detail="Resolve all sub-tasks first")
+    if "status" in data:
+        data["status"] = _clean_status(data["status"])
+        if data["status"] != task.status:
+            task.status_updated_at = datetime.utcnow() if data["status"] else None
     new_parent_id = data.get("parent_task_id", _UNSET)
     for k, v in data.items():
         setattr(task, k, v)
@@ -164,6 +179,8 @@ def delete_task(task_id: str, session: Session = Depends(get_session)):
         session.delete(link)
     for link in session.exec(select(TaskLink).where(TaskLink.task_id == task_id)).all():
         session.delete(link)
+    for win in session.exec(select(TaskWin).where(TaskWin.task_id == task_id)).all():
+        session.delete(win)
     for link in session.exec(select(MeetingTaskLink).where(MeetingTaskLink.task_id == task_id)).all():
         session.delete(link)
     stored_names = delete_task_attachments(session, task_id)
@@ -207,6 +224,54 @@ def remove_link(task_id: str, link_id: str, session: Session = Depends(get_sessi
     session.commit()
 
 
+# ── Task wins ─────────────────────────────────────────────────────────────────
+
+def _clean_win_text(text: str) -> str:
+    text = " ".join(text.split())
+    if not text:
+        raise HTTPException(400, detail="A win needs some text")
+    return text
+
+
+@router.post("/{task_id}/wins", response_model=TaskWinRead, status_code=201)
+def add_win(task_id: str, body: TaskWinCreate, session: Session = Depends(get_session)):
+    if not session.get(Task, task_id):
+        raise HTTPException(404)
+    win = TaskWin(task_id=task_id, text=_clean_win_text(body.text),
+                  date=body.date or date.today(), high_impact=body.high_impact)
+    session.add(win)
+    session.commit()
+    session.refresh(win)
+    return win
+
+
+@router.patch("/{task_id}/wins/{win_id}", response_model=TaskWinRead)
+def update_win(task_id: str, win_id: str, body: TaskWinUpdate, session: Session = Depends(get_session)):
+    win = session.get(TaskWin, win_id)
+    if not win or win.task_id != task_id:
+        raise HTTPException(404)
+    data = body.model_dump(exclude_unset=True)
+    if "text" in data:
+        data["text"] = _clean_win_text(data["text"] or "")
+    if data.get("date", 1) is None:
+        data.pop("date")
+    for k, v in data.items():
+        setattr(win, k, v)
+    session.add(win)
+    session.commit()
+    session.refresh(win)
+    return win
+
+
+@router.delete("/{task_id}/wins/{win_id}", status_code=204)
+def remove_win(task_id: str, win_id: str, session: Session = Depends(get_session)):
+    win = session.get(TaskWin, win_id)
+    if not win or win.task_id != task_id:
+        raise HTTPException(404)
+    session.delete(win)
+    session.commit()
+
+
 # ── Helper ────────────────────────────────────────────────────────────────────
 
 def _enrich(task: Task, session: Session) -> TaskRead:
@@ -217,6 +282,9 @@ def _enrich(task: Task, session: Session) -> TaskRead:
     ).all()
     links = session.exec(
         select(TaskLink).where(TaskLink.task_id == task.id)
+    ).all()
+    wins = session.exec(
+        select(TaskWin).where(TaskWin.task_id == task.id).order_by(TaskWin.date, TaskWin.created_at)
     ).all()
     attachments = session.exec(
         select(TaskAttachment).where(TaskAttachment.task_id == task.id).order_by(TaskAttachment.created_at)
@@ -240,6 +308,7 @@ def _enrich(task: Task, session: Session) -> TaskRead:
         **task.model_dump(),
         labels=labels,
         links=links,
+        wins=wins,
         attachments=[read_attachment(a) for a in attachments],
         meetings=meetings,
         subtask_count=subtask_count,

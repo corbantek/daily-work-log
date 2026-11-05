@@ -99,8 +99,9 @@ sub-task, use its parent. To move an existing task under another, or back to top
 with `"parent_id": "T42"` (or `""`).
 
 If you have anything to note about a new task, write it in the **Task notes** shape (below) from
-the start (Context, today's Progress, What's Next, and a status line) and send it as `notes` in the
-create call, not as a separate append afterwards. The same goes for a task created from a meeting.
+the start (Context, today's Progress, What's Next) and send it as `notes` in the create call, not as
+a separate append afterwards, together with a one-line `status`. The same goes for a task created
+from a meeting.
 
 Update a task (send only what changes):
 
@@ -108,7 +109,7 @@ Update a task (send only what changes):
 curl -s -X PATCH "$API/agent/tasks/T42" -H 'Content-Type: application/json' -d '{"state": "complete"}'
 ```
 
-Fields: `action`, `state`, `high_impact`, `workstream` (`""` for none), `labels`, `start_date`,
+Fields: `action`, `status` (see "Status and wins"), `state`, `high_impact`, `workstream` (`""` for none), `labels`, `start_date`,
 `end_date`, `parent_id`. Completing a task with open sub-tasks is refused; tell the user.
 
 Add to a task's or meeting's notes (markdown). See "Writing notes" for when to rewrite instead:
@@ -266,7 +267,10 @@ same change. Only then — never on a read-only request, and only the note you'r
 
 - **What's Next:** take out finished items (after checking they're in Progress) and items that no
   longer apply; keep the order current.
-- **Status line:** rewrite it.
+- **Status:** set the task's `status` field to match (see "Status and wins"); notes no longer carry
+  a status line.
+- **Wins:** if the note or today's work contains a win that isn't recorded yet, add it as a win
+  (see "Status and wins"). Don't leave a Wins section in the notes.
 - **Context:** when a decision or number is superseded, update it in place but keep the history
   ("revised Oct 30: …", "was 28, now about 23 on develop"). Merge points that say the same thing.
 - **Progress:** merge only facts recorded twice. Never cut or condense past days in a routine
@@ -286,7 +290,8 @@ the rest.
 Use this shape whenever you write a task's notes: when you create the task as well as when you
 update it.
 
-A task's notes have four jobs. Keep them doing all four as the task evolves:
+A task's notes have three jobs. Keep them doing all three as the task evolves (the one-line
+status and the wins are separate fields, not part of the note; see "Status and wins"):
 
 1. **Context** — what the task is, why it matters, the intended approach, key decisions and open
    questions, and the background or links needed to pick it up. Written when the task starts;
@@ -298,21 +303,13 @@ A task's notes have four jobs. Keep them doing all four as the task evolves:
    draft PR #4725: added a DB-request counter and a report-only budget test"), not every small
    step ("ran lint", "fixed a typo"). Add rough effort when you know it or the user mentions it —
    on the date line for the day (`**Oct 22** (~3h)`) or on a single item; never guess.
-3. **Wins — for review season.** Anything with impact: shipped work, problems solved, numbers
-   moved, people unblocked, recognition received. Concrete ("cut p99 latency from 900 ms to
-   520 ms", not "improved performance"), with the PR, doc or thread as evidence, and estimates
-   labelled as estimates. When a win is significant, suggest marking the task ⚡ high-impact —
-   ask; don't set it yourself.
-4. **What's Next — only what's still to do.** The user's open follow-ups as `TODO:` items, in the
+3. **What's Next — only what's still to do.** The user's open follow-ups as `TODO:` items, in the
    order they'll be done (next action first, `Later:` items last), plus plain lines for what the
    user is waiting on from others ("Waiting on Joshua about …"). Never `DONE:` items: when one is
    finished, make sure Progress records it under the day it was done (add it if missing), put any
    decision it settled in Context, and then remove it from What's Next. Update the list on every
    change: add new items, take out finished ones, drop what's no longer relevant, and ask about
    items whose deadline has passed.
-
-End with a **status line** that starts with a bold `**Status:**`: a sentence or two on where the
-task stands right now. It's the last line of the note, and you rewrite it on every update.
 
 **Keep it readable, without losing work.** Short bullets, links instead of pasted text, and a level
 of detail like a good standup update; long notes are fine when the work was substantial. Don't
@@ -324,13 +321,16 @@ their own sections.
 meeting that day, an activity timestamp) and say so when you report the change; otherwise ask, or
 put the item under `**Earlier**`.
 
-**Updating:** new work belongs inside its section (today's Progress, What's Next) and the status line is
-last, so updating a structured task note normally means sending the whole revised note with
-`"mode": "replace"` rather than appending to the end. The previous version is backed up first.
+**Updating:** new work belongs inside its section (today's Progress, What's Next), so updating a
+structured task note normally means sending the whole revised note with `"mode": "replace"` rather
+than appending to the end. The previous version is backed up first.
 
 **Existing notes in another shape:** the first time you update such a task, reorganize its notes
 into this shape, keeping every fact, link, decision and the user's wording (a backup is saved
-automatically). That includes moving any `DONE:` items out of What's Next into Progress. Tell the user you reorganized them, and which dates you inferred.
+automatically). That includes moving any `DONE:` items out of What's Next into Progress, moving a trailing
+`**Status:**` line into the `status` field, and turning a **Wins** section into wins (when it isn't
+clear which day a win happened, use the day of the Progress entry it relates to, else ask). Tell the
+user you reorganized them, and which dates you inferred.
 
 Shape (omit empty sections):
 
@@ -346,15 +346,49 @@ DB doesn't cascade. Background: incident review (link).
   - Merged the backoff fix (PR #123) (~1.5h).
   - Measured p99 on staging before and after, and shared the numbers with Zz.
 
-**Wins**
-- Cut p99 latency from 900 ms to 520 ms (PR #123).
-
 **What's Next**
 - TODO: add a backoff regression test
 - Waiting on Zz to confirm the staging numbers match production
-
-**Status:** fix shipped and measured; only the regression test is left.
 ```
+
+with, set on the task itself, `status`: "Fix shipped and measured; only the regression test is left."
+and a win: "Cut p99 latency from 900 ms to 520 ms (PR #123)".
+
+### Status and wins
+
+Two fields on the task, outside the notes. The app shows the status under the task's title (also
+when it's collapsed), and wins feed the review rollups.
+
+**Status** is one line, usually one sentence, on where the task stands *right now*: "PR #4918 approved
+and green, ready to merge." or "Not started; waiting on the design." It is replaced, not appended;
+no markdown or line breaks. Set it on every task write: the same PATCH that changes state works, or
+send it with the notes change:
+
+```bash
+curl -s -X PATCH "$API/agent/tasks/T42" -H 'Content-Type: application/json' -d '{"status": "Fix shipped; only the regression test is left."}'
+```
+
+`""` clears it. The previous status is kept in the activity log (`GET /agent/activity`).
+
+**Wins** are a list on the task, for review season. A win is anything with impact: shipped work,
+a problem solved, a number moved, people unblocked, recognition received. One line each: concrete
+("Cut p99 latency from 900 ms to 520 ms (PR #123)", not "improved performance"), with the PR, doc
+or thread as evidence, and estimates labelled as estimates. Each win has a date (default today;
+pass `date` for an earlier one) and an optional `high_impact` flag.
+
+```bash
+curl -s -X POST "$API/agent/tasks/T42/wins" -H 'Content-Type: application/json' -d '{"text": "Cut p99 latency from 900 ms to 520 ms (PR #123)"}'
+# fix wording, date or flag (the win ids are in GET /agent/tasks/T42):
+curl -s -X PATCH "$API/agent/tasks/T42/wins/WIN_ID" -H 'Content-Type: application/json' -d '{"high_impact": true}'
+```
+
+Add a win when work you are recording lands one; read the task's existing wins first so you don't
+add the same one twice. Don't invent wins; if the notes only hint at an outcome, ask. Suggest
+`high_impact` for a win, or the task's ⚡, when something is significant — ask; don't set it
+yourself. Wins can't be deleted through the API (the user does that in the app).
+
+**Backfill** ("backfill wins for T32"): read the task's notes, propose the wins you found with their
+dates, and add them once the user agrees.
 
 ### Splitting out a sub-task
 
@@ -379,11 +413,11 @@ session.
     "(from T32)" rather than "see T32"; where the work lives (repos, branches, PRs, files, paths)
     and who to talk to; gotchas and earlier findings.
   - **What's Next:** the first concrete steps.
-  - **Status:** "Not started; split out from T32 on Oct 30."
+  - Its `status` field: "Not started; split out from T32 on Oct 30."
 - **Update the parent** in the same pass: the What's Next item becomes a one-line pointer
   (`- TODO: Step 3: single commit at Registration Accept (T51)`); detail that moved into the
   sub-task comes out of the parent, keeping anything still about the parent's own goal; add a
-  Progress line ("Split out T51 for …"); rewrite the status line.
+  Progress line ("Split out T51 for …"); update the parent's `status`.
 - **Give the user a starting prompt** for a fresh session, since you can't start one yourself:
   > Work on T51 (Step 3: single commit at Registration Accept). Read its notes with the
   > daily-work-log skill first, then start on the first TODO. Record progress in T51's notes as you go.
@@ -413,5 +447,5 @@ Restore it by sending that text back with `"mode": "replace"` (which is itself b
 
 For "what did I do this week" or a standup, start from `/agent/summary` (add `date_from` /
 `date_to` for other periods) and `/agent/day` for single days. Group by workstream, lead with
-completed and high-impact work, and mention meeting load only if it is notable. Base everything on
+completed and high-impact work and the `wins` it lists, and mention meeting load only if it is notable. Base everything on
 what the log says; if something is missing, say so instead of filling it in.

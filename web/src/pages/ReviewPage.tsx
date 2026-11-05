@@ -18,6 +18,8 @@ import { useOnActivate } from '@/lib/use-on-activate'
 import { useOnDataChange } from '@/lib/live-updates'
 import { RefBadge } from '../components/RefBadge'
 import { LinkedItems } from '../components/LinkedItems'
+import { StatusText } from '../components/TaskStatus'
+import { WinsList } from '../components/TaskWins'
 import { REVIEW_VIEWS, type ReviewMode } from './review-views'
 import { ItemDetailDialog, type DetailTarget } from '../components/ItemDetailDialog'
 import type { TimeFormat } from '../api/date'
@@ -143,6 +145,8 @@ export function ReviewPage({
         const linkStr = t.links.map(l => `[${l.label || l.link_type}](${l.url})`).join(' ')
         const fileStr = t.attachments.map(a => `📎 ${a.filename}`).join(' ')
         lines.push(`- ${state}${impact} ${t.action}${linkStr ? ' ' + linkStr : ''}${fileStr ? ' ' + fileStr : ''}`)
+        if (t.status) lines.push(`  - Status: ${t.status}`)
+        for (const w of t.wins) lines.push(`  - Win${w.high_impact ? ' ⚡' : ''}: ${w.text} (${w.date})`)
       }
       lines.push('')
     }
@@ -334,6 +338,8 @@ export function ReviewPage({
                         {STATE_LABELS[task.state]}
                       </span>
                     </div>
+                    {task.status && <StatusText status={task.status} className="mt-1" />}
+                    <WinsList wins={task.wins} className="mt-1.5" />
                     {task.notes && (
                       <div className="prose-worklog max-w-none mt-1.5">
                         <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlightTodo]}>

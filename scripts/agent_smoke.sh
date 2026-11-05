@@ -32,9 +32,9 @@ JSON
 ok "$(echo "$C" | jq '.action == "Review the team'"'"'s CI changes" and .workstream == "DevOps Improvements" and .state == "in_progress" and .ref == "T1"')" "create task (partial workstream name, apostrophe kept, ref T1)" "$C"
 T=$(curl -s "$API/agent/tasks?state=in_progress&workstream=devops"); ok "$(echo "$T" | jq '.count == 1 and (.tasks|all(.state=="in_progress"))')" "tasks by state + workstream name" "$T"
 CN=$(curl -s -X POST "$API/agent/tasks" -H 'Content-Type: application/json' --data-binary @- <<'JSON'
-{"action": "Investigate duplicate acks", "notes": "**Context**\nSeen in a PR run.\n\n**What's Next**\n- TODO: pull the pod logs\n\n**Status:** just started."}
+{"action": "Investigate duplicate acks", "notes": "**Context**\nSeen in a PR run.\n\n**What's Next**\n- TODO: pull the pod logs", "status": "Just started."}
 JSON
-); ok "$(echo "$CN" | jq '(.notes | startswith("**Context**")) and (.notes | endswith("**Status:** just started."))')" "create a task with structured notes in one call" "$CN"
+); ok "$(echo "$CN" | jq '(.notes | startswith("**Context**")) and (.notes | endswith("pull the pod logs")) and .status == "Just started." and .wins == []')" "create a task with structured notes and a status in one call" "$CN"
 P=$(curl -s -X PATCH "$API/agent/tasks/$TASK_ID" -H 'Content-Type: application/json' -d '{"state": "complete"}'); ok "$(echo "$P" | jq '.state == "complete"')" "update task state" "$P"
 N=$(curl -s -X POST "$API/agent/tasks/$TASK_ID/notes" -H 'Content-Type: application/json' --data-binary @- <<'JSON'
 {"text": "- Found the root cause: the retry loop didn't back off.\n- TODO: add a backoff test"}
@@ -51,6 +51,9 @@ BR=$(curl -s "$API/agent/notes-backups/$TASK_ID/$BACKUP"); ok "$(echo "$BR" | jq
 L=$(curl -s -X POST "$API/agent/tasks/$TASK_ID/links" -H 'Content-Type: application/json' \
   -d '{"url": "https://github.com/org/repo/pull/123", "label": "Retry fix PR"}'); ok "$(echo "$L" | jq '.links[0].type == "pr"')" "add link (type guessed from the URL)" "$L"
 G=$(curl -s "$API/agent/tasks/$TASK_ID"); ok "$(echo "$G" | jq '(.links|length) == 1 and (.notes|length) > 0')" "task detail"
+PS=$(curl -s -X PATCH "$API/agent/tasks/$TASK_ID" -H 'Content-Type: application/json' -d '{"status": "Fix shipped; only the test is left."}'); ok "$(echo "$PS" | jq '.status == "Fix shipped; only the test is left."')" "set a task's status" "$PS"
+W=$(curl -s -X POST "$API/agent/tasks/$TASK_ID/wins" -H 'Content-Type: application/json' -d '{"text": "Cut p99 from 900 ms to 520 ms"}'); WIN_ID=$(echo "$W" | jq -r '.wins[0].id'); ok "$(echo "$W" | jq '(.wins|length) == 1 and .wins[0].high_impact == false')" "add a win" "$W"
+WP=$(curl -s -X PATCH "$API/agent/tasks/$TASK_ID/wins/$WIN_ID" -H 'Content-Type: application/json' -d '{"high_impact": true}'); ok "$(echo "$WP" | jq '.wins[0].high_impact == true')" "flag a win high-impact" "$WP"
 
 CM=$(curl -s -X POST "$API/agent/meetings" -H 'Content-Type: application/json' \
   -d '{"title": "Platform sync", "start_time": "14:00", "duration_minutes": 30}'); MEETING_ID=$(echo "$CM" | jq -r .ref)

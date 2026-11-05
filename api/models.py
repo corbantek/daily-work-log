@@ -131,6 +131,39 @@ class TaskLinkRead(TaskLinkBase):
     created_at: datetime
 
 
+# ── TaskWin ───────────────────────────────────────────────────────────────────
+
+class TaskWinBase(SQLModel):
+    text: str
+    # The day it happened (defaults to today); drives "wins this quarter" rollups.
+    date: Optional[DateType] = None
+    high_impact: bool = False
+
+
+class TaskWin(TaskWinBase, table=True):
+    __tablename__ = "taskwin"
+    id: str = Field(default_factory=new_id, primary_key=True)
+    task_id: str = Field(foreign_key="task.id", index=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class TaskWinCreate(TaskWinBase):
+    pass
+
+
+class TaskWinUpdate(SQLModel):
+    text: Optional[str] = None
+    date: Optional[DateType] = None
+    high_impact: Optional[bool] = None
+
+
+class TaskWinRead(TaskWinBase):
+    id: str
+    task_id: str
+    date: DateType
+    created_at: datetime
+
+
 # ── TaskAttachment ────────────────────────────────────────────────────────────
 
 class TaskAttachment(SQLModel, table=True):
@@ -177,6 +210,8 @@ class AttachmentRename(SQLModel):
 class TaskBase(SQLModel):
     action: str
     notes: Optional[str] = None
+    # One-line "where is this at" sentence, shown under the title (status_updated_at is server-managed).
+    status: Optional[str] = None
     state: TaskState = Field(default=TaskState.TODO, sa_type=_enum_by_value(TaskState))
     high_impact: bool = False
     workstream_id: Optional[str] = Field(default=None, foreign_key="workstream.id")
@@ -190,6 +225,7 @@ class Task(TaskBase, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     # Short human reference shown as T<number>; assigned on insert (see database.py), never reused.
     number: Optional[int] = Field(default=None, index=True, unique=True)
+    status_updated_at: Optional[datetime] = None
 
     workstream: Optional[Workstream] = Relationship(back_populates="tasks")
     labels: List[Label] = Relationship(back_populates="tasks", link_model=TaskLabelLink)
@@ -211,8 +247,10 @@ class TaskRead(TaskBase):
     id: str
     created_at: datetime
     number: Optional[int] = None
+    status_updated_at: Optional[datetime] = None
     labels: List[LabelRead] = []
     links: List[TaskLinkRead] = []
+    wins: List["TaskWinRead"] = []
     attachments: List[AttachmentRead] = []
     meetings: List[MeetingBrief] = []
     subtask_count: int = 0
@@ -222,6 +260,7 @@ class TaskRead(TaskBase):
 class TaskUpdate(SQLModel):
     action: Optional[str] = None
     notes: Optional[str] = None
+    status: Optional[str] = None
     state: Optional[TaskState] = None
     high_impact: Optional[bool] = None
     workstream_id: Optional[str] = None
@@ -638,6 +677,17 @@ class SelfReviewStats(SQLModel):
     in_progress: int = 0
     meetings: int = 0
     oncall_days: int = 0
+    wins: int = 0
+    high_impact_wins: int = 0
+
+
+class SelfReviewWin(TaskWinRead):
+    """A win with the task it belongs to, for the Wins section of the self-review."""
+    task_action: str
+    task_number: Optional[int] = None
+    task_state: TaskState
+    workstream_id: Optional[str] = None
+    workstream_name: Optional[str] = None
 
 
 class SelfReviewGroup(SQLModel):
@@ -650,6 +700,7 @@ class SelfReview(SQLModel):
     date_to: Optional[DateType] = None
     stats: SelfReviewStats
     highlights: List[TaskRead] = []
+    wins: List[SelfReviewWin] = []
     groups: List[SelfReviewGroup] = []
 
 

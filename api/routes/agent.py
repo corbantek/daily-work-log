@@ -20,7 +20,7 @@ from ..database import get_session, note_agent_activity
 from ..models import (
     AgentActivity, Label, LinkType, Meeting, MeetingAttachment, MeetingCreate, MeetingLink, MeetingTaskLink,
     MeetingUpdate, Task, TaskAttachment, TaskCreate, TaskLabelLink, TaskLink, TaskLinkCreate, TaskState,
-    TaskUpdate, Workstream, _check_hhmm,
+    TaskUpdate, TaskWin, TaskWinCreate, TaskWinUpdate, Workstream, _check_hhmm,
 )
 from . import day as day_routes
 from . import meetings as meeting_routes
@@ -137,12 +137,17 @@ def _ws_names(session: Session) -> Dict[str, str]:
     return {w.id: w.name for w in session.exec(select(Workstream)).all()}
 
 
+def win_brief(w: TaskWin) -> dict:
+    return {"id": w.id, "text": w.text, "date": w.date.isoformat() if w.date else None, "high_impact": w.high_impact}
+
+
 def task_brief(t: Task, ws: Dict[str, str], session: Session, notes_preview: bool = True) -> dict:
     labels = session.exec(
         select(Label).join(TaskLabelLink, TaskLabelLink.label_id == Label.id).where(TaskLabelLink.task_id == t.id)
     ).all()
     out = {
         "ref": task_ref(t.number), "id": t.id, "action": t.action, "state": t.state.value, "high_impact": t.high_impact,
+        "status": t.status,
         "workstream": ws.get(t.workstream_id) if t.workstream_id else None,
         "labels": [l.name for l in labels],
         "start_date": t.start_date.isoformat() if t.start_date else None,
@@ -159,6 +164,8 @@ def task_detail(t: Task, session: Session) -> dict:
     ws = _ws_names(session)
     out = task_brief(t, ws, session, notes_preview=False)
     out["notes"] = t.notes
+    out["wins"] = [win_brief(w) for w in session.exec(
+        select(TaskWin).where(TaskWin.task_id == t.id).order_by(TaskWin.date, TaskWin.created_at)).all()]
     out["links"] = [{"url": l.url, "label": l.label, "type": l.link_type.value}
                     for l in session.exec(select(TaskLink).where(TaskLink.task_id == t.id)).all()]
     out["files"] = [file_brief(a) for a in session.exec(select(TaskAttachment).where(TaskAttachment.task_id == t.id)).all()]
@@ -254,7 +261,8 @@ def agent_tasks(
     tasks = session.exec(query).all()
     if q:
         needle = q.lower()
-        tasks = [t for t in tasks if needle in t.action.lower() or needle in (t.notes or "").lower()]
+        tasks = [t for t in tasks if needle in t.action.lower() or needle in (t.notes or "").lower()
+                 or needle in (t.status or "").lower()]
     tasks = [t for t in tasks if (not date_from or task_date(t) >= date_from) and (not date_to or task_date(t) <= date_to)]
     tasks.sort(key=lambda t: (task_date(t), t.created_at), reverse=True)
     ws = _ws_names(session)
@@ -325,12 +333,17 @@ def agent_summary(date_from: Optional[date] = None, date_to: Optional[date] = No
         name = g.workstream.name if g.workstream else "Unassigned"
         by_ws[name] = [{"id": t.id, "action": t.action, "state": t.state.value, "high_impact": t.high_impact} for t in g.tasks]
     st = mi.stats
+    wins = session.exec(select(TaskWin).where(TaskWin.date >= date_from, TaskWin.date <= date_to)
+                        .order_by(TaskWin.date, TaskWin.created_at)).all()
+    tasks_by_id = {t.id: t for t in session.exec(select(Task).where(Task.id.in_({w.task_id for w in wins}))).all()}
     return {
         "date_from": date_from.isoformat(), "date_to": date_to.isoformat(),
         "tasks": {
             "completed": sr.stats.tasks_completed, "in_progress": sr.stats.in_progress, "high_impact": sr.stats.high_impact,
             "by_workstream": by_ws,
         },
+        "wins": [{**win_brief(w), "task": task_ref(tasks_by_id[w.task_id].number), "task_action": tasks_by_id[w.task_id].action}
+                 for w in wins if w.task_id in tasks_by_id],
         "meetings": {
             "count": st.meeting_count, "hours": round(st.total_minutes / 60, 1),
             "share_of_work_week": round(st.work_share, 3) if st.work_share is not None else None,
@@ -356,6 +369,7 @@ class NewTask(BaseModel):
     workstream: Optional[str] = None
     state: Optional[str] = None
     notes: Optional[str] = None
+    status: Optional[str] = None  # one line: where it stands now
     high_impact: bool = False
     labels: List[str] = []
     start_date: Optional[date] = None  # default: today
@@ -365,6 +379,7 @@ class NewTask(BaseModel):
 
 class TaskChanges(BaseModel):
     action: Optional[str] = None
+    status: Optional[str] = None  # one line, replaces the previous one; "" clears it
     state: Optional[str] = None
     high_impact: Optional[bool] = None
     workstream: Optional[str] = None  # "" or "unassigned" clears it
@@ -455,7 +470,7 @@ def _create_task(session: Session, body: NewTask) -> Task:
         created = task_routes.create_task(TaskCreate(
             action=body.action.strip(), workstream_id=ws_id,
             state=parse_state(body.state) if body.state else TaskState.TODO,
-            notes=(body.notes or "").strip() or None, high_impact=body.high_impact,
+            notes=(body.notes or "").strip() or None, status=body.status, high_impact=body.high_impact,
             start_date=body.start_date or Date.today(), end_date=body.end_date,
             parent_task_id=parent_id, label_ids=resolve_labels(session, body.labels),
         ), session)
@@ -497,6 +512,8 @@ def agent_update_task(task_id: str, body: TaskChanges, session: Session = Depend
     update = {}
     if "action" in changes:
         update["action"] = changes["action"].strip()
+    if "status" in changes:
+        update["status"] = changes["status"] or ""
     if "state" in changes:
         update["state"] = parse_state(changes["state"])
     if "high_impact" in changes:
@@ -543,6 +560,46 @@ def agent_task_notes(task_id: str, body: NotesText, session: Session = Depends(g
     session.commit()
     _record(session, f"{body.mode}_task_notes", "task", t.id, f'{NOTES_VERB[body.mode]} notes on {task_ref(t.number)} "{t.action}"')
     return {**task_detail(t, session), "notes_backup": backup}
+
+
+class NewWin(BaseModel):
+    text: str
+    date: Optional[Date] = None  # default: today
+    high_impact: bool = False
+
+
+class WinChanges(BaseModel):
+    text: Optional[str] = None
+    date: Optional[Date] = None
+    high_impact: Optional[bool] = None
+
+
+@router.post("/tasks/{task_id}/wins", status_code=201)
+def agent_task_win(task_id: str, body: NewWin, session: Session = Depends(get_session)):
+    """Record a win (one line: what was achieved) on a task."""
+    t = _get_task(session, task_id)
+    if not body.text.strip():
+        raise _bad("text (the win, one line) is required")
+    w = task_routes.add_win(t.id, TaskWinCreate(text=body.text, date=body.date, high_impact=body.high_impact), session)
+    _record(session, "add_task_win", "task", t.id, f'added win to {task_ref(t.number)} "{t.action}": {w.text}')
+    return task_detail(t, session)
+
+
+@router.patch("/tasks/{task_id}/wins/{win_id}")
+def agent_update_task_win(task_id: str, win_id: str, body: WinChanges, session: Session = Depends(get_session)):
+    t = _get_task(session, task_id)
+    changes = body.model_dump(exclude_unset=True)
+    if not changes:
+        raise _bad("Nothing to change", fields=list(WinChanges.model_fields))
+    try:
+        w = task_routes.update_win(t.id, win_id, TaskWinUpdate(**changes), session)
+    except HTTPException as e:
+        if e.status_code == 404:
+            raise _bad(f"{task_ref(t.number)} has no win with id {win_id}",
+                       valid=[win_brief(x) for x in session.exec(select(TaskWin).where(TaskWin.task_id == t.id)).all()])
+        raise _bad(e.detail if isinstance(e.detail, str) else str(e.detail))
+    _record(session, "update_task_win", "task", t.id, f'updated win on {task_ref(t.number)} "{t.action}": {w.text}')
+    return task_detail(t, session)
 
 
 @router.post("/tasks/{task_id}/links", status_code=201)
@@ -742,12 +799,15 @@ def agent_help():
             "so set them on the highest person they apply to; role is personal.",
             "Interactions are dated observations about one person: summary, sentiment (strength | growth | neutral), "
             "competency tags as \"Dimension\" or \"Dimension: attribute\" (GET /agent/framework lists them), notes.",
+            "A task's status is one line (where it stands now); each task write should keep it current, and it "
+            "is replaced, not appended. Wins are a list on the task: one line each, dated (default today), "
+            "optionally high_impact; they are added with POST …/wins and shown in GET /agent/tasks/{id} and the summary.",
             "There are no delete endpoints. Every change is recorded in GET /agent/activity.",
         ],
         "read": {
             "GET /agent/day?date=": "One day: status, on-call, meetings, tasks by workstream.",
             "GET /agent/tasks?state=&workstream=&q=&date_from=&date_to=&limit=": "Tasks (state may be comma-separated).",
-            "GET /agent/tasks/{id}": "Full task: notes, links, files, meetings, sub-tasks.",
+            "GET /agent/tasks/{id}": "Full task: status, notes, wins, links, files, meetings, sub-tasks.",
             "GET /agent/open": "Everything todo or in progress, by workstream.",
             "GET /agent/meetings?date= | ?date_from=&date_to=&q=": "Meetings on a day (default today) or range.",
             "GET /agent/meetings/{id}": "Full meeting: notes, tasks, links, files.",
@@ -767,9 +827,11 @@ def agent_help():
             "GET /agent/framework": "Competency dimensions and attributes (valid interaction tags).",
         },
         "write": {
-            "POST /agent/tasks": "{action, workstream?, state?, notes?, high_impact?, labels?, start_date?, end_date?, parent_id?}",
-            "PATCH /agent/tasks/{id}": "{action?, state?, high_impact?, workstream?, labels?, start_date?, end_date?, parent_id? (\"\" makes it top-level)}",
+            "POST /agent/tasks": "{action, workstream?, state?, status?, notes?, high_impact?, labels?, start_date?, end_date?, parent_id?}",
+            "PATCH /agent/tasks/{id}": "{action?, status? (one line, replaces; \"\" clears), state?, high_impact?, workstream?, labels?, start_date?, end_date?, parent_id? (\"\" makes it top-level)}",
             "POST /agent/tasks/{id}/notes": "{text, mode?: append|replace}",
+            "POST /agent/tasks/{id}/wins": "{text (one line), date?, high_impact?}: record a win",
+            "PATCH /agent/tasks/{id}/wins/{win_id}": "{text?, date?, high_impact?} (win ids are in GET /agent/tasks/{id})",
             "POST /agent/tasks/{id}/links": "{url, label?, type?: pr|issue|radar|doc|slack|quip|grafana|other}",
             "POST /agent/meetings": "{title, date?, start_time?, duration_minutes?, notes?, exclude_from_stats?, passive?}",
             "PATCH /agent/meetings/{id}": "{title?, date?, start_time?, duration_minutes?, exclude_from_stats?, passive?}",

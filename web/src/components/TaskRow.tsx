@@ -1,13 +1,12 @@
 import { useState } from 'react'
-import ReactMarkdown from 'react-markdown'
-import { rehypeHighlightTodo } from '@/lib/rehype-highlight-todo'
-import remarkGfm from 'remark-gfm'
 import { Zap, ChevronRight, ChevronDown, Trash2, Pencil, X, Check, CalendarDays, GitBranch } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { StateDropdown } from './StateDropdown'
 import { WorkstreamPicker } from './WorkstreamPicker'
 import { LabelPicker } from './LabelPicker'
+import { TaskStatus } from './TaskStatus'
+import { WinsEditor } from './TaskWins'
 import { ClickToEditMarkdown } from './ClickToEditMarkdown'
 import { AddTaskForm } from './AddTaskForm'
 import { useAttachmentUpload } from './Attachments'
@@ -84,6 +83,11 @@ export function TaskRow({ task, onChanged, isSubtask }: Props) {
     onChanged()
   }
 
+  async function saveStatus(newStatus: string | null) {
+    await updateTask(task.id, { status: newStatus })
+    onChanged()
+  }
+
   async function changeState(newState: TaskState) {
     if ((newState === 'complete' || newState === 'abandoned') && task.open_subtask_count > 0) {
       setStateBlockMsg('Resolve all sub-tasks first')
@@ -136,35 +140,24 @@ export function TaskRow({ task, onChanged, isSubtask }: Props) {
 
         {task.high_impact && <Zap size={14} className="text-yellow-400 flex-shrink-0 mt-0.5" />}
 
-        <span className={cn('text-sm flex-shrink-0 mt-0.5', isDone ? 'line-through text-muted-foreground' : 'text-foreground')}>
-          {task.action}
-        </span>
-        <RefBadge kind="task" number={task.number} className="mt-1" />
-
-        {/* Notes preview when collapsed — fills the space between title and state */}
-        {!expanded && task.notes ? (() => {
-          const lineCount = task.notes.trim().split('\n').length
-          const isMultiline = lineCount > 2
-          return (
+        {/* Title, with the one-line status under it */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start gap-2">
+            <span className={cn('text-sm mt-0.5', isDone ? 'line-through text-muted-foreground' : 'text-foreground')}>
+              {task.action}
+            </span>
+            <RefBadge kind="task" number={task.number} className="mt-1" />
+          </div>
+          {!expanded && task.status && (
             <div
-              className="flex-1 min-w-0 cursor-pointer relative overflow-hidden flex flex-col justify-end"
-              style={{ maxHeight: '3.6em' }}
-              onClick={e => { e.stopPropagation(); setExpanded(true) }}
+              className="text-xs text-muted-foreground truncate cursor-pointer"
+              title={task.status}
+              onClick={() => setExpanded(true)}
             >
-              <div className="prose-worklog prose-worklog-preview max-w-none">
-                <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlightTodo]}>
-                  {task.notes}
-                </ReactMarkdown>
-              </div>
-              <div className="absolute inset-y-0 right-0 w-12 bg-gradient-to-l from-card to-transparent pointer-events-none" />
-              {isMultiline && (
-                <div className="absolute inset-x-0 top-0 h-4 bg-gradient-to-b from-card to-transparent pointer-events-none" />
-              )}
+              {task.status}
             </div>
-          )
-        })() : (
-          <div className="flex-1" />
-        )}
+          )}
+        </div>
 
         {task.subtask_count > 0 && (
           <span className="text-xs text-muted-foreground/60 flex items-center gap-0.5 flex-shrink-0 mt-0.5">
@@ -247,6 +240,8 @@ export function TaskRow({ task, onChanged, isSubtask }: Props) {
             </div>
           ) : (
             <>
+              <TaskStatus status={task.status} updatedAt={task.status_updated_at} onSave={saveStatus} done={isDone} />
+
               {/* Notes — click to edit markdown, independent of pencil edit form */}
               <ClickToEditMarkdown
                 value={task.notes}
@@ -255,6 +250,8 @@ export function TaskRow({ task, onChanged, isSubtask }: Props) {
                 kind="task"
                 draftKey={`task:${task.id}:notes`}
               />
+
+              <WinsEditor taskId={task.id} wins={task.wins} onChanged={onChanged} />
 
               {task.labels.length > 0 && (
                 <div className="flex flex-wrap gap-1">

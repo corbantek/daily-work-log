@@ -296,21 +296,6 @@
 
 .prose-worklog img { max-width: 100%; border-radius: 6px; }
 
-.prose-worklog-preview {
-  font-size: 0.7rem;
-  line-height: 1.4;
-  opacity: 0.5;
-}
-.prose-worklog-preview p,
-.prose-worklog-preview li,
-.prose-worklog-preview h1,
-.prose-worklog-preview h2,
-.prose-worklog-preview h3 {
-  margin: 0;
-  font-size: inherit;
-  font-weight: normal;
-}
-
 /* Flash on the item an "Open in Log" jump lands on. */
 @keyframes jump-flash {
   0%, 60% { box-shadow: 0 0 0 2px var(--primary); }

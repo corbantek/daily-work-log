@@ -6,7 +6,7 @@ from datetime import date, timedelta
 from ..database import get_session
 from ..models import (
     Task, TaskState, Workstream, WorkstreamRead, Meeting, OncallPeriod,
-    SelfReview, SelfReviewStats, SelfReviewGroup,
+    SelfReview, SelfReviewStats, SelfReviewGroup, SelfReviewWin, TaskWin,
 )
 from .tasks import _enrich, STATE_ORDER
 
@@ -73,6 +73,26 @@ def self_review(
         reverse=True,
     )
 
+    # Wins count by their own date (a task can span weeks), whichever task they sit on.
+    wins_q = select(TaskWin).order_by(TaskWin.date, TaskWin.created_at)
+    if date_from:
+        wins_q = wins_q.where(TaskWin.date >= date_from)
+    if date_to:
+        wins_q = wins_q.where(TaskWin.date <= date_to)
+    wins: List[SelfReviewWin] = []
+    task_cache: dict = {}
+    for w in session.exec(wins_q).all():
+        if w.task_id not in task_cache:
+            task_cache[w.task_id] = session.get(Task, w.task_id)
+        t = task_cache[w.task_id]
+        if not t:
+            continue
+        ws = ws_by_id.get(t.workstream_id)
+        wins.append(SelfReviewWin(
+            **w.model_dump(), task_action=t.action, task_number=t.number, task_state=t.state,
+            workstream_id=t.workstream_id, workstream_name=ws.name if ws else None,
+        ))
+
     meetings_q = select(Meeting).where(Meeting.exclude_from_stats == False)  # noqa: E712 (SQL comparison)
     if date_from:
         meetings_q = meetings_q.where(Meeting.date >= date_from)
@@ -96,6 +116,8 @@ def self_review(
         in_progress=sum(1 for t in relevant if t.state == TaskState.IN_PROGRESS),
         meetings=meetings_count,
         oncall_days=oncall_days,
+        wins=len(wins),
+        high_impact_wins=sum(1 for w in wins if w.high_impact),
     )
 
     return SelfReview(
@@ -103,6 +125,7 @@ def self_review(
         date_to=date_to,
         stats=stats,
         highlights=highlights,
+        wins=wins,
         groups=groups,
     )
 

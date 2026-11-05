@@ -1,5 +1,5 @@
 import type {
-  DayView, Task, Workstream, Meeting, Label, TaskLink, MeetingLink,
+  DayView, Task, TaskWin, Workstream, Meeting, Label, TaskLink, MeetingLink,
   TaskState, LinkType, OncallPeriod,
   Person, OrgNode, Interaction, InteractionTagInput, Sentiment,
   CompetencyDimension, ReviewDraft, SelfReview, SearchResult,
@@ -118,6 +118,7 @@ export const createTask = (body: {
 export const updateTask = (id: string, body: Partial<{
   action: string
   notes: string | null
+  status: string | null
   state: TaskState
   high_impact: boolean
   workstream_id: string | null
@@ -147,6 +148,16 @@ export const updateTaskLink = (taskId: string, linkId: string, body: {
 
 export const deleteTaskLink = (taskId: string, linkId: string) =>
   req<void>(`/tasks/${taskId}/links/${linkId}`, { method: 'DELETE' })
+
+// ── Task wins ─────────────────────────────────────────────────────────────────
+export const addTaskWin = (taskId: string, body: { text: string; date?: string; high_impact?: boolean }) =>
+  req<TaskWin>(`/tasks/${taskId}/wins`, { method: 'POST', body: JSON.stringify(body) })
+
+export const updateTaskWin = (taskId: string, winId: string, body: Partial<{ text: string; date: string; high_impact: boolean }>) =>
+  req<TaskWin>(`/tasks/${taskId}/wins/${winId}`, { method: 'PATCH', body: JSON.stringify(body) })
+
+export const deleteTaskWin = (taskId: string, winId: string) =>
+  req<void>(`/tasks/${taskId}/wins/${winId}`, { method: 'DELETE' })
 
 // ── Meeting links ─────────────────────────────────────────────────────────────
 export const addMeetingLink = (meetingId: string, body: {

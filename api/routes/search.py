@@ -6,7 +6,7 @@ from ..database import get_session
 from ..refs import parse_ref
 from .. import org
 from ..models import (
-    Task, TaskAttachment, MeetingAttachment, Meeting, Person, Interaction, Workstream, SearchResult,
+    Task, TaskAttachment, TaskWin, MeetingAttachment, Meeting, Person, Interaction, Workstream, SearchResult,
 )
 
 router = APIRouter(prefix="/search", tags=["search"])
@@ -47,7 +47,10 @@ def search(q: str = "", session: Session = Depends(get_session)):
     seen = {r.id for r in results}
 
     tasks = session.exec(
-        select(Task).where(Task.action.ilike(like) | Task.notes.ilike(like)).limit(PER_TYPE)
+        select(Task).where(
+            Task.action.ilike(like) | Task.notes.ilike(like) | Task.status.ilike(like)
+            | Task.id.in_(select(TaskWin.task_id).where(TaskWin.text.ilike(like)))
+        ).limit(PER_TYPE)
     ).all()
     for t in tasks:
         if t.id in seen:

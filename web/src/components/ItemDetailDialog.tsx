@@ -8,6 +8,8 @@ import { rehypeHighlightTodo } from '@/lib/rehype-highlight-todo'
 import type { SearchResult, Task, Meeting } from '../api/types'
 import { getTask, getMeeting } from '../api/client'
 import { LinkedItems } from './LinkedItems'
+import { StatusText } from './TaskStatus'
+import { WinsList } from './TaskWins'
 import { RefBadge } from './RefBadge'
 import { useOnDataChange } from '@/lib/live-updates'
 import { OpenInLogContext, logDateFor } from '@/lib/log-target'
@@ -113,6 +115,9 @@ export function ItemDetailDialog({ result, onClose }: Props) {
                   ))}
                 </div>
               )}
+
+              <StatusText status={task.status} />
+              <WinsList wins={task.wins} />
 
               {task.notes && (
                 <div className="prose-worklog max-w-none">

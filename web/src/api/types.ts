@@ -48,11 +48,23 @@ export interface AttachmentStats {
   missing_files: number
 }
 
+export interface TaskWin {
+  id: string
+  task_id: string
+  text: string
+  date: string
+  high_impact: boolean
+  created_at: string
+}
+
 export interface Task {
   id: string
   number: number | null
   action: string
   notes: string | null
+  /** One line on where the task stands now. */
+  status: string | null
+  status_updated_at: string | null
   state: TaskState
   high_impact: boolean
   workstream_id: string | null
@@ -60,6 +72,7 @@ export interface Task {
   end_date: string | null
   created_at: string
   labels: Label[]
+  wins: TaskWin[]
   links: TaskLink[]
   attachments: Attachment[]
   meetings: MeetingBrief[]
@@ -356,6 +369,16 @@ export interface SelfReviewStats {
   in_progress: number
   meetings: number
   oncall_days: number
+  wins: number
+  high_impact_wins: number
+}
+
+export interface SelfReviewWin extends TaskWin {
+  task_action: string
+  task_number: number | null
+  task_state: TaskState
+  workstream_id: string | null
+  workstream_name: string | null
 }
 
 export interface SelfReviewGroup {
@@ -368,6 +391,7 @@ export interface SelfReview {
   date_to: string | null
   stats: SelfReviewStats
   highlights: Task[]
+  wins: SelfReviewWin[]
   groups: SelfReviewGroup[]
 }
 
