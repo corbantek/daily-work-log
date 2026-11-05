@@ -10,7 +10,7 @@ from ..models import (
     DayView, WorkstreamWithTasks, WorkstreamRead, MeetingRead,
     DayStatus, OncallPeriod,
 )
-from .tasks import _enrich
+from .tasks import _enrich, STATE_ORDER
 from .meetings import _read_meeting, MEETING_ORDER
 
 router = APIRouter(prefix="/day", tags=["day"])
@@ -35,8 +35,6 @@ def get_day(day: date, session: Session = Depends(get_session)):
     )
     raw_tasks = session.exec(tasks_q.order_by(Task.created_at)).all()
     enriched = [_enrich(t, session) for t in raw_tasks]
-
-    STATE_ORDER = {TaskState.TODO: 0, TaskState.IN_PROGRESS: 1, TaskState.COMPLETE: 2, TaskState.ABANDONED: 3}
 
     ws_map: dict[Optional[str], list] = {}
     for t in enriched:
