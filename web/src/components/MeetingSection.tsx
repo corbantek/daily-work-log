@@ -59,6 +59,7 @@ export function MeetingSection({ meetings, date, onChanged, timeFormat = '12h' }
         r.linked && `${r.linked} matched`,
         r.flagged && `${r.flagged} no longer on calendar`,
         r.skipped && `${r.skipped} skipped (deleted earlier)`,
+        r.ignored && `${r.ignored} ignored`,
       ].filter(Boolean)
       setSyncMsg({ text: parts.length ? parts.join(', ') : 'Up to date', error: false })
       onChanged()

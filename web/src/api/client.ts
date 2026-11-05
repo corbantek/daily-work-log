@@ -3,7 +3,7 @@ import type {
   TaskState, LinkType, OncallPeriod,
   Person, OrgNode, Interaction, InteractionTagInput, Sentiment,
   CompetencyDimension, ReviewDraft, SelfReview, SearchResult,
-  CalendarSyncResult, CalendarStatus, LinkInsight, MeetingInsights, DismissedCalendarEvent, Attachment, AttachmentStats,
+  CalendarSyncResult, CalendarStatus, LinkInsight, MeetingInsights, DismissedCalendarEvent, IgnorePreviewMatch, Attachment, AttachmentStats,
 } from './types'
 
 const BASE = '/api'
@@ -85,6 +85,9 @@ export const clearDismissedCalendarEvents = () =>
 
 export const restoreDismissedCalendarEvent = (externalId: string) =>
   req<void>(`/calendar/dismissed/${encodeURIComponent(externalId)}`, { method: 'DELETE' })
+
+export const previewCalendarIgnore = (pattern: string, regex: boolean) =>
+  req<IgnorePreviewMatch[]>('/calendar/ignore-preview', { method: 'POST', body: JSON.stringify({ pattern, regex }) })
 
 export async function syncCalendarDay(date: string): Promise<CalendarSyncResult> {
   const res = await fetch(`${BASE}/calendar/sync?date=${date}`, { method: 'POST' })

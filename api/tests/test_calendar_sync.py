@@ -140,6 +140,41 @@ class SyncTests(unittest.TestCase):
         order = [m.title for m in get_day(DAY, self.session).meetings]
         self.assertEqual(order, ["Early", "Manual 10am", "Late", "Manual untimed"])
 
+    def test_plain_and_regex_rules_skip_events(self):
+        rules = [{"pattern": "drop off", "regex": False}, {"pattern": r"^pick[ -]?up\b", "regex": True}]
+        r = apply_events(
+            self.session, DAY,
+            [ev("a", "Standup", 9), ev("b", "Kids DROP OFF", 8), ev("c", "Pick-up", 15), ev("d", "Backpick up", 16)],
+            ignore_rules=rules,
+        )
+        self.assertEqual(sorted(self.titles()), ["Backpick up", "Standup"])
+        self.assertEqual((r.created, r.ignored), (2, 2))
+
+    def test_bad_regex_never_matches(self):
+        r = apply_events(self.session, DAY, [ev("a", "Standup", 9)], ignore_rules=[{"pattern": "(", "regex": True}])
+        self.assertEqual((r.created, r.ignored), (1, 0))
+
+    def test_already_imported_meeting_is_flagged_not_deleted(self):
+        apply_events(self.session, DAY, [ev("b", "Drop off", 8)])
+        r = apply_events(self.session, DAY, [ev("b", "Drop off", 8)], ignore_rules=[{"pattern": "drop", "regex": False}])
+        self.assertEqual((r.ignored, r.flagged), (1, 1))
+        self.assertTrue(self.meeting("Drop off").missing_from_source)
+
+    def test_ignore_preview_lists_matching_importable_events(self):
+        from unittest import mock
+        from fastapi import HTTPException
+        from api.routes import calendar as cal
+
+        events = [ev("a", "Standup", 9), ev("b", "Drop off", 8), ev("c", "Drop off", 8, declined=True)]
+        with mock.patch.object(cal.calendar_source, "authorization_status", return_value="authorized"), \
+                mock.patch.object(cal.calendar_source, "fetch_range", return_value=events) as fetch:
+            out = cal.ignore_preview(cal.IgnoreRule(pattern="drop"), self.session)
+            self.assertEqual(fetch.call_count, 1)
+            self.assertEqual({m.title for m in out}, {"Drop off"})
+            self.assertEqual(len(out), 1)  # the declined one is excluded
+            with self.assertRaises(HTTPException):
+                cal.ignore_preview(cal.IgnoreRule(pattern="(", regex=True), self.session)
+
 
 class StartTimeValidationTests(unittest.TestCase):
     def test_valid_empty_and_invalid(self):
@@ -153,3 +188,4 @@ class StartTimeValidationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

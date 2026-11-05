@@ -1,5 +1,6 @@
 import hashlib
 import json
+import re
 from datetime import date, datetime, timedelta
 from typing import List, Optional
 
@@ -33,6 +34,7 @@ class SyncResult(BaseModel):
     linked: int = 0   # existing manual meetings adopted by a matching calendar event
     flagged: int = 0  # imported meetings no longer on the calendar
     skipped: int = 0  # events you deleted earlier and that haven't changed since
+    ignored: int = 0  # events matching an ignore rule (Settings → Calendar)
 
 
 def _setting(session: Session, key: str, default: str) -> str:
@@ -46,6 +48,34 @@ def _calendar_ids(session: Session) -> List[str]:
     except ValueError:
         return []
     return [i for i in ids if isinstance(i, str)]
+
+
+def _ignore_rules(session: Session) -> List[dict]:
+    """Rules from the `calendar_ignore_rules` setting: [{"pattern": str, "regex": bool}, ...]."""
+    try:
+        rules = json.loads(_setting(session, "calendar_ignore_rules", "[]"))
+    except ValueError:
+        return []
+    return [r for r in rules if isinstance(r, dict) and isinstance(r.get("pattern"), str) and r["pattern"].strip()] \
+        if isinstance(rules, list) else []
+
+
+def is_ignored(title: str, rules: List[dict]) -> bool:
+    """Case-insensitive match: plain rules are 'title contains', regex rules use re.search.
+
+    A rule whose regex doesn't compile never matches, so a typo can't break sync.
+    """
+    for r in rules:
+        pattern = r["pattern"].strip()
+        if r.get("regex"):
+            try:
+                if re.search(pattern, title, re.IGNORECASE):
+                    return True
+            except re.error:
+                continue
+        elif pattern.lower() in title.lower():
+            return True
+    return False
 
 
 DISMISSAL_RETENTION_DAYS = 90
@@ -86,8 +116,18 @@ def record_dismissal(session: Session, meeting: Meeting) -> None:
     ))
 
 
+def importable(events: List[calendar_source.CalendarEvent], skip_declined: bool, skip_allday: bool):
+    return [
+        e for e in events
+        if not e.cancelled
+        and not (skip_declined and e.declined)
+        and not (skip_allday and e.all_day)
+    ]
+
+
 def apply_events(session: Session, day: date, events: List[calendar_source.CalendarEvent],
-                 skip_declined: bool = True, skip_allday: bool = True) -> SyncResult:
+                 skip_declined: bool = True, skip_allday: bool = True,
+                 ignore_rules: Optional[List[dict]] = None) -> SyncResult:
     """Upsert `events` (already fetched for `day`) into Meeting rows.
 
     Only title/date/duration/start_time of imported meetings are ever overwritten;
@@ -97,12 +137,10 @@ def apply_events(session: Session, day: date, events: List[calendar_source.Calen
     result = SyncResult()
     dismissed = {d.external_id: d for d in session.exec(select(DismissedCalendarEvent)).all()}
     honor_dismissed = _remember_deleted(session)
-    wanted = [
-        e for e in events
-        if not e.cancelled
-        and not (skip_declined and e.declined)
-        and not (skip_allday and e.all_day)
-    ]
+    candidates = importable(events, skip_declined, skip_allday)
+    # Ignored events are never created; ones imported earlier get flagged like any vanished event.
+    wanted = [e for e in candidates if not is_ignored(e.title, ignore_rules or [])]
+    result.ignored = len(candidates) - len(wanted)
     wanted_ids = {e.external_id for e in wanted}
 
     imported = session.exec(select(Meeting).where(Meeting.source == SOURCE)).all()
@@ -191,7 +229,49 @@ def sync_day(date: date, session: Session = Depends(get_session)):  # noqa: A002
         session, date, events,
         skip_declined=_setting(session, "calendar_skip_declined", "true") == "true",
         skip_allday=_setting(session, "calendar_skip_allday", "true") == "true",
+        ignore_rules=_ignore_rules(session),
     )
+
+
+PREVIEW_DAYS = 14
+
+
+class IgnoreRule(BaseModel):
+    pattern: str
+    regex: bool = False
+
+
+class IgnoreMatch(BaseModel):
+    date: date
+    title: str
+    start_time: Optional[str] = None
+
+
+@router.post("/ignore-preview", response_model=List[IgnoreMatch])
+def ignore_preview(rule: IgnoreRule, session: Session = Depends(get_session)):
+    """Events from the last 14 days (the ones sync would import) that `rule` would hide."""
+    if not rule.pattern.strip():
+        return []
+    if rule.regex:
+        try:
+            re.compile(rule.pattern.strip())
+        except re.error as e:
+            raise HTTPException(400, f"Invalid regex: {e}")
+    if calendar_source.authorization_status() != "authorized":
+        raise HTTPException(403, "Calendar access not granted")
+    skip_declined = _setting(session, "calendar_skip_declined", "true") == "true"
+    skip_allday = _setting(session, "calendar_skip_allday", "true") == "true"
+    calendar_ids = _calendar_ids(session) or None
+    rules = [rule.dict()]
+    today = date.today()
+    events = calendar_source.fetch_range(today - timedelta(days=PREVIEW_DAYS - 1), today, calendar_ids)
+    matches = [
+        IgnoreMatch(date=e.start.date(), title=e.title, start_time=e.start.strftime("%H:%M"))
+        for e in importable(events, skip_declined, skip_allday)
+        if is_ignored(e.title, rules)
+    ]
+    matches.sort(key=lambda m: (m.date, m.start_time or ""), reverse=True)
+    return matches
 
 
 class DismissedOut(BaseModel):

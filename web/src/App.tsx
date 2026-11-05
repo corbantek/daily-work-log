@@ -13,6 +13,7 @@ import { isReviewMode, REVIEW_VIEWS, type ReviewMode } from './pages/review-view
 import { PeoplePage } from './pages/PeoplePage'
 import { ManageFramework } from './components/ManageFramework'
 import { CalendarAccess } from './components/CalendarAccess'
+import { IgnoredCalendarMeetings } from './components/IgnoredCalendarMeetings'
 import { DeletedCalendarMeetings } from './components/DeletedCalendarMeetings'
 import { AttachmentsBackup } from './components/AttachmentsBackup'
 import {
@@ -911,6 +912,12 @@ export default function App() {
                 <div>
                   <p className="text-xs font-medium text-muted-foreground mb-2">Apple Calendar</p>
                   <CalendarAccess />
+                </div>
+
+                {/* Ignored calendar meetings */}
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Ignored meetings</p>
+                  <IgnoredCalendarMeetings />
                 </div>
 
                 {/* Deleted calendar meetings */}

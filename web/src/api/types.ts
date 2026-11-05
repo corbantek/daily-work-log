@@ -113,6 +113,7 @@ export interface CalendarSyncResult {
   linked: number
   flagged: number
   skipped: number
+  ignored: number
 }
 
 export interface DismissedCalendarEvent {
@@ -407,4 +408,10 @@ export interface SearchResult {
   date: string | null
   person_id: string | null
   number?: number | null
+}
+
+export interface IgnorePreviewMatch {
+  date: string
+  title: string
+  start_time: string | null
 }

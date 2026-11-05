@@ -101,9 +101,9 @@ export function CalendarAccess() {
             Only checked calendars are imported. Meetings already imported from an unchecked calendar
             show as "not on calendar" the next time you sync that day.
           </p>
-          <div className="space-y-2">
+          <div className="columns-2 gap-x-6">
             {Object.entries(bySource).map(([source, cals]) => (
-              <div key={source}>
+              <div key={source} className="break-inside-avoid mb-2">
                 <p className="text-[11px] uppercase tracking-widest text-muted-foreground/60 mb-0.5">{source}</p>
                 {cals.map(c => (
                   <label key={c.id} className="flex items-center gap-2 text-xs py-0.5 cursor-pointer">
@@ -112,7 +112,7 @@ export function CalendarAccess() {
                       checked={isChecked(c.id)}
                       onChange={() => toggleCalendar(c.id)}
                     />
-                    <span className="text-foreground">{c.title}</span>
+                    <span className="text-foreground truncate">{c.title}</span>
                   </label>
                 ))}
               </div>

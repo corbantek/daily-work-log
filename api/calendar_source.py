@@ -5,6 +5,7 @@ dataclasses, and so the sync logic can be tested without macOS.
 """
 import sys
 import threading
+import time as _time
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from typing import List, Optional
@@ -47,6 +48,32 @@ class CalendarEvent:
     calendar_id: str
 
 
+# One long-lived store, used by one thread at a time. A fresh EKEventStore per call
+# can come back with no calendars/events while it is still loading its sources, and
+# concurrent stores (the ignore preview fires several requests while typing) made
+# that far more likely.
+_store = None
+_lock = threading.RLock()
+
+
+def _get_store():
+    global _store
+    if _store is None:
+        _store = EKEventStore.alloc().init()
+    return _store
+
+
+def _calendars(store):
+    """All event calendars; a store that is still loading reports none, so retry briefly."""
+    for attempt in range(6):
+        cals = list(store.calendarsForEntityType_(EKEntityTypeEvent) or [])
+        if cals:
+            return cals
+        store.refreshSourcesIfNecessary()
+        _time.sleep(0.25)
+    return []
+
+
 def authorization_status() -> str:
     """One of: unavailable, not_determined, restricted, denied, authorized, write_only."""
     if not AVAILABLE:
@@ -78,11 +105,11 @@ def request_access(timeout: float = 30) -> bool:
 def list_calendars() -> List[CalendarInfo]:
     if authorization_status() != "authorized":
         return []
-    store = EKEventStore.alloc().init()
-    return [
-        CalendarInfo(id=str(c.calendarIdentifier()), title=str(c.title()), source=str(c.source().title()))
-        for c in store.calendarsForEntityType_(EKEntityTypeEvent)
-    ]
+    with _lock:
+        return [
+            CalendarInfo(id=str(c.calendarIdentifier()), title=str(c.title()), source=str(c.source().title()))
+            for c in _calendars(_get_store())
+        ]
 
 
 def _to_ns(d: datetime):
@@ -98,35 +125,42 @@ def _is_declined(event) -> bool:
 
 def fetch_events(day: date, calendar_ids: Optional[List[str]] = None) -> List[CalendarEvent]:
     """Events overlapping `day` (local time). Empty/None calendar_ids means all calendars."""
+    return fetch_range(day, day, calendar_ids)
+
+
+def fetch_range(first: date, last: date, calendar_ids: Optional[List[str]] = None) -> List[CalendarEvent]:
+    """Events from the start of `first` to the end of `last` (local time), earliest first."""
     if authorization_status() != "authorized":
         raise PermissionError("Calendar access not granted")
 
-    store = EKEventStore.alloc().init()
-    calendars = None
-    if calendar_ids:
-        wanted = set(calendar_ids)
-        calendars = [c for c in store.calendarsForEntityType_(EKEntityTypeEvent)
-                     if str(c.calendarIdentifier()) in wanted]
-        if not calendars:
-            return []
+    with _lock:
+        store = _get_store()
+        store.refreshSourcesIfNecessary()
+        calendars = _calendars(store)
+        if calendar_ids:
+            wanted = set(calendar_ids)
+            calendars = [c for c in calendars if str(c.calendarIdentifier()) in wanted]
+            if not calendars:
+                return []
 
-    start = datetime.combine(day, time.min)
-    pred = store.predicateForEventsWithStartDate_endDate_calendars_(
-        _to_ns(start), _to_ns(start + timedelta(days=1)), calendars
-    )
-    events = []
-    for e in store.eventsMatchingPredicate_(pred) or []:
-        s = datetime.fromtimestamp(e.startDate().timeIntervalSince1970())
-        end = datetime.fromtimestamp(e.endDate().timeIntervalSince1970())
-        events.append(CalendarEvent(
-            external_id=f"{e.eventIdentifier()}@{s.isoformat(timespec='minutes')}",
-            title=str(e.title() or "(No title)"),
-            start=s,
-            duration_minutes=max(int((end - s).total_seconds() // 60), 0),
-            all_day=bool(e.isAllDay()),
-            declined=_is_declined(e),
-            cancelled=int(e.status()) == int(EKEventStatusCanceled),
-            calendar_id=str(e.calendar().calendarIdentifier()),
-        ))
+        start = datetime.combine(first, time.min)
+        end = datetime.combine(last, time.min) + timedelta(days=1)
+        pred = store.predicateForEventsWithStartDate_endDate_calendars_(
+            _to_ns(start), _to_ns(end), calendars if calendar_ids else None
+        )
+        events = []
+        for e in store.eventsMatchingPredicate_(pred) or []:
+            s = datetime.fromtimestamp(e.startDate().timeIntervalSince1970())
+            en = datetime.fromtimestamp(e.endDate().timeIntervalSince1970())
+            events.append(CalendarEvent(
+                external_id=f"{e.eventIdentifier()}@{s.isoformat(timespec='minutes')}",
+                title=str(e.title() or "(No title)"),
+                start=s,
+                duration_minutes=max(int((en - s).total_seconds() // 60), 0),
+                all_day=bool(e.isAllDay()),
+                declined=_is_declined(e),
+                cancelled=int(e.status()) == int(EKEventStatusCanceled),
+                calendar_id=str(e.calendar().calendarIdentifier()),
+            ))
     events.sort(key=lambda ev: ev.start)
     return events
