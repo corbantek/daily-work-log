@@ -85,6 +85,14 @@ ok "$(echo "$FM" | jq '(.files|map(.filename)|index("deck.pdf")) != null')" "att
 FL=$(curl -s "$API/agent/tasks/$TASK_ID/files"); FILE_ID=$(echo "$FL" | jq -r '.files[0].id')
 ok "$(echo "$FL" | jq '.files[0].kind == "markdown"')" "list a task's files" "$FL"
 FC=$(curl -s "$API/agent/files/$FILE_ID"); ok "$(echo "$FC" | jq '.content == "# Runbook\n- step one\n" and .attached_to.ref == "T1"')" "read a text file's contents" "$FC"
+CX=$(curl -s "$API/agent/tasks/$TASK_ID/context"); ok "$(echo "$CX" | jq '.exists == false')" "no agent context yet" "$CX"
+CX=$(curl -s -X POST "$API/agent/tasks/$TASK_ID/context" -H 'Content-Type: application/json' --data-binary @- <<'JSON'
+{"text": "# Agent context\n- repo: example"}
+JSON
+); ok "$(echo "$CX" | jq '.exists == true and (.content|test("repo: example"))')" "create the task's agent context" "$CX"
+CX=$(curl -s -X POST "$API/agent/tasks/$TASK_ID/context" -H 'Content-Type: application/json' -d '{"text": "# Agent context v2"}')
+ok "$(echo "$CX" | jq '.content == "# Agent context v2" and .context_backup != null')" "replace it in place (previous version backed up)" "$CX"
+CL=$(curl -s "$API/agent/tasks/$TASK_ID/files"); ok "$(echo "$CL" | jq '[.files[]|select(.filename=="agent-context.md")]|length == 1')" "still exactly one agent-context.md" "$CL"
 PDF_ID=$(curl -s "$API/agent/meetings/$MEETING_ID/files" | jq -r '.files[0].id')
 FP=$(curl -s "$API/agent/files/$PDF_ID"); FPATH=$(echo "$FP" | jq -r .path)
 ok "$( [ "$(echo "$FP" | jq -r .content)" = "null" ] && [ -f "$FPATH" ] && echo true || echo false )" "a PDF gives a readable local path instead of contents" "$FP"
@@ -132,7 +140,7 @@ ok "$( [ "$(echo "$E3" | tail -1)" = "400" ] && echo true || echo false )" "a re
 E=$(curl -s -w '\n%{http_code}' -X POST "$API/agent/tasks" -H 'Content-Type: application/json' -d '{"action": "x", "workstream": "Nope"}')
 ok "$( [ "$(echo "$E" | tail -1)" = "400" ] && echo "$E" | head -1 | jq '.detail.valid == ["DevOps Improvements"]' || echo false )" "unknown workstream -> 400 with the valid names" "$E"
 E2=$(curl -s -o /dev/null -w '%{http_code}' -X DELETE "$API/agent/tasks/$TASK_ID"); ok "$( [ "$E2" = "405" ] && echo true || echo false )" "no deletes (DELETE -> 405)" "$E2"
-A=$(curl -s "$API/agent/activity"); ok "$(echo "$A" | jq 'length == 22 and (map(.action) | index("attach_task_file")) != null and (map(.action) | index("log_interaction")) != null')" "activity log records every change" "$(echo "$A" | jq -c '[.[]|.action]')"
+A=$(curl -s "$API/agent/activity"); ok "$(echo "$A" | jq 'length == 27 and (map(.action) | index("attach_task_file")) != null and (map(.action) | index("log_interaction")) != null')" "activity log records every change" "$(echo "$A" | jq -c '[.[]|.action]')"
 
 echo; echo "$pass passed, $fail failed"
 [ "$fail" -eq 0 ]

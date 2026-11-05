@@ -7,6 +7,7 @@ Design rules:
 - Notes are appended by default; replacing them must be asked for (mode="replace").
 - No deletes. Every change is recorded in AgentActivity (GET /agent/activity).
 """
+import io
 import re
 from datetime import date, timedelta
 from datetime import date as Date  # `date` is also a query-parameter name below
@@ -30,7 +31,9 @@ from .insights import build_meeting_insights, task_date
 from .self_review import self_review
 from ..refs import meeting_ref, parse_ref, task_ref
 from .. import note_snapshots
-from ..attachments import STORED_NAME, attachment_kind, attachments_dir, find_attachment
+from ..attachments import (
+    STORED_NAME, attachment_kind, attachments_dir, find_attachment, guess_content_type, max_bytes, unlink_stored,
+)
 from . import attachments as attachment_routes
 
 router = APIRouter(prefix="/agent", tags=["agent"])
@@ -126,6 +129,7 @@ def _week_bounds(today: date):
 
 TEXT_KINDS = {"markdown", "text", "html"}  # file kinds whose contents are returned as text
 MAX_CONTENT_CHARS = 200_000
+CONTEXT_FILE = "agent-context.md"  # the one file per task/meeting the agent may rewrite in place
 
 
 def file_brief(a) -> dict:
@@ -169,6 +173,7 @@ def task_detail(t: Task, session: Session) -> dict:
     out["links"] = [{"url": l.url, "label": l.label, "type": l.link_type.value}
                     for l in session.exec(select(TaskLink).where(TaskLink.task_id == t.id)).all()]
     out["files"] = [file_brief(a) for a in session.exec(select(TaskAttachment).where(TaskAttachment.task_id == t.id)).all()]
+    out["has_context"] = any(f["filename"] == CONTEXT_FILE for f in out["files"])
     meeting_ids = [ml.meeting_id for ml in session.exec(select(MeetingTaskLink).where(MeetingTaskLink.task_id == t.id)).all()]
     out["meetings"] = [{"ref": meeting_ref(m.number), "id": m.id, "title": m.title, "date": m.date.isoformat(), "start_time": m.start_time}
                        for m in (session.get(Meeting, i) for i in meeting_ids) if m]
@@ -195,6 +200,7 @@ def meeting_detail(m: Meeting, session: Session) -> dict:
     out["links"] = [{"url": l.url, "label": l.label, "type": l.link_type.value}
                     for l in session.exec(select(MeetingLink).where(MeetingLink.meeting_id == m.id)).all()]
     out["files"] = [file_brief(a) for a in session.exec(select(MeetingAttachment).where(MeetingAttachment.meeting_id == m.id)).all()]
+    out["has_context"] = any(f["filename"] == CONTEXT_FILE for f in out["files"])
     return out
 
 
@@ -751,13 +757,90 @@ def agent_file(file_id: str, session: Session = Depends(get_session)):
     return out
 
 
+# ── agent context: one markdown file per task/meeting the agent reads and rewrites ──
+
+class ContextText(BaseModel):
+    text: str
+
+
+def _context_row(session: Session, owner):
+    model, column = (TaskAttachment, TaskAttachment.task_id) if isinstance(owner, Task) else (MeetingAttachment, MeetingAttachment.meeting_id)
+    return session.exec(select(model).where(column == owner.id, model.filename == CONTEXT_FILE)).first(), model
+
+
+def _read_context(session: Session, owner, ref: str) -> dict:
+    row, _ = _context_row(session, owner)
+    if not row:
+        return {"ref": ref, "exists": False, "content": None}
+    path = attachments_dir() / row.stored_name
+    if not STORED_NAME.match(row.stored_name) or not path.is_file():
+        raise HTTPException(404, detail={"error": f"{CONTEXT_FILE} of {ref} is missing from the attachments folder"})
+    text = path.read_text(encoding="utf-8", errors="replace")
+    return {"ref": ref, "exists": True, "file_id": row.id, "size_bytes": row.size_bytes,
+            "content": text[:MAX_CONTENT_CHARS], "truncated": len(text) > MAX_CONTENT_CHARS}
+
+
+def _write_context(session: Session, owner, ref: str, title: str, text: str) -> dict:
+    data = text.encode("utf-8")
+    if not text.strip():
+        raise _bad("The context can't be empty; there are no deletes, so ask the user to remove the file in the app")
+    if len(data) > max_bytes():
+        raise HTTPException(413, f"Context is larger than the {max_bytes() // (1024 * 1024) or 1} MB limit")
+    row, model = _context_row(session, owner)
+    previous = _read_context(session, owner, ref)["content"] if row else None
+    backup = note_snapshots.save(f"{ref}-context", previous)  # before every change, like notes
+    stored, size = attachment_routes._write_stream(io.BytesIO(data), attachments_dir(), max_bytes())
+    old = None
+    if row:
+        old, row.stored_name, row.size_bytes = row.stored_name, stored, size
+    else:
+        owner_field = {"task_id": owner.id} if isinstance(owner, Task) else {"meeting_id": owner.id}
+        row = model(filename=CONTEXT_FILE, stored_name=stored, content_type=guess_content_type(CONTEXT_FILE),
+                    size_bytes=size, **owner_field)
+    session.add(row)
+    session.commit()
+    if old:
+        unlink_stored([old])
+    kind = "task" if isinstance(owner, Task) else "meeting"
+    _record(session, f"write_{kind}_context", kind, owner.id,
+            f'{"updated" if previous is not None else "created"} {CONTEXT_FILE} on {ref} "{title}"')
+    return {**_read_context(session, owner, ref), "context_backup": backup}
+
+
+@router.get("/tasks/{task_id}/context")
+def agent_task_context(task_id: str, session: Session = Depends(get_session)):
+    """The task's agent-context.md (what a fresh session needs); `exists: false` if there is none yet."""
+    t = _get_task(session, task_id)
+    return _read_context(session, t, task_ref(t.number))
+
+
+@router.post("/tasks/{task_id}/context")
+def agent_write_task_context(task_id: str, body: ContextText, session: Session = Depends(get_session)):
+    """Create or fully replace the task's agent-context.md (previous version snapshotted first)."""
+    t = _get_task(session, task_id)
+    return _write_context(session, t, task_ref(t.number), t.action, body.text)
+
+
+@router.get("/meetings/{meeting_id}/context")
+def agent_meeting_context(meeting_id: str, session: Session = Depends(get_session)):
+    m = _get_meeting(session, meeting_id)
+    return _read_context(session, m, meeting_ref(m.number))
+
+
+@router.post("/meetings/{meeting_id}/context")
+def agent_write_meeting_context(meeting_id: str, body: ContextText, session: Session = Depends(get_session)):
+    m = _get_meeting(session, meeting_id)
+    return _write_context(session, m, meeting_ref(m.number), m.title, body.text)
+
+
 # ── note backups (taken automatically before every notes change) ─────────────
 
 def _backup_ref(ref: str) -> str:
-    parsed = parse_ref(ref)
+    base, suffix = (ref[:-8], "-context") if ref.lower().endswith("-context") else (ref, "")  # T42-context
+    parsed = parse_ref(base)
     if not parsed or parsed[0] is None:
-        raise _bad("Give a task, meeting or person reference like T42, M17 or P12")
-    return f"{parsed[0]}{parsed[1]}"
+        raise _bad("Give a task, meeting or person reference like T42, M17 or P12 (add -context for its agent context)")
+    return f"{parsed[0]}{parsed[1]}{suffix}"
 
 
 @router.get("/notes-backups/{ref}")
@@ -817,7 +900,9 @@ def agent_help():
             "GET /agent/tasks/{id}/files": "A task's files (id, name, kind, size).",
             "GET /agent/meetings/{id}/files": "A meeting's files (id, name, kind, size).",
             "GET /agent/files/{file_id}": "One file: text contents for markdown/text/CSV/JSON/HTML; otherwise a local `path` to read.",
-            "GET /agent/notes-backups/{ref}": "Saved earlier versions of a task/meeting's notes (newest first, kept 30 days).",
+            "GET /agent/tasks/{id}/context": "The task's agent-context.md: {exists, content}. Read it (and the files in its 'Reads first') before working on a task.",
+            "GET /agent/meetings/{id}/context": "A meeting's agent-context.md: {exists, content}.",
+            "GET /agent/notes-backups/{ref}": "Saved earlier versions of a task/meeting's notes (newest first, kept 30 days). Use T42-context for earlier versions of its agent context.",
             "GET /agent/notes-backups/{ref}/{name}": "One saved version's text (restore it with POST …/notes mode=replace).",
             "GET /agent/people?q=&team=&include_archived=": "People (team matches inherited teams/focus too).",
             "GET /agent/people/tree?include_archived=": "Org tree; each node shows only what's set on it (the rest is inherited).",
@@ -836,6 +921,8 @@ def agent_help():
             "POST /agent/meetings": "{title, date?, start_time?, duration_minutes?, notes?, exclude_from_stats?, passive?}",
             "PATCH /agent/meetings/{id}": "{title?, date?, start_time?, duration_minutes?, exclude_from_stats?, passive?}",
             "POST /agent/meetings/{id}/notes": "{text, mode?: append|replace}",
+            "POST /agent/tasks/{id}/context": "{text}: create or fully replace the task's agent-context.md (send the whole file; previous version is backed up first)",
+            "POST /agent/meetings/{id}/context": "{text}: create or fully replace the meeting's agent-context.md",
             "POST /agent/tasks/{id}/files": "multipart form field 'file' (curl -F 'file=@/path/to/file'); 25 MB max",
             "POST /agent/meetings/{id}/links": "{url, label?, type?: pr|issue|radar|doc|slack|quip|grafana|other}",
             "POST /agent/meetings/{id}/files": "multipart form field 'file'; 25 MB max",

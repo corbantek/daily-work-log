@@ -173,6 +173,8 @@ curl -s -X POST "$API/agent/meetings/M17/files" -F "file=@/Users/me/Desktop/q3-d
   (`truncated` is true for very long files). For PDFs, images and other files `content` is null —
   open the returned `path` with your file-reading tool instead.
 - Single tasks and meetings (`GET /agent/tasks/T42`) also list their `files` with their ids.
+- **`agent-context.md` is the one file you may replace**, and only through
+  `/agent/tasks/T42/context` (see "Sessions and agent context"); never upload a second copy.
 
 ## People and the org tree
 
@@ -246,6 +248,86 @@ curl -s "$API/agent/people/P12/review-draft?date_from=2026-01-01"   # evidence a
 - For "help me write feedback for Dana", start from `review-draft` and base the draft only on the
   logged evidence; say where the evidence is thin.
 
+## Sessions and agent context
+
+The user works one task or sub-task per session, so a fresh agent should be able to pick a task up
+from the app alone. Each task (and meeting) can have a file named **`agent-context.md`** for what
+such a session needs and the human notes don't: it is an ordinary attachment (the user can open it
+under Files), but you read and replace it through two calls:
+
+```bash
+curl -s "$API/agent/tasks/T69/context"        # {exists, content, ...}; exists:false if there is none
+curl -s -X POST "$API/agent/tasks/T69/context" -H 'Content-Type: application/json' --data-binary @- <<'JSON'
+{"text": "# Agent context\n\n**Reads first**\n- T32 context; T68 Handoff\n..."}
+JSON
+```
+
+The POST creates the file or **replaces the whole thing** (send all of it; never append). The
+previous version is backed up first (`context_backup`; read earlier versions with
+`/agent/notes-backups/T69-context`). `/agent/meetings/M17/context` works the same. Task details
+carry `has_context`. Create one only when there is something a fresh session needs; short tasks
+and small handoff briefs don't need it.
+
+**Shape** (omit empty sections; keep it current, not a log):
+
+```markdown
+# Agent context
+
+**Reads first**
+- T32 context; T68 Handoff        <- files/sections a fresh session reads before starting
+
+**Where things live**
+- repo, branch, PRs, files, scripts, who to ask
+
+**Binding decisions and constraints**
+- the current answer, with the reason; "(from T32)" if copied from the parent
+
+**Gotchas and lessons**
+- what bit us; what to check first
+
+**Handoff**
+- what the next session on the next task needs to know (written when you finish a session)
+```
+
+Rewrite it to the current state each time: drop what stopped being true, merge duplicates, and
+keep it short enough that reading it costs little. It is for agents, so skip what's in the repo
+or the human notes.
+
+**Session start** (the user opens a fresh session with a task reference, usually from its Start
+prompt):
+
+1. Read the task (`GET /agent/tasks/T69`), then its context. Follow "Reads first": the parent's
+   context, and the predecessor's **Handoff**. Read the pointers instead of copying their facts.
+2. On your first write, **remove the Start prompt section** from the notes (it has done its job),
+   set the state to `in_progress`, and tell the user. If you only read, leave the prompt in. If a
+   task that is already in progress still has one, remove it and mention it.
+
+**Session end** (when the user wraps up, or you finish the task's current stretch):
+
+1. Update the notes (today's Progress, What's Next), `status`, and wins, as usual.
+2. Rewrite the task's context file, including a **Handoff** section for whoever works next.
+3. If the next task is clear (the parent's What's Next order, or a dependent sub-task), make sure
+   its context lists this task under "Reads first", and write or refresh the **Start prompt** at
+   the top of its notes. If you can't tell what comes next, ask.
+4. Tell the user what you wrote where.
+
+**Start prompt** = a small fenced block at the very top of a TODO task's notes, written by the
+agent that knows the most about what's coming, so the new session starts well:
+
+````markdown
+**Start prompt**
+```
+Work on T69 (keep the held Registration Response in memory). Read its notes and agent context with
+the daily-work-log skill first. Start with the first TODO: check the T68 drain is merged, then ...
+Watch out for ...
+```
+````
+
+It names the task, tells the session to read the notes and context (only mention the context if
+the task has one), gives the specific first move and any trap, and stops there; everything else
+belongs in the notes or the context file. Write it only for tasks that are TODO and will be
+started in a new session. It is removed at session start, as above, never left behind.
+
 ## Writing notes
 
 Before changing a note, read the whole thing (`GET /agent/tasks/T42` or `/agent/meetings/M17`).
@@ -256,9 +338,21 @@ Before changing a note, read the whole thing (`GET /agent/tasks/T42` or `/agent/
   - merge repeated or overlapping points into one,
   - turn finished `TODO:` items into `DONE:`, and keep open ones as `TODO:` (in a task's What's
     Next, move finished items into Progress instead — see "Task notes"),
-  - keep every fact, link and decision, and keep the user's own wording and headings —
-    tidy, don't summarise away detail or drop anything you weren't asked to remove.
+  - keep what passes the review-time test below, and keep the user's own wording and headings.
+- **Nothing older than today is deleted or condensed without the user seeing it first.** Merging
+  repeated facts and ticking off TODOs is fine; anything beyond that is shown as "removing: …" and
+  needs their OK (see "Deep tidy").
 - Tell the user when you rewrote a note and what you merged or marked done.
+
+**The review-time test: what belongs in the human notes.** The notes serve two readers: the user
+at review time ("what meaningful work did I do this year?") and the user tomorrow ("where was I,
+what's next?"). Keep what answers either: outcomes, shipped work, decisions and their reasons,
+numbers that moved, who was unblocked, open questions, what's next. Detail only a future agent
+session needs (where things live, branch names, lessons, review-round findings) goes in the
+task's agent context (see "Sessions and agent context"). Detail nobody will need again (review
+rounds, superseded estimates, play-by-play of intermediate commits, text already in the repo or a
+PR) is simply left out or deleted. Nothing is saved off "just in case": the user won't read an
+archive.
 
 ### Tidy as you go
 
@@ -271,19 +365,24 @@ same change. Only then — never on a read-only request, and only the note you'r
   a status line.
 - **Wins:** if the note or today's work contains a win that isn't recorded yet, add it as a win
   (see "Status and wins"). Don't leave a Wins section in the notes.
-- **Context:** when a decision or number is superseded, update it in place but keep the history
-  ("revised Oct 30: …", "was 28, now about 23 on develop"). Merge points that say the same thing.
-- **Progress:** merge only facts recorded twice. Never cut or condense past days in a routine
-  update.
+- **Context:** when a decision or number is superseded, update it in place; keep a short "was X"
+  only if the change itself matters at review time. Merge points that say the same thing.
+- **Progress:** add today, and merge only facts recorded twice. Never cut or condense past days in
+  a routine update. If past days have grown into detail that fails the review-time test, say so
+  and offer a deep tidy; don't do it unasked.
+- **Agent context:** when today's work produced something a fresh session needs (a new path,
+  decision, gotcha), put it in the context file rather than the notes, and rewrite that file.
 - **Something looks wrong or contradicts something else?** Point it out to the user and ask —
   never correct it silently.
 - Say what you tidied ("moved 3 finished items out of What's Next, merged a repeated decision in
   Context").
 
 **Deep tidy, only when the user asks** ("tidy T32", "clean up T32's notes"): you may also condense
-older Progress days, reorganize Context and remove what has stopped being useful. Before saving,
-show the user the main cuts and condensations and wait for their OK; the automatic backup covers
-the rest.
+older Progress days, reorganize Context and delete what has stopped being useful. Judge by the
+review-time test. Before saving, show the user the proposed note, the context file if there is one,
+and a list of every deletion and condensation (the original line next to its replacement), and
+wait for their OK. Deleted text is not archived anywhere; the automatic note backup (30 days) is
+only a safety net for mistakes. When detail moves to the agent context, say so.
 
 ### Task notes
 
@@ -311,11 +410,16 @@ status and the wins are separate fields, not part of the note; see "Status and w
    change: add new items, take out finished ones, drop what's no longer relevant, and ask about
    items whose deadline has passed.
 
-**Keep it readable, without losing work.** Short bullets, links instead of pasted text, and a level
-of detail like a good standup update; long notes are fine when the work was substantial. Don't
-drop or summarize away past work — Progress is the record of what the user did. You may merge
-entries that repeat each other (the same fact recorded twice), and keep wins and decisions in
-their own sections.
+**Keep it readable.** Short bullets, links instead of pasted text, and a level of detail like a
+good standup update. There is no length limit, and don't shorten a note just to make it shorter:
+Progress is the record of meaningful work the user did, so what passes the review-time test stays.
+Write each entry at outcome level in the first place ("Merged #4801 (step 2): 23 → 18 requests"),
+not as a changelog ("five review rounds fixed a crash, a leak, …"). You may merge entries that
+repeat each other (the same fact recorded twice).
+
+**Parent tasks** get one Progress line per sub-task event ("T52 done: failed Registration Response
+now recovers on the Auth Response retry"), and keep only the decisions that are current for the
+parent's own goal. A sub-task's day-by-day work and its decision history live in the sub-task.
 
 **Dates:** use a date the note or the user gives. Infer one only from clear evidence (a linked
 meeting that day, an activity timestamp) and say so when you report the change; otherwise ask, or
@@ -326,13 +430,14 @@ structured task note normally means sending the whole revised note with `"mode":
 than appending to the end. The previous version is backed up first.
 
 **Existing notes in another shape:** the first time you update such a task, reorganize its notes
-into this shape, keeping every fact, link, decision and the user's wording (a backup is saved
-automatically). That includes moving any `DONE:` items out of What's Next into Progress, moving a trailing
+into this shape, keeping what passes the review-time test, every link, and the user's wording
+(a backup is saved automatically; show the user anything you would remove, as in a deep tidy). That includes moving any `DONE:` items out of What's Next into Progress, moving a trailing
 `**Status:**` line into the `status` field, and turning a **Wins** section into wins (when it isn't
 clear which day a win happened, use the day of the Progress entry it relates to, else ask). Tell the
 user you reorganized them, and which dates you inferred.
 
-Shape (omit empty sections):
+Shape (omit empty sections). A TODO task that is waiting for a session may also start with a
+**Start prompt** (see "Sessions and agent context"):
 
 ```markdown
 **Context**
@@ -405,28 +510,26 @@ session.
 
 **If the user says yes:**
 
-- **Create it** with `"parent_id"` (it takes the parent's workstream), state `todo`, and notes in
-  the task shape above. Its notes are the **handoff**: a fresh agent in a new session should be
-  able to start from them alone, without the parent's history.
-  - **Context:** the goal and what "done" looks like; why it was split out and how it serves the
-    parent; the parent's decisions, constraints and open questions that apply, copied in with
-    "(from T32)" rather than "see T32"; where the work lives (repos, branches, PRs, files, paths)
-    and who to talk to; gotchas and earlier findings.
-  - **What's Next:** the first concrete steps.
-  - Its `status` field: "Not started; split out from T32 on Oct 30."
+- **Create it** with `"parent_id"` (it takes the parent's workstream), state `todo`, and short
+  human notes in the task shape above: Context (the goal and what "done" looks like, why it was
+  split out and how it serves the parent), What's Next (the first concrete steps), and a **Start
+  prompt**. Its `status` field: "Not started; split out from T32 on Oct 30."
+- **Write its agent context** (`POST /agent/tasks/T51/context`): this is the **handoff**, so a
+  fresh agent in a new session can start from it. "Reads first" points at the parent's context
+  (`T32`); copy a parent decision in only when it is stable and binds this task (mark it
+  "(from T32)"); add where the work lives and who to talk to, gotchas and earlier findings.
 - **Update the parent** in the same pass: the What's Next item becomes a one-line pointer
   (`- TODO: Step 3: single commit at Registration Accept (T51)`); detail that moved into the
   sub-task comes out of the parent, keeping anything still about the parent's own goal; add a
   Progress line ("Split out T51 for …"); update the parent's `status`.
-- **Give the user a starting prompt** for a fresh session, since you can't start one yourself:
-  > Work on T51 (Step 3: single commit at Registration Accept). Read its notes with the
-  > daily-work-log skill first, then start on the first TODO. Record progress in T51's notes as you go.
+- **Put the Start prompt in T51's notes** and show it to the user, since you can't start a session
+  yourself.
 - Sub-tasks go one level deep. If the parent is itself a sub-task, offer a sibling under its
   parent instead.
 
 **Keep parent and sub-tasks linked.** A parent TODO that has a sub-task names its reference
 (`(T44)`), never just "(sub-task)". The sub-task's day-by-day work lives in its own notes; the
-parent's Progress doesn't repeat it. When a sub-task is completed, take its pointer out of the
+parent's Progress doesn't repeat it (one line per sub-task event, as above). When a sub-task is completed, take its pointer out of the
 parent's What's Next, add a one-line Progress entry to the parent ("T50 done: …"), and suggest
 copying a significant win up to the parent.
 

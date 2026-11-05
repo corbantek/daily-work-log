@@ -1,13 +1,15 @@
 import type { Attachment, MeetingLink } from '../api/types'
 import { attachmentOpenUrl } from '../api/client'
+import { AgentContextArea, splitAgentContext } from './AgentContext'
 import { LINK_ICONS, sortLinks } from './LinkSection'
 
 /**
  * A task's or meeting's links and attached files, read-only (Review → Meetings digest, search detail dialog).
  * Links and files sit in two columns (stacked on narrow widths); with only one kind it is a single list.
  */
-export function LinkedItems({ links, attachments }: { links: Pick<MeetingLink, 'id' | 'url' | 'label' | 'link_type'>[]; attachments: Attachment[] }) {
-  if (links.length === 0 && attachments.length === 0) return null
+export function LinkedItems({ links, attachments: allAttachments }: { links: Pick<MeetingLink, 'id' | 'url' | 'label' | 'link_type'>[]; attachments: Attachment[] }) {
+  const { context, files: attachments } = splitAgentContext(allAttachments)
+  if (links.length === 0 && attachments.length === 0 && !context) return null
   const both = links.length > 0 && attachments.length > 0
 
   const linkList = sortLinks(links as (typeof links[number] & { created_at?: string })[]).map(l => (
@@ -30,18 +32,23 @@ export function LinkedItems({ links, attachments }: { links: Pick<MeetingLink, '
     </div>
   ))
 
-  if (!both) return <div className="space-y-1">{linkList}{fileList}</div>
+  const contextArea = <AgentContextArea context={context} />
+
+  if (!both) return <div className="space-y-1">{linkList}{fileList}{contextArea}</div>
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
-      <div className="space-y-1 min-w-0">
-        <p className="text-[11px] font-medium text-muted-foreground">Links ({links.length})</p>
-        {linkList}
+    <div className="space-y-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
+        <div className="space-y-1 min-w-0">
+          <p className="text-[11px] font-medium text-muted-foreground">Links ({links.length})</p>
+          {linkList}
+        </div>
+        <div className="space-y-1 min-w-0">
+          <p className="text-[11px] font-medium text-muted-foreground">Files ({attachments.length})</p>
+          {fileList}
+        </div>
       </div>
-      <div className="space-y-1 min-w-0">
-        <p className="text-[11px] font-medium text-muted-foreground">Files ({attachments.length})</p>
-        {fileList}
-      </div>
+      {contextArea}
     </div>
   )
 }

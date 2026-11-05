@@ -92,6 +92,30 @@ class AgentFileTests(unittest.TestCase):
             A.agent_file(f["id"], self.s)
         self.assertIn("missing", str(cm.exception.detail))
 
+    def test_context_is_created_then_replaced_in_place(self):
+        self.assertEqual(A.agent_task_context("T1", self.s), {"ref": "T1", "exists": False, "content": None})
+        first = A.agent_write_task_context("T1", A.ContextText(text="# v1\n- repo X"), self.s)
+        self.assertEqual((first["exists"], first["content"], first["context_backup"]), (True, "# v1\n- repo X", None))
+        second = A.agent_write_task_context("T1", A.ContextText(text="# v2"), self.s)
+        self.assertEqual(second["file_id"], first["file_id"])  # same file, no duplicate
+        self.assertEqual(A.agent_task_context("t1", self.s)["content"], "# v2")
+        files = A.agent_task_files("T1", self.s)["files"]
+        self.assertEqual([f["filename"] for f in files], ["agent-context.md"])
+        self.assertEqual(len(list((self.dir / "files").iterdir())), 1)  # the old stored file is gone
+        self.assertTrue(A.task_detail(A._get_task(self.s, "T1"), self.s)["has_context"])
+        # the earlier version is recoverable like a note
+        self.assertEqual(A.agent_note_backup("T1-context", second["context_backup"])["notes"], "# v1\n- repo X")
+        self.assertNotIn(second["context_backup"], [b["name"] for b in A.agent_note_backups("T1")["backups"]])
+        self.assertIn('updated agent-context.md on T1 "Fix retries"', A.agent_activity(1, self.s)[0]["summary"])
+
+    def test_meeting_context_and_validation(self):
+        out = A.agent_write_meeting_context("M1", A.ContextText(text="prep"), self.s)
+        self.assertEqual((out["ref"], out["content"]), ("M1", "prep"))
+        self.assertEqual(A.agent_meeting_context("M1", self.s)["content"], "prep")
+        with self.assertRaises(HTTPException) as cm:
+            A.agent_write_task_context("T1", A.ContextText(text="  \n"), self.s)
+        self.assertEqual(cm.exception.status_code, 400)
+
 
 if __name__ == "__main__":
     unittest.main()

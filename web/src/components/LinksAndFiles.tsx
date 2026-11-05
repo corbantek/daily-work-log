@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import type { Attachment } from '../api/types'
 import { AttachButton, AttachmentList, type AttachmentUpload } from './Attachments'
+import { AgentContextArea, splitAgentContext } from './AgentContext'
 import { LinkSection, type LinkBody } from './LinkSection'
 import type { LinkType, TaskLink } from '../api/types'
 
@@ -19,9 +20,11 @@ interface Props {
 
 /**
  * The editable links and files of a task or meeting: two columns (Links | Files, stacked on narrow
- * widths), or one compact row of add buttons while there are neither.
+ * widths), or one compact row of add buttons while there are neither. The agent's context file
+ * (agent-context.md) is not a "file": it gets its own small line below.
  */
-export function LinksAndFiles({ links, attachments, att, defaultType, onAdd, onUpdate, onDelete, onChanged, extraActions }: Props) {
+export function LinksAndFiles({ links, attachments: allAttachments, att, defaultType, onAdd, onUpdate, onDelete, onChanged, extraActions }: Props) {
+  const { context, files: attachments } = splitAgentContext(allAttachments)
   const linkSection = (
     <LinkSection links={links} defaultType={defaultType} onAdd={onAdd} onUpdate={onUpdate} onDelete={onDelete} onChanged={onChanged} />
   )
@@ -55,6 +58,7 @@ export function LinksAndFiles({ links, attachments, att, defaultType, onAdd, onU
           </div>
         )}
       </div>
+      <AgentContextArea context={context} onChanged={onChanged} />
     </div>
   )
 }

@@ -1,7 +1,7 @@
 """Temporary snapshots of task/meeting/person notes, taken before every /agent notes change.
 
 They let the user (or the agent) recover a note if a rewrite goes wrong. Plain .md files in a folder
-next to the database (WORKLOG_NOTE_SNAPSHOTS to override), named "<ref>--<UTC time>.md", kept for
+next to the database (WORKLOG_NOTE_SNAPSHOTS to override), named "<ref>--<UTC time>.md" ("T42-context--…" for an agent-context.md), kept for
 RETENTION_DAYS and pruned on each save. Deliberately not part of the JSON backups: they are temporary.
 """
 import os
@@ -13,7 +13,7 @@ from typing import List, Optional
 from .database import DB_PATH
 
 RETENTION_DAYS = 30
-_NAME = re.compile(r"^(?P<ref>[TMP]\d+)--(?P<stamp>\d{8}T\d{6}\d{6}Z)\.md$")
+_NAME = re.compile(r"^(?P<ref>[TMP]\d+(?:-context)?)--(?P<stamp>\d{8}T\d{6}\d{6}Z)\.md$")
 
 
 def snapshots_dir() -> Path:
