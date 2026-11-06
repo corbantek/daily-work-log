@@ -201,3 +201,14 @@ A few casual sentences, no bullets (only if the user gave you something).
 
 If the user asks, copy it to the clipboard with `pbcopy` (heredoc, quoted `'EOF'`). Never post
 it anywhere yourself.
+
+## Ideas for later (not active)
+
+Noted 2026-11-06; don't do these until the user turns them on.
+
+- **Team and teammates' wins.** As the user works more with the team in their new role, the post
+  may also celebrate team wins as a whole and credit individuals for their work, giving praise
+  outward. This is the opposite of the "No quoted praise" rule, which is about praise *for the
+  user*. A likely source: the People tab's interactions (`GET /agent/people/{person}/interactions`
+  with `sentiment=strength`, high-impact ones first) dated in the period. Open questions: a
+  separate section ("🙌 *Team*") or mixed into Wins, and whether to ask before naming someone.
