@@ -6,10 +6,10 @@ API_PORT ?= 4747
 WEB_PORT ?= 4748
 export API_PORT WEB_PORT
 
-# Claude Code skill for the /agent API (agent-skill/daily-work-log). Installed as a symlink so edits
-# to the repo copy take effect without reinstalling.
-SKILL_SRC   = $(CURDIR)/agent-skill/daily-work-log
-SKILL_DEST  = $(HOME)/.claude/skills/daily-work-log
+# Claude Code skills for the /agent API (every folder in agent-skill/: daily-work-log, team-update).
+# Installed as symlinks so edits to the repo copy take effect without reinstalling.
+SKILLS      = $(notdir $(wildcard agent-skill/*))
+SKILLS_DIR  = $(HOME)/.claude/skills
 
 PLIST_NAME  = local.daily-work-log
 PLIST_DEST  = $(HOME)/Library/LaunchAgents/$(PLIST_NAME).plist
@@ -101,19 +101,24 @@ open:
 	open http://localhost:$(WEB_PORT)
 
 install-skill:
-	@mkdir -p $(HOME)/.claude/skills
-	@if [ -e "$(SKILL_DEST)" ] && [ ! -L "$(SKILL_DEST)" ]; then \
-		echo "✗ $(SKILL_DEST) exists and is not a link to this repo; move it away first."; exit 1; fi
-	ln -sfn "$(SKILL_SRC)" "$(SKILL_DEST)"
-	@echo "✅ Skill linked: $(SKILL_DEST) -> $(SKILL_SRC)"
+	@mkdir -p $(SKILLS_DIR)
+	@for s in $(SKILLS); do \
+		dest="$(SKILLS_DIR)/$$s"; \
+		if [ -e "$$dest" ] && [ ! -L "$$dest" ]; then \
+			echo "✗ $$dest exists and is not a link to this repo; move it away first."; exit 1; fi; \
+		ln -sfn "$(CURDIR)/agent-skill/$$s" "$$dest" && echo "✅ Skill linked: $$dest -> $(CURDIR)/agent-skill/$$s"; \
+	done
 	@if [ "$(API_PORT)" != "4747" ]; then \
 		echo "   API_PORT is $(API_PORT): set WORKLOG_API=http://localhost:$(API_PORT) in your shell for the skill."; fi
 	@echo "   Start a new Claude Code session (or restart it) to pick the skill up."
 
 uninstall-skill:
-	@if [ -L "$(SKILL_DEST)" ]; then rm "$(SKILL_DEST)" && echo "✅ Skill link removed."; \
-	elif [ -e "$(SKILL_DEST)" ]; then echo "✗ $(SKILL_DEST) is not a link; not removing it."; exit 1; \
-	else echo "Skill not installed."; fi
+	@for s in $(SKILLS); do \
+		dest="$(SKILLS_DIR)/$$s"; \
+		if [ -L "$$dest" ]; then rm "$$dest" && echo "✅ Skill link removed: $$s"; \
+		elif [ -e "$$dest" ]; then echo "✗ $$dest is not a link; not removing it."; exit 1; \
+		else echo "Skill not installed: $$s"; fi; \
+	done
 
 agent-smoke:
 	./scripts/agent_smoke.sh

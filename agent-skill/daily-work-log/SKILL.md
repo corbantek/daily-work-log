@@ -552,3 +552,5 @@ For "what did I do this week" or a standup, start from `/agent/summary` (add `da
 `date_to` for other periods) and `/agent/day` for single days. Group by workstream, lead with
 completed and high-impact work and the `wins` it lists, and mention meeting load only if it is notable. Base everything on
 what the log says; if something is missing, say so instead of filling it in.
+
+A weekly or monthly **post for the user's team** (Slack) is the separate `team-update` skill.
