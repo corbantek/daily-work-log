@@ -6,7 +6,7 @@ API_PORT ?= 4747
 WEB_PORT ?= 4748
 export API_PORT WEB_PORT
 
-# Claude Code skills for the /agent API (every folder in agent-skill/: daily-work-log, team-update).
+# Claude Code skills for the /agent API (every folder in agent-skill/: daily-work-log, team-update, strip-slack-policy).
 # Installed as symlinks so edits to the repo copy take effect without reinstalling.
 SKILLS      = $(notdir $(wildcard agent-skill/*))
 SKILLS_DIR  = $(HOME)/.claude/skills
