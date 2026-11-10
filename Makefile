@@ -1,4 +1,4 @@
-.PHONY: install dev api web sample screenshot demo install-agent uninstall-agent restart-agent logs open install-skill uninstall-skill agent-smoke
+.PHONY: install dev api web sample screenshot demo install-agent uninstall-agent restart-agent logs open install-skill uninstall-skill agent-smoke install-app
 
 # Ports are deliberately off the common defaults (3000/5173/8000/8080) so this
 # app doesn't collide with other dev servers. Override: make dev API_PORT=... WEB_PORT=...
@@ -99,6 +99,13 @@ logs:
 
 open:
 	open http://localhost:$(WEB_PORT)
+
+install-app:
+	@echo "Install as a Mac app (Chrome PWA):"
+	@echo "  1. make open   (in Chrome)"
+	@echo "  2. Chrome menu -> Cast, save and share -> Install page as app"
+	@echo "  3. Move 'Daily Work Log' from ~/Applications/Chrome Apps.localized to /Applications / the Dock"
+	@echo "  The install is tied to http://localhost:$(WEB_PORT); changing WEB_PORT means reinstalling."
 
 install-skill:
 	@mkdir -p $(SKILLS_DIR)

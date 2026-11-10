@@ -29,6 +29,7 @@ make install-agent  # macOS launchd agent (runs at login, KeepAlive)
 make restart-agent  # needed after backend changes (no --reload in daemon)
 make logs           # tail agent stdout/stderr
 make open           # open http://localhost:4748
+make install-app    # steps to install it as a Mac app (Chrome PWA: web/public/manifest.webmanifest + icons)
 make install-skill  # link the Claude Code skills (agent-skill/*: daily-work-log, team-update) into ~/.claude/skills
 make agent-smoke    # run the skill's curl recipes against a throwaway API (needs jq)
 
